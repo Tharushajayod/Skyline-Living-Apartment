@@ -49,6 +49,7 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setPaymentMethod(request.getPaymentMethod());
         payment.setRemarks(request.getRemarks());
         payment.setPaymentReference(request.getPaymentReference());
+        payment.setCurrency("LKR");
 
         /*
          * Every newly submitted payment starts as PENDING.

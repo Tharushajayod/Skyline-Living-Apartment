@@ -18,6 +18,8 @@ import com.skyline.dto.payment.PaymentResponse;
 import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.service.PaymentService;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {
@@ -30,7 +32,7 @@ public class PaymentController {
 
     @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
-            @RequestBody CreatePaymentRequest request) {
+            @Valid @RequestBody CreatePaymentRequest request) {
 
         PaymentResponse response = paymentService.createPayment(request);
 

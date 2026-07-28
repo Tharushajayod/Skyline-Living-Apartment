@@ -16,6 +16,8 @@ import com.skyline.dto.payment.CreateTransactionRequest;
 import com.skyline.dto.payment.TransactionResponse;
 import com.skyline.service.TransactionService;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/transactions")
 public class TransactionController {
@@ -28,11 +30,14 @@ public class TransactionController {
 
     @PostMapping
     public ResponseEntity<TransactionResponse> createTransaction(
-            @RequestBody CreateTransactionRequest request) {
-
-        TransactionResponse response = transactionService.createTransaction(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            @Valid @RequestBody CreateTransactionRequest request) {
+    
+        TransactionResponse response =
+                transactionService.createTransaction(request);
+    
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     @GetMapping("/{transactionId}")
