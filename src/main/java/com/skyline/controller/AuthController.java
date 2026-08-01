@@ -1,5 +1,7 @@
 package com.skyline.controller;
 
+import java.time.LocalDateTime;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -63,6 +65,18 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 authService.resetPassword(request)
+        );
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse> logout() {
+
+        return ResponseEntity.ok(
+                new ApiResponse(
+                        true,
+                        "Logged out successfully",
+                        LocalDateTime.now()
+                )
         );
     }
 }
