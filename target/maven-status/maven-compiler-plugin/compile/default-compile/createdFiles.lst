@@ -9,6 +9,7 @@ com\skyline\entity\Payment.class
 com\skyline\dto\payment\CreatePaymentRequest.class
 com\skyline\controller\RoleTestController.class
 com\skyline\entity\Customer.class
+com\skyline\service\FileStorageService.class
 com\skyline\entity\Role.class
 com\skyline\dto\RegisterRequest.class
 com\skyline\dto\ResetPasswordRequest.class
@@ -16,6 +17,7 @@ com\skyline\dto\UpdateUserStatusRequest.class
 com\skyline\service\impl\TransactionServiceImpl.class
 com\skyline\service\PaymentService.class
 com\skyline\service\AdminUserService.class
+com\skyline\exception\FileStorageException.class
 com\skyline\dto\StaffResponse.class
 com\skyline\entity\User.class
 com\skyline\dto\payment\UpdatePaymentStatusRequest.class
@@ -29,6 +31,7 @@ com\skyline\repository\AuditLogRepository.class
 com\skyline\dto\StaffSummaryResponse.class
 com\skyline\entity\Staff.class
 com\skyline\dto\CreateStaffRequest.class
+com\skyline\exception\FileNotFoundException.class
 com\skyline\controller\PaymentController.class
 com\skyline\dto\ChangePasswordRequest.class
 com\skyline\repository\CustomerRepository.class
@@ -38,6 +41,7 @@ com\skyline\repository\StaffRepository.class
 com\skyline\exception\ResourceNotFoundException.class
 com\skyline\service\StaffService.class
 com\skyline\dto\UserSummaryResponse.class
+com\skyline\controller\FileController.class
 com\skyline\repository\UserRepository.class
 com\skyline\service\AuthService.class
 com\skyline\repository\PasswordResetTokenRepository.class
@@ -55,6 +59,7 @@ com\skyline\config\SecurityConfig.class
 com\skyline\service\TransactionService.class
 com\skyline\controller\TransactionController.class
 com\skyline\repository\TransactionRepository.class
+com\skyline\service\impl\LocalFileStorageService.class
 com\skyline\dto\LoginResponse.class
 com\skyline\dto\payment\TransactionResponse.class
 com\skyline\dto\UserProfileResponse.class

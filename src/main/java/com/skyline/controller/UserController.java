@@ -1,12 +1,17 @@
 package com.skyline.controller;
 
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.skyline.dto.ChangePasswordRequest;
 import com.skyline.dto.UpdateUserProfileRequest;
@@ -65,6 +70,47 @@ public class UserController {
                         "success", true,
                         "message", "Password changed successfully"
                 )
+        );
+        }
+    @PutMapping(
+                value = "/me/profile-image",
+                consumes = "multipart/form-data"
+        )
+        public UserProfileResponse updateProfileImage(
+                Authentication authentication,
+                @RequestParam("file") MultipartFile file
+        ) {
+
+        return userService.updateProfileImage(
+                authentication.getName(),
+                file
+        );
+        }
+        
+        @DeleteMapping("/me")
+        public ResponseEntity<Map<String, Object>> deactivateAccount(
+                Authentication authentication
+        ) {
+
+        userService.deactivateCurrentUserAccount(
+                authentication.getName()
+        );
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "success", true,
+                        "message", "Account deactivated successfully"
+                )
+        );
+        }
+
+        @DeleteMapping("/me/profile-image")
+        public UserProfileResponse removeProfileImage(
+                Authentication authentication
+        ) {
+
+        return userService.removeProfileImage(
+                authentication.getName()
         );
         }
 }
