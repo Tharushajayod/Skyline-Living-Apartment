@@ -26,10 +26,10 @@ public class Customer {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @Column(name = "nic", unique = true)
+    @Column(name = "nic_passport_number", unique = true)
     private String nic;
 
-    @Column(name = "address")
+    @Column(name = "address_line_1")
     private String address;
 
     @Column(name = "city")

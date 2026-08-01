@@ -57,7 +57,7 @@ public class AuthService {
         }
 
         Role customerRole = roleRepository
-                .findByRoleName("Customer")
+                .findByRoleName("CUSTOMER")
                 .orElseThrow(() ->
                     new ResourceNotFoundException(
                             "Customer role not found"));

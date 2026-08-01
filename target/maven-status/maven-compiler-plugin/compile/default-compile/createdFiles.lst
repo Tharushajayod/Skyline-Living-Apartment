@@ -12,12 +12,15 @@ com\skyline\entity\Customer.class
 com\skyline\entity\Role.class
 com\skyline\dto\RegisterRequest.class
 com\skyline\dto\UpdateUserStatusRequest.class
+com\skyline\service\impl\TransactionServiceImpl.class
+com\skyline\service\PaymentService.class
 com\skyline\service\AdminUserService.class
 com\skyline\dto\StaffResponse.class
 com\skyline\entity\User.class
 com\skyline\dto\payment\UpdatePaymentStatusRequest.class
 com\skyline\controller\AdminUserController.class
 com\skyline\SkylineLivingBackendApplication.class
+com\skyline\service\impl\PaymentServiceImpl.class
 com\skyline\entity\AuditLog.class
 com\skyline\repository\RoleRepository.class
 com\skyline\entity\Transaction.class
@@ -25,6 +28,7 @@ com\skyline\repository\AuditLogRepository.class
 com\skyline\dto\StaffSummaryResponse.class
 com\skyline\entity\Staff.class
 com\skyline\dto\CreateStaffRequest.class
+com\skyline\controller\PaymentController.class
 com\skyline\repository\CustomerRepository.class
 com\skyline\dto\RegisterResponse.class
 com\skyline\repository\StaffRepository.class
@@ -42,6 +46,8 @@ com\skyline\dto\ApiResponse.class
 com\skyline\config\PasswordConfig.class
 com\skyline\security\JwtService.class
 com\skyline\config\SecurityConfig.class
+com\skyline\service\TransactionService.class
+com\skyline\controller\TransactionController.class
 com\skyline\repository\TransactionRepository.class
 com\skyline\dto\LoginResponse.class
 com\skyline\dto\payment\TransactionResponse.class

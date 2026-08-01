@@ -38,11 +38,20 @@ public class Staff {
     @Column(name = "department")
     private String department;
 
-    @Column(name = "designation")
+    @Column(name = "position", nullable = false)
     private String designation;
 
     @Column(name = "hire_date")
     private LocalDate hireDate;
+
+    @Column(name = "staff_status", nullable = false)
+    private String staffStatus = "ACTIVE";
+
+    @Column(name = "created_at", nullable = false)
+    private java.time.LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private java.time.LocalDateTime updatedAt;
 
     public Staff() {
     }
@@ -102,4 +111,8 @@ public class Staff {
     ) {
         this.hireDate = hireDate;
     }
+    public String getStaffStatus(){ return staffStatus; }
+    public void setStaffStatus(String v){ staffStatus=v; }
+    @jakarta.persistence.PrePersist public void prePersist(){ java.time.LocalDateTime n=java.time.LocalDateTime.now(); if(createdAt==null)createdAt=n; if(updatedAt==null)updatedAt=n; if(staffStatus==null||staffStatus.isBlank())staffStatus="ACTIVE"; }
+    @jakarta.persistence.PreUpdate public void preUpdate(){ updatedAt=java.time.LocalDateTime.now(); }
 }

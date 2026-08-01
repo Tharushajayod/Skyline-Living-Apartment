@@ -28,7 +28,7 @@ public class AuditLog {
     @Column(name = "action", nullable = false)
     private String action;
 
-    @Column(name = "table_name")
+    @Column(name = "entity_name")
     private String tableName;
 
     @Column(name = "record_id")
