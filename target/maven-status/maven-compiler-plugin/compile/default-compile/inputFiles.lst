@@ -9,7 +9,9 @@ D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\m
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\controller\TransactionController.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\controller\UserController.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\ApiResponse.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\ChangePasswordRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\CreateStaffRequest.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\ForgotPasswordRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\LoginRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\LoginResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\CreatePaymentRequest.java
@@ -19,13 +21,16 @@ D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\m
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\UpdatePaymentStatusRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\RegisterRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\RegisterResponse.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\ResetPasswordRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\StaffResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\StaffSummaryResponse.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\UpdateUserProfileRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\UpdateUserStatusRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\UserProfileResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\UserSummaryResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\entity\AuditLog.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\entity\Customer.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\entity\PasswordResetToken.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\entity\Payment.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\entity\Role.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\entity\Staff.java
@@ -36,6 +41,7 @@ D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\m
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\exception\ResourceNotFoundException.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\repository\AuditLogRepository.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\repository\CustomerRepository.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\repository\PasswordResetTokenRepository.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\repository\PaymentRepository.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\repository\RoleRepository.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\repository\StaffRepository.java

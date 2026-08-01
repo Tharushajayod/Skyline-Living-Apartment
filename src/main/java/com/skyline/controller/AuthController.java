@@ -8,10 +8,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.skyline.dto.ApiResponse;
+import com.skyline.dto.ForgotPasswordRequest;
 import com.skyline.dto.LoginRequest;
 import com.skyline.dto.LoginResponse;
 import com.skyline.dto.RegisterRequest;
 import com.skyline.dto.RegisterResponse;
+import com.skyline.dto.ResetPasswordRequest;
 import com.skyline.service.AuthService;
 
 import jakarta.validation.Valid;
@@ -42,6 +45,24 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 authService.login(request)
+        );
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+
+        return ResponseEntity.ok(
+                authService.forgotPassword(request)
+        );
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+
+        return ResponseEntity.ok(
+                authService.resetPassword(request)
         );
     }
 }
