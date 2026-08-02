@@ -6,8 +6,10 @@ import com.skyline.dto.payment.CreatePaymentRequest;
 import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
 import com.skyline.dto.payment.PaymentDetailsResponse;
 import com.skyline.dto.payment.PaymentResponse;
+import com.skyline.dto.payment.PaymentStatusReportResponse;
 import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
+import com.skyline.dto.payment.MonthlyRevenueResponse;
 
 public interface PaymentService {
 
@@ -37,4 +39,12 @@ public interface PaymentService {
     List<PaymentResponse> getPaymentsByStatus(String paymentStatus);
 
     PaymentDashboardSummaryResponse getDashboardSummary();
+
+    List<MonthlyRevenueResponse> getMonthlyRevenue(
+            Integer year
+    );
+
+    PaymentStatusReportResponse getPaymentStatusReport();
+
+    List<PaymentResponse> getOutstandingPayments();
 }

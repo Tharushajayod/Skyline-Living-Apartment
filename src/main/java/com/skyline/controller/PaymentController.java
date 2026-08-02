@@ -14,13 +14,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.RequestParam;
 
+import com.skyline.dto.payment.MonthlyRevenueResponse;
 import com.skyline.dto.payment.CreatePaymentRequest;
 import com.skyline.dto.payment.PaymentDetailsResponse;
 import com.skyline.dto.payment.PaymentResponse;
 import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.service.PaymentService;
 import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
+import com.skyline.dto.payment.PaymentStatusReportResponse;
 
 import jakarta.validation.Valid;
 
@@ -164,6 +167,49 @@ public class PaymentController {
 
         return ResponseEntity.ok(
                 paymentService.getDashboardSummary()
+        );
+    }
+
+    @GetMapping("/reports/monthly-revenue")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER','ADMIN')"
+    )
+    public ResponseEntity<List<MonthlyRevenueResponse>>
+    getMonthlyRevenue(
+    
+            @RequestParam Integer year
+    
+    ) {
+    
+        return ResponseEntity.ok(
+    
+                paymentService.getMonthlyRevenue(year)
+    
+        );
+    
+    }
+
+    @GetMapping("/reports/status")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<PaymentStatusReportResponse>
+    getPaymentStatusReport() {
+
+        return ResponseEntity.ok(
+                paymentService.getPaymentStatusReport()
+        );
+    }
+
+    @GetMapping("/reports/outstanding")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<List<PaymentResponse>>
+    getOutstandingPayments() {
+
+        return ResponseEntity.ok(
+                paymentService.getOutstandingPayments()
         );
     }
 }

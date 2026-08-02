@@ -20,6 +20,8 @@ import com.skyline.entity.User;
 import com.skyline.repository.PaymentEvidenceRepository;
 import com.skyline.repository.UserRepository;
 import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
+import com.skyline.dto.payment.MonthlyRevenueResponse;
+import com.skyline.dto.payment.PaymentStatusReportResponse;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -31,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
+import java.util.ArrayList;
 
 
 @Service
@@ -407,6 +410,93 @@ public class PaymentServiceImpl implements PaymentService {
                 .stream()
                 .map(this::mapToPaymentResponse)
                 .toList();
+    }
+
+    @Override
+    public List<MonthlyRevenueResponse> getMonthlyRevenue(
+            Integer year
+    ) {
+    
+        List<Object[]> result =
+                paymentRepository.getMonthlyRevenue(year);
+    
+        List<MonthlyRevenueResponse> response =
+                new ArrayList<>();
+    
+        for (Object[] row : result) {
+    
+            int month =
+                    ((Number) row[0]).intValue();
+    
+            BigDecimal revenue =
+                    (BigDecimal) row[1];
+    
+            String monthName =
+                    java.time.Month
+                            .of(month)
+                            .name();
+    
+            response.add(
+    
+                    new MonthlyRevenueResponse(
+    
+                            month,
+    
+                            monthName,
+    
+                            revenue
+    
+                    )
+            );
+    
+        }
+    
+        return response;
+    
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentStatusReportResponse getPaymentStatusReport() {
+
+        long paid = paymentRepository.countByPaymentStatus(
+                "PAID"
+        );
+
+        long pending = paymentRepository.countByPaymentStatus(
+                "PENDING"
+        );
+
+        long rejected = paymentRepository.countByPaymentStatus(
+                "REJECTED"
+        );
+
+        long partiallyPaid = paymentRepository.countByPaymentStatus(
+                "PARTIALLY_PAID"
+        );
+
+        return new PaymentStatusReportResponse(
+                paid,
+                pending,
+                rejected,
+                partiallyPaid
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentResponse> getOutstandingPayments() {
+
+        return paymentRepository
+        .findByPaymentStatusInOrderByCreatedAtDesc(
+                List.of(
+                        "PENDING",
+                        "PARTIALLY_PAID"
+                )
+        )
+        .stream()
+        .map(this::mapToPaymentResponse)
+        .toList();
     }
 
     private PaymentResponse mapToPaymentResponse(Payment payment) {

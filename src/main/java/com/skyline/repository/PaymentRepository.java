@@ -21,6 +21,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findByPaymentStatusOrderByCreatedAtDesc(String paymentStatus);
 
+    List<Payment> findByPaymentStatusInOrderByCreatedAtDesc(List<String> paymentStatuses);
+
     long countByPaymentStatus(String paymentStatus);
 
     @Query(
@@ -45,5 +47,18 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             nativeQuery = true
     )
     BigDecimal calculateTotalOutstandingAmount();
+
+    @Query(value = """
+        SELECT
+        MONTH(payment_date),
+        COALESCE(SUM(amount),0)
+        FROM payments
+        WHERE YEAR(payment_date)=:year
+        AND payment_status='PAID'
+        GROUP BY MONTH(payment_date)
+        ORDER BY MONTH(payment_date)
+        """, nativeQuery = true)
+
+    List<Object[]> getMonthlyRevenue(Integer year);
 
 }
