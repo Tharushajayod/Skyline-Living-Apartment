@@ -26,7 +26,7 @@ public class StaffService {
                     "CUSTOMER_RELATIONS_OFFICER",
                     "OPERATIONS_MANAGER",
                     "MARKETING_EXECUTIVE",
-                    "FINANCE_PAYMENT_OFFICER"
+                    "FINANCE_OFFICER"
             );
 
     private final UserRepository userRepository;

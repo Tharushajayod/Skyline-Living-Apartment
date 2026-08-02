@@ -8,6 +8,10 @@ import com.skyline.entity.Payment;
 import com.skyline.repository.CustomerRepository;
 import com.skyline.repository.PaymentRepository;
 import com.skyline.service.PaymentService;
+import com.skyline.entity.Staff;
+import com.skyline.repository.StaffRepository;
+import com.skyline.entity.Transaction;
+import com.skyline.repository.TransactionRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -17,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -24,13 +29,19 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final CustomerRepository customerRepository;
+    private final StaffRepository staffRepository;
+    private final TransactionRepository transactionRepository;
 
     public PaymentServiceImpl(
-            PaymentRepository paymentRepository,
-            CustomerRepository customerRepository) {
-
+        PaymentRepository paymentRepository,
+        CustomerRepository customerRepository,
+        StaffRepository staffRepository,
+        TransactionRepository transactionRepository
+    ) {
         this.paymentRepository = paymentRepository;
         this.customerRepository = customerRepository;
+        this.staffRepository = staffRepository;
+        this.transactionRepository = transactionRepository;
     }
 
     @Override
@@ -112,12 +123,26 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public PaymentResponse updatePaymentStatus(
             Long paymentId,
-            UpdatePaymentStatusRequest request) {
+            UpdatePaymentStatusRequest request,
+            String verifierEmail
+    ) {
 
         Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Payment not found with ID: " + paymentId
-                ));
+                .orElseThrow(() ->
+                        new EntityNotFoundException(
+                                "Payment not found with ID: " + paymentId
+                        )
+                );
+
+        Staff verifier = staffRepository
+                .findByUserEmail(
+                        verifierEmail.trim().toLowerCase()
+                )
+                .orElseThrow(() ->
+                        new EntityNotFoundException(
+                                "Finance staff profile not found"
+                        )
+                );
 
         String newStatus = request.getPaymentStatus();
 
@@ -131,49 +156,62 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (!isValidPaymentStatus(newStatus)) {
             throw new IllegalArgumentException(
-                    "Invalid payment status. Allowed values are " +
-                    "PENDING, PAID, PARTIALLY_PAID and REJECTED"
+                    "Allowed statuses are PAID, PARTIALLY_PAID and REJECTED"
             );
         }
 
-        if ("REJECTED".equals(newStatus)
-                && (request.getRejectionReason() == null
-                || request.getRejectionReason().isBlank())) {
-
+        if (!"PENDING".equalsIgnoreCase(payment.getPaymentStatus())) {
             throw new IllegalArgumentException(
-                    "Rejection reason is required when rejecting a payment"
+                    "Only pending payments can be verified or rejected"
             );
         }
 
-        payment.setPaymentStatus(newStatus);
+        if ("REJECTED".equals(newStatus)) {
 
-        if ("PAID".equals(newStatus)) {
+            if (request.getRejectionReason() == null
+                    || request.getRejectionReason().isBlank()) {
 
-            payment.setPaidAmount(payment.getTotalPayableAmount());
-            payment.setOutstandingAmount(BigDecimal.ZERO);
-            payment.setRejectionReason(null);
-            payment.setVerifiedAt(LocalDateTime.now());
+                throw new IllegalArgumentException(
+                        "Rejection reason is required"
+                );
+            }
 
-        } else if ("PARTIALLY_PAID".equals(newStatus)) {
-
-            payment.setRejectionReason(null);
-            payment.setVerifiedAt(LocalDateTime.now());
-
-        } else if ("REJECTED".equals(newStatus)) {
-
+            payment.setPaymentStatus("REJECTED");
             payment.setRejectionReason(
                     request.getRejectionReason().trim()
             );
 
-            payment.setVerifiedAt(LocalDateTime.now());
+        } else if ("PAID".equals(newStatus)) {
 
-        } else {
+            payment.setPaymentStatus("PAID");
+
+            payment.setPaidAmount(
+                    payment.getTotalPayableAmount()
+            );
+
+            payment.setOutstandingAmount(
+                    BigDecimal.ZERO
+            );
 
             payment.setRejectionReason(null);
-            payment.setVerifiedAt(null);
+        } else {
+
+            payment.setPaymentStatus("PARTIALLY_PAID");
+            payment.setRejectionReason(null);
         }
 
-        Payment updatedPayment = paymentRepository.save(payment);
+        payment.setVerifiedBy(verifier);
+        payment.setVerifiedAt(LocalDateTime.now());
+
+        Payment updatedPayment =
+                paymentRepository.save(payment);
+
+                if ("PAID".equals(newStatus)) {
+                    createSuccessfulTransactionIfRequired(
+                            updatedPayment,
+                            verifier
+                    );
+                }
 
         return mapToPaymentResponse(updatedPayment);
     }
@@ -190,9 +228,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private boolean isValidPaymentStatus(String status) {
-
-        return "PENDING".equals(status)
-                || "PAID".equals(status)
+        return "PAID".equals(status)
                 || "PARTIALLY_PAID".equals(status)
                 || "REJECTED".equals(status);
     }
@@ -217,6 +253,79 @@ public class PaymentServiceImpl implements PaymentService {
         response.setPaymentReference(payment.getPaymentReference());
         response.setRemarks(payment.getRemarks());
 
+        if (payment.getVerifiedBy() != null) {
+
+            response.setVerifiedByStaffId(
+                    payment.getVerifiedBy().getStaffId()
+            );
+
+            if (payment.getVerifiedBy().getUser() != null) {
+                response.setVerifiedByName(
+                        payment.getVerifiedBy()
+                                .getUser()
+                                .getFullName()
+                );
+            }
+        }
+
+        response.setVerifiedAt(payment.getVerifiedAt());
+        response.setRejectionReason(payment.getRejectionReason());
+
         return response;
+    }
+
+    private void createSuccessfulTransactionIfRequired(
+        Payment payment,
+        Staff processedBy
+    ) {
+
+        boolean successfulTransactionExists =
+                transactionRepository
+                        .existsByPaymentPaymentIdAndTransactionStatus(
+                                payment.getPaymentId(),
+                                "SUCCESS"
+                        );
+
+        if (successfulTransactionExists) {
+            return;
+        }
+
+        String uniquePart = UUID.randomUUID()
+                .toString()
+                .replace("-", "")
+                .substring(0, 10)
+                .toUpperCase();
+
+        Transaction transaction = new Transaction();
+
+        transaction.setPayment(payment);
+
+        transaction.setTransactionNumber(
+                "TXN-" + uniquePart
+        );
+
+        transaction.setReceiptNumber(
+                "RCPT-" + uniquePart
+        );
+
+        transaction.setTransactionType("PAYMENT");
+        transaction.setTransactionStatus("SUCCESS");
+
+        transaction.setTransactionAmount(
+                payment.getTotalPayableAmount()
+        );
+
+        transaction.setProcessedBy(processedBy);
+        transaction.setProcessedDate(LocalDateTime.now());
+
+        transaction.setBankReference(
+                payment.getPaymentReference()
+        );
+
+        transaction.setRemarks(
+                "Automatically created after payment verification"
+        );
+
+        transactionRepository.save(transaction);
     }
 }

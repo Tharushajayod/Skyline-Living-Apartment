@@ -19,6 +19,11 @@ public class PaymentResponse {
     private String paymentReference;
     private String remarks;
 
+    private Long verifiedByStaffId;
+    private String verifiedByName;
+    private LocalDateTime verifiedAt;
+    private String rejectionReason;
+
     public PaymentResponse() {
     }
 
@@ -92,5 +97,37 @@ public class PaymentResponse {
 
     public void setRemarks(String remarks) {
         this.remarks = remarks;
+    }
+
+    public Long getVerifiedByStaffId() {
+        return verifiedByStaffId;
+    }
+
+    public void setVerifiedByStaffId(Long verifiedByStaffId) {
+        this.verifiedByStaffId = verifiedByStaffId;
+    }
+
+    public String getVerifiedByName() {
+        return verifiedByName;
+    }
+
+    public void setVerifiedByName(String verifiedByName) {
+        this.verifiedByName = verifiedByName;
+    }
+
+    public LocalDateTime getVerifiedAt() {
+        return verifiedAt;
+    }
+
+    public void setVerifiedAt(LocalDateTime verifiedAt) {
+        this.verifiedAt = verifiedAt;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 }

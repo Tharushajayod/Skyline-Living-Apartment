@@ -13,4 +13,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     Optional<Transaction> findByTransactionNumber(String transactionNumber);
 
     List<Transaction> findByPaymentPaymentId(Long paymentId);
+
+    boolean existsByPaymentPaymentIdAndTransactionStatus(
+            Long paymentId,
+            String transactionStatus
+    );
 }
+

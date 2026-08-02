@@ -16,8 +16,11 @@ public interface PaymentService {
 
     List<PaymentResponse> getPaymentsByCustomer(Long customerId);
 
-    PaymentResponse updatePaymentStatus(Long paymentId,
-                                        UpdatePaymentStatusRequest request);
+    PaymentResponse updatePaymentStatus(
+            Long paymentId,
+            UpdatePaymentStatusRequest request,
+            String verifierEmail
+    );
 
     void deletePayment(Long paymentId);
 }

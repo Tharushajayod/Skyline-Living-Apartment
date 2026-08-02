@@ -81,7 +81,7 @@ public class RoleTestController {
     }
 
     @GetMapping("/finance")
-    @PreAuthorize("hasRole('FINANCE_PAYMENT_OFFICER')")
+    @PreAuthorize("hasRole('FINANCE_OFFICER')")
     public Map<String, String> financeOfficerOnly() {
 
         return Map.of(

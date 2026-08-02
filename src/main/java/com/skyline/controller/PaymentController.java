@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 
 import com.skyline.dto.payment.CreatePaymentRequest;
 import com.skyline.dto.payment.PaymentResponse;
@@ -63,12 +65,22 @@ public class PaymentController {
     }
 
     @PutMapping("/{paymentId}/status")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
     public ResponseEntity<PaymentResponse> updatePaymentStatus(
             @PathVariable Long paymentId,
-            @RequestBody UpdatePaymentStatusRequest request) {
+            @Valid @RequestBody UpdatePaymentStatusRequest request,
+            Authentication authentication
+    ) {
 
         return ResponseEntity.ok(
-                paymentService.updatePaymentStatus(paymentId, request));
+                paymentService.updatePaymentStatus(
+                        paymentId,
+                        request,
+                        authentication.getName()
+                )
+        );
     }
 
     @DeleteMapping("/{paymentId}")
