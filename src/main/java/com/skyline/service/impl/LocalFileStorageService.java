@@ -50,52 +50,78 @@ public class LocalFileStorageService
 
     @Override
     public String storeFile(
-
             MultipartFile file,
             String category
-
     ) {
 
-        try {
+        if (file == null || file.isEmpty()) {
+            throw new FileStorageException(
+                    "Cannot store an empty file"
+            );
+        }
 
-            Path categoryFolder =
-                    uploadRoot.resolve(category);
+        try {
+            Path categoryFolder = uploadRoot
+                    .resolve(category)
+                    .normalize();
+
+            if (!categoryFolder.startsWith(uploadRoot)) {
+                throw new FileStorageException(
+                        "Invalid upload category"
+                );
+            }
 
             Files.createDirectories(categoryFolder);
 
-            String originalName =
-                    file.getOriginalFilename();
+            String originalName = file.getOriginalFilename();
+
+            if (originalName == null || originalName.isBlank()) {
+                originalName = "file";
+            }
+
+            // Remove path parts, quotes and unsafe characters
+            originalName = Paths.get(originalName)
+                    .getFileName()
+                    .toString()
+                    .replace("\"", "")
+                    .replace("'", "")
+                    .trim();
 
             String extension = "";
 
-            if (originalName != null
-                    && originalName.contains(".")) {
+            int dotIndex = originalName.lastIndexOf('.');
 
-                extension = originalName.substring(
-                        originalName.lastIndexOf(".")
-                );
+            if (dotIndex >= 0
+                    && dotIndex < originalName.length() - 1) {
+
+                extension = originalName
+                        .substring(dotIndex)
+                        .toLowerCase()
+                        .replaceAll("[^a-z0-9.]", "");
             }
 
             String generatedFileName =
                     UUID.randomUUID() + extension;
 
-            Path target =
-                    categoryFolder.resolve(
-                            generatedFileName
-                    );
+            Path target = categoryFolder
+                    .resolve(generatedFileName)
+                    .normalize();
+
+            if (!target.startsWith(categoryFolder)) {
+                throw new FileStorageException(
+                        "Invalid target file path"
+                );
+            }
 
             Files.copy(
-
                     file.getInputStream(),
                     target,
                     StandardCopyOption.REPLACE_EXISTING
-
             );
 
             return generatedFileName;
 
         } catch (IOException ex) {
-
             throw new FileStorageException(
                     "Failed to store file",
                     ex
@@ -105,36 +131,48 @@ public class LocalFileStorageService
 
     @Override
     public Resource loadFileAsResource(
-
             String category,
             String fileName
-
     ) {
 
         try {
+            String cleanCategory = category
+                    .replace("\"", "")
+                    .replace("'", "")
+                    .trim();
 
-            Path filePath =
-                    uploadRoot
-                            .resolve(category)
-                            .resolve(fileName)
-                            .normalize();
+            String cleanFileName = fileName
+                    .replace("\"", "")
+                    .replace("'", "")
+                    .trim();
 
-            Resource resource =
-                    new UrlResource(
-                            filePath.toUri()
-                    );
+            Path categoryFolder = uploadRoot
+                    .resolve(cleanCategory)
+                    .normalize();
 
-            if (resource.exists()) {
+            Path filePath = categoryFolder
+                    .resolve(cleanFileName)
+                    .normalize();
 
+            if (!filePath.startsWith(categoryFolder)) {
+                throw new FileNotFoundException(
+                        "Invalid file path"
+                );
+            }
+
+            Resource resource = new UrlResource(
+                    filePath.toUri()
+            );
+
+            if (resource.exists() && resource.isReadable()) {
                 return resource;
             }
 
             throw new FileNotFoundException(
-                    "File not found"
+                    "File not found: " + cleanFileName
             );
 
         } catch (MalformedURLException ex) {
-
             throw new FileNotFoundException(
                     "File not found",
                     ex
