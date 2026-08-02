@@ -12,6 +12,14 @@ import com.skyline.entity.Staff;
 import com.skyline.repository.StaffRepository;
 import com.skyline.entity.Transaction;
 import com.skyline.repository.TransactionRepository;
+import com.skyline.dto.payment.PaymentDetailsResponse;
+import com.skyline.dto.payment.PaymentEvidenceResponse;
+import com.skyline.dto.payment.TransactionResponse;
+import com.skyline.entity.PaymentEvidence;
+import com.skyline.entity.User;
+import com.skyline.repository.PaymentEvidenceRepository;
+import com.skyline.repository.UserRepository;
+import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -22,6 +30,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
+
 
 @Service
 @Transactional
@@ -31,17 +41,23 @@ public class PaymentServiceImpl implements PaymentService {
     private final CustomerRepository customerRepository;
     private final StaffRepository staffRepository;
     private final TransactionRepository transactionRepository;
+    private final PaymentEvidenceRepository paymentEvidenceRepository;
+    private final UserRepository userRepository;
 
     public PaymentServiceImpl(
         PaymentRepository paymentRepository,
         CustomerRepository customerRepository,
         StaffRepository staffRepository,
-        TransactionRepository transactionRepository
+        TransactionRepository transactionRepository,
+        PaymentEvidenceRepository paymentEvidenceRepository,
+        UserRepository userRepository
     ) {
         this.paymentRepository = paymentRepository;
         this.customerRepository = customerRepository;
         this.staffRepository = staffRepository;
         this.transactionRepository = transactionRepository;
+        this.paymentEvidenceRepository = paymentEvidenceRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -217,6 +233,21 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<PaymentResponse> getMyPayments(
+            String email
+    ) {
+
+        return paymentRepository
+                .findByCustomerUserEmailOrderByCreatedAtDesc(
+                        email.trim().toLowerCase()
+                )
+                .stream()
+                .map(this::mapToPaymentResponse)
+                .toList();
+    }
+
+    @Override
     public void deletePayment(Long paymentId) {
 
         Payment payment = paymentRepository.findById(paymentId)
@@ -231,6 +262,151 @@ public class PaymentServiceImpl implements PaymentService {
         return "PAID".equals(status)
                 || "PARTIALLY_PAID".equals(status)
                 || "REJECTED".equals(status);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentDetailsResponse getPaymentDetails(
+            Long paymentId,
+            String userEmail
+    ) {
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() ->
+                        new EntityNotFoundException(
+                                "Payment not found with ID: " + paymentId
+                        )
+                );
+
+        User currentUser = userRepository
+                .findByEmail(userEmail.trim().toLowerCase())
+                .orElseThrow(() ->
+                        new EntityNotFoundException(
+                                "User account not found"
+                        )
+                );
+
+        boolean isAdminOrFinance = currentUser.getRoles()
+                .stream()
+                .map(role -> role.getRoleName())
+                .anyMatch(roleName ->
+                        "ADMIN".equals(roleName)
+                                || "FINANCE_OFFICER".equals(roleName)
+                );
+
+        boolean isPaymentOwner =
+                payment.getCustomer() != null
+                        && payment.getCustomer().getUser() != null
+                        && payment.getCustomer()
+                                .getUser()
+                                .getEmail()
+                                .equalsIgnoreCase(userEmail);
+
+        if (!isAdminOrFinance && !isPaymentOwner) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You are not allowed to view this payment"
+            );
+        }
+
+        PaymentResponse paymentResponse =
+                mapToPaymentResponse(payment);
+
+        List<PaymentEvidenceResponse> evidenceResponses =
+                paymentEvidenceRepository
+                        .findByPaymentPaymentIdOrderByUploadedAtDesc(
+                                paymentId
+                        )
+                        .stream()
+                        .map(this::mapEvidenceResponse)
+                        .toList();
+
+        List<TransactionResponse> transactionResponses =
+                transactionRepository
+                        .findByPaymentPaymentId(paymentId)
+                        .stream()
+                        .map(this::mapTransactionResponse)
+                        .toList();
+
+        return new PaymentDetailsResponse(
+                paymentResponse,
+                evidenceResponses,
+                transactionResponses
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentDashboardSummaryResponse getDashboardSummary() {
+
+        long totalPayments =
+                paymentRepository.count();
+
+        long pendingPayments =
+                paymentRepository.countByPaymentStatus(
+                        "PENDING"
+                );
+
+        long paidPayments =
+                paymentRepository.countByPaymentStatus(
+                        "PAID"
+                );
+
+        long rejectedPayments =
+                paymentRepository.countByPaymentStatus(
+                        "REJECTED"
+                );
+
+        long partiallyPaidPayments =
+                paymentRepository.countByPaymentStatus(
+                        "PARTIALLY_PAID"
+                );
+
+        BigDecimal totalRevenue =
+                paymentRepository.calculateTotalRevenue();
+
+        BigDecimal totalOutstandingAmount =
+                paymentRepository
+                        .calculateTotalOutstandingAmount();
+
+        return new PaymentDashboardSummaryResponse(
+                totalPayments,
+                pendingPayments,
+                paidPayments,
+                rejectedPayments,
+                partiallyPaidPayments,
+                totalRevenue,
+                totalOutstandingAmount
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentResponse> getPaymentsByStatus(
+            String paymentStatus
+    ) {
+
+        String normalizedStatus =
+                paymentStatus.trim().toUpperCase();
+
+        if (!List.of(
+                "PENDING",
+                "PAID",
+                "PARTIALLY_PAID",
+                "REJECTED"
+        ).contains(normalizedStatus)) {
+
+            throw new IllegalArgumentException(
+                    "Invalid payment status"
+            );
+        }
+
+        return paymentRepository
+                .findByPaymentStatusOrderByCreatedAtDesc(
+                        normalizedStatus
+                )
+                .stream()
+                .map(this::mapToPaymentResponse)
+                .toList();
     }
 
     private PaymentResponse mapToPaymentResponse(Payment payment) {
@@ -327,5 +503,75 @@ public class PaymentServiceImpl implements PaymentService {
         );
 
         transactionRepository.save(transaction);
+    }
+
+    private PaymentEvidenceResponse mapEvidenceResponse(
+            PaymentEvidence evidence
+    ) {
+
+        return new PaymentEvidenceResponse(
+                evidence.getPaymentEvidenceId(),
+                evidence.getPayment().getPaymentId(),
+                evidence.getFileName(),
+                evidence.getFileUrl(),
+                evidence.getMimeType(),
+                evidence.getUploadedBy().getUserId(),
+                evidence.getUploadedBy().getFullName(),
+                evidence.getUploadedAt()
+        );
+    }
+
+    private TransactionResponse mapTransactionResponse(
+            Transaction transaction
+    ) {
+
+        TransactionResponse response =
+                new TransactionResponse();
+
+        response.setTransactionId(
+                transaction.getTransactionId()
+        );
+
+        response.setPaymentId(
+                transaction.getPayment().getPaymentId()
+        );
+
+        response.setTransactionNumber(
+                transaction.getTransactionNumber()
+        );
+
+        response.setReceiptNumber(
+                transaction.getReceiptNumber()
+        );
+
+        response.setTransactionType(
+                transaction.getTransactionType()
+        );
+
+        response.setTransactionStatus(
+                transaction.getTransactionStatus()
+        );
+
+        response.setTransactionAmount(
+                transaction.getTransactionAmount()
+        );
+
+        response.setBankReference(
+                transaction.getBankReference()
+        );
+
+        response.setGatewayReference(
+                transaction.getGatewayReference()
+        );
+
+        response.setChequeNumber(
+                transaction.getChequeNumber()
+        );
+
+        response.setProcessedDate(
+                transaction.getProcessedDate()
+        );
+
+        return response;
     }
 }

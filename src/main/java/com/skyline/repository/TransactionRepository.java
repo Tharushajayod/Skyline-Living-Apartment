@@ -14,6 +14,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     List<Transaction> findByPaymentPaymentId(Long paymentId);
 
+    List<Transaction>findByPaymentCustomerUserEmailOrderByProcessedDateDesc(String email);
+
     boolean existsByPaymentPaymentIdAndTransactionStatus(
             Long paymentId,
             String transactionStatus

@@ -135,6 +135,21 @@ public class TransactionServiceImpl implements TransactionService {
         transactionRepository.delete(transaction);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<TransactionResponse> getMyTransactions(
+            String email
+    ) {
+
+        return transactionRepository
+                .findByPaymentCustomerUserEmailOrderByProcessedDateDesc(
+                        email.trim().toLowerCase()
+                )
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
     private TransactionResponse mapToResponse(Transaction transaction) {
 
         TransactionResponse response = new TransactionResponse();

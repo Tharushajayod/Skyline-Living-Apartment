@@ -11,6 +11,7 @@ com\skyline\controller\RoleTestController.class
 com\skyline\entity\Customer.class
 com\skyline\service\FileStorageService.class
 com\skyline\entity\Role.class
+com\skyline\dto\payment\PaymentDashboardSummaryResponse.class
 com\skyline\dto\RegisterRequest.class
 com\skyline\dto\ResetPasswordRequest.class
 com\skyline\service\impl\PaymentEvidenceServiceImpl.class
@@ -35,6 +36,7 @@ com\skyline\dto\StaffSummaryResponse.class
 com\skyline\entity\Staff.class
 com\skyline\dto\CreateStaffRequest.class
 com\skyline\exception\FileNotFoundException.class
+com\skyline\dto\payment\PaymentDetailsResponse.class
 com\skyline\controller\PaymentController.class
 com\skyline\dto\ChangePasswordRequest.class
 com\skyline\repository\CustomerRepository.class

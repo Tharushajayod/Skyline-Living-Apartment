@@ -16,9 +16,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 
 import com.skyline.dto.payment.CreatePaymentRequest;
+import com.skyline.dto.payment.PaymentDetailsResponse;
 import com.skyline.dto.payment.PaymentResponse;
 import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.service.PaymentService;
+import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
 
 import jakarta.validation.Valid;
 
@@ -90,5 +92,78 @@ public class PaymentController {
         paymentService.deletePayment(paymentId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/my-payments")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<List<PaymentResponse>>
+    getMyPayments(
+
+            Authentication authentication
+    ) {
+
+        return ResponseEntity.ok(
+
+                paymentService.getMyPayments(
+
+                        authentication.getName()
+
+                )
+
+        );
+    }
+
+    @GetMapping("/{paymentId}/details")
+    public ResponseEntity<PaymentDetailsResponse> getPaymentDetails(
+            @PathVariable Long paymentId,
+            Authentication authentication
+    ) {
+
+        return ResponseEntity.ok(
+                paymentService.getPaymentDetails(
+                        paymentId,
+                        authentication.getName()
+                )
+        );
+    }
+
+    @GetMapping("/pending")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<List<PaymentResponse>>
+    getPendingPayments() {
+
+        return ResponseEntity.ok(
+                paymentService.getPaymentsByStatus(
+                        "PENDING"
+                )
+        );
+    }
+
+    @GetMapping("/status/{status}")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<List<PaymentResponse>>
+    getPaymentsByStatus(
+            @PathVariable String status
+    ) {
+
+        return ResponseEntity.ok(
+                paymentService.getPaymentsByStatus(status)
+        );
+    }
+
+    @GetMapping("/dashboard-summary")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<PaymentDashboardSummaryResponse>
+    getDashboardSummary() {
+
+        return ResponseEntity.ok(
+                paymentService.getDashboardSummary()
+        );
     }
 }

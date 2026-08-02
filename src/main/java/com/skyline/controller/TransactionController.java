@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 
 import com.skyline.dto.payment.CreateTransactionRequest;
 import com.skyline.dto.payment.TransactionResponse;
@@ -79,4 +81,18 @@ public class TransactionController {
 
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/my-transactions")
+        @PreAuthorize("hasRole('CUSTOMER')")
+        public ResponseEntity<List<TransactionResponse>>
+        getMyTransactions(
+                Authentication authentication
+        ) {
+
+        return ResponseEntity.ok(
+                transactionService.getMyTransactions(
+                        authentication.getName()
+                )
+        );
+        }
 }

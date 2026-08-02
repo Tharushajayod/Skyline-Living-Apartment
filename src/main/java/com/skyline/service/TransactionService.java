@@ -17,5 +17,7 @@ public interface TransactionService {
 
     List<TransactionResponse> getTransactionsByPayment(Long paymentId);
 
+    List<TransactionResponse> getMyTransactions(String email);
+
     void deleteTransaction(Long transactionId);
 }
