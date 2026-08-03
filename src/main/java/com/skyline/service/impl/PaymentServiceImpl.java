@@ -1,42 +1,41 @@
 package com.skyline.service.impl;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.skyline.dto.payment.CreatePaymentRequest;
+import com.skyline.dto.payment.MonthlyRevenueResponse;
+import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
+import com.skyline.dto.payment.PaymentDetailsResponse;
+import com.skyline.dto.payment.PaymentEvidenceResponse;
+import com.skyline.dto.payment.PaymentMethodRevenueResponse;
 import com.skyline.dto.payment.PaymentResponse;
+import com.skyline.dto.payment.PaymentStatusReportResponse;
+import com.skyline.dto.payment.RecentTransactionResponse;
+import com.skyline.dto.payment.TransactionResponse;
 import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.entity.Customer;
 import com.skyline.entity.Payment;
-import com.skyline.repository.CustomerRepository;
-import com.skyline.repository.PaymentRepository;
-import com.skyline.service.PaymentService;
-import com.skyline.entity.Staff;
-import com.skyline.repository.StaffRepository;
-import com.skyline.entity.Transaction;
-import com.skyline.repository.TransactionRepository;
-import com.skyline.dto.payment.PaymentDetailsResponse;
-import com.skyline.dto.payment.PaymentEvidenceResponse;
-import com.skyline.dto.payment.TransactionResponse;
 import com.skyline.entity.PaymentEvidence;
+import com.skyline.entity.Staff;
+import com.skyline.entity.Transaction;
 import com.skyline.entity.User;
+import com.skyline.repository.CustomerRepository;
 import com.skyline.repository.PaymentEvidenceRepository;
+import com.skyline.repository.PaymentRepository;
+import com.skyline.repository.StaffRepository;
+import com.skyline.repository.TransactionRepository;
 import com.skyline.repository.UserRepository;
-import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
-import com.skyline.dto.payment.MonthlyRevenueResponse;
-import com.skyline.dto.payment.PaymentStatusReportResponse;
-import com.skyline.dto.payment.PaymentMethodRevenueResponse;
-import com.skyline.dto.payment.RecentTransactionResponse;
+import com.skyline.service.PaymentService;
 
 import jakarta.persistence.EntityNotFoundException;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.PageRequest;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
-import java.util.Set;
-import java.util.ArrayList;
 
 
 @Service
@@ -143,100 +142,241 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public PaymentResponse updatePaymentStatus(
-            Long paymentId,
-            UpdatePaymentStatusRequest request,
-            String verifierEmail
-    ) {
+        public PaymentResponse updatePaymentStatus(
+                Long paymentId,
+                UpdatePaymentStatusRequest request,
+                String verifierEmail
+        ) {
 
-        Payment payment = paymentRepository.findById(paymentId)
+        Payment payment = paymentRepository
+                .findById(paymentId)
                 .orElseThrow(() ->
                         new EntityNotFoundException(
-                                "Payment not found with ID: " + paymentId
+                                "Payment not found with ID: "
+                                        + paymentId
                         )
                 );
 
         Staff verifier = staffRepository
                 .findByUserEmail(
-                        verifierEmail.trim().toLowerCase()
+                        verifierEmail
+                                .trim()
+                                .toLowerCase()
                 )
                 .orElseThrow(() ->
                         new EntityNotFoundException(
-                                "Finance staff profile not found"
+                                "Staff profile not found for the current user"
                         )
                 );
 
-        String newStatus = request.getPaymentStatus();
+        String newStatus =
+                request.getPaymentStatus();
 
-        if (newStatus == null || newStatus.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Payment status cannot be empty"
-            );
-        }
-
-        newStatus = newStatus.trim().toUpperCase();
-
-        if (!isValidPaymentStatus(newStatus)) {
-            throw new IllegalArgumentException(
-                    "Allowed statuses are PAID, PARTIALLY_PAID and REJECTED"
-            );
-        }
-
-        if (!"PENDING".equalsIgnoreCase(payment.getPaymentStatus())) {
-            throw new IllegalArgumentException(
-                    "Only pending payments can be verified or rejected"
-            );
-        }
-
-        if ("REJECTED".equals(newStatus)) {
-
-            if (request.getRejectionReason() == null
-                    || request.getRejectionReason().isBlank()) {
+        if (newStatus == null
+                || newStatus.isBlank()) {
 
                 throw new IllegalArgumentException(
-                        "Rejection reason is required"
+                        "Payment status cannot be empty"
                 );
-            }
+        }
 
-            payment.setPaymentStatus("REJECTED");
-            payment.setRejectionReason(
-                    request.getRejectionReason().trim()
-            );
+        newStatus = newStatus
+                .trim()
+                .toUpperCase();
 
-        } else if ("PAID".equals(newStatus)) {
+        if (!isValidPaymentStatus(newStatus)) {
+                throw new IllegalArgumentException(
+                        "Allowed statuses are PAID, PARTIALLY_PAID and REJECTED"
+                );
+        }
 
-            payment.setPaymentStatus("PAID");
+        String currentStatus =
+                payment.getPaymentStatus() == null
+                        ? ""
+                        : payment.getPaymentStatus()
+                                .trim()
+                                .toUpperCase();
 
-            payment.setPaidAmount(
-                    payment.getTotalPayableAmount()
-            );
+        /*
+        * Pending payments can be approved,
+        * partially paid or rejected.
+        *
+        * Partially paid payments can later
+        * receive another partial payment or
+        * be marked as fully paid.
+        */
+        if (!"PENDING".equals(currentStatus)
+                && !"PARTIALLY_PAID".equals(
+                        currentStatus
+                )) {
 
-            payment.setOutstandingAmount(
-                    BigDecimal.ZERO
-            );
+                throw new IllegalArgumentException(
+                        "Only pending or partially paid payments can be updated"
+                );
+        }
 
-            payment.setRejectionReason(null);
-        } else {
+        BigDecimal totalPayable =
+                payment.getTotalPayableAmount();
 
-            payment.setPaymentStatus("PARTIALLY_PAID");
-            payment.setRejectionReason(null);
+        if (totalPayable == null) {
+                totalPayable =
+                        payment.getAmount();
+        }
+
+        if (totalPayable == null
+                || totalPayable.compareTo(
+                        BigDecimal.ZERO
+                ) <= 0) {
+
+                throw new IllegalArgumentException(
+                        "Payment total payable amount is invalid"
+                );
+        }
+
+        BigDecimal currentPaidAmount =
+                payment.getPaidAmount() == null
+                        ? BigDecimal.ZERO
+                        : payment.getPaidAmount();
+
+        switch (newStatus) {
+
+                case "REJECTED" -> {
+
+                if (!"PENDING".equals(
+                        currentStatus
+                )) {
+                        throw new IllegalArgumentException(
+                                "A partially paid payment cannot be rejected"
+                        );
+                }
+
+                if (request.getRejectionReason()
+                        == null
+                        || request
+                                .getRejectionReason()
+                                .isBlank()) {
+
+                        throw new IllegalArgumentException(
+                                "Rejection reason is required"
+                        );
+                }
+
+                payment.setPaymentStatus(
+                        "REJECTED"
+                );
+
+                payment.setRejectionReason(
+                        request
+                                .getRejectionReason()
+                                .trim()
+                );
+
+                payment.setPaidAmount(
+                        BigDecimal.ZERO
+                );
+
+                payment.setOutstandingAmount(
+                        totalPayable
+                );
+                }
+
+                case "PAID" -> {
+
+                payment.setPaymentStatus(
+                        "PAID"
+                );
+
+                payment.setPaidAmount(
+                        totalPayable
+                );
+
+                payment.setOutstandingAmount(
+                        BigDecimal.ZERO
+                );
+
+                payment.setRejectionReason(null);
+                }
+
+                case "PARTIALLY_PAID" -> {
+
+                BigDecimal receivedAmount =
+                        request.getPaidAmount();
+
+                if (receivedAmount == null) {
+                        throw new IllegalArgumentException(
+                                "Paid amount is required for a partially paid payment"
+                        );
+                }
+
+                if (receivedAmount.compareTo(
+                        BigDecimal.ZERO
+                ) <= 0) {
+                        throw new IllegalArgumentException(
+                                "Paid amount must be greater than zero"
+                        );
+                }
+
+                BigDecimal updatedPaidAmount =
+                        currentPaidAmount.add(
+                                receivedAmount
+                        );
+
+                /*
+                * A partial amount must remain below
+                * the total payable amount.
+                */
+                if (updatedPaidAmount.compareTo(
+                        totalPayable
+                ) >= 0) {
+                        throw new IllegalArgumentException(
+                                "Partial payment total must be less than the total payable amount. Select PAID for a full payment."
+                        );
+                }
+
+                BigDecimal outstandingAmount =
+                        totalPayable.subtract(
+                                updatedPaidAmount
+                        );
+
+                payment.setPaymentStatus(
+                        "PARTIALLY_PAID"
+                );
+
+                payment.setPaidAmount(
+                        updatedPaidAmount
+                );
+
+                payment.setOutstandingAmount(
+                        outstandingAmount
+                );
+
+                payment.setRejectionReason(null);
+                }
+
+                default -> throw new IllegalArgumentException(
+                        "Invalid payment status"
+                );
         }
 
         payment.setVerifiedBy(verifier);
-        payment.setVerifiedAt(LocalDateTime.now());
+        payment.setVerifiedAt(
+                LocalDateTime.now()
+        );
 
         Payment updatedPayment =
                 paymentRepository.save(payment);
 
-                if ("PAID".equals(newStatus)) {
-                    createSuccessfulTransactionIfRequired(
-                            updatedPayment,
-                            verifier
-                    );
-                }
+        if ("PAID".equals(newStatus)) {
+                createSuccessfulTransactionIfRequired(
+                        updatedPayment,
+                        verifier
+                );
+        }
 
-        return mapToPaymentResponse(updatedPayment);
-    }
+        return mapToPaymentResponse(
+                updatedPayment
+        );
+        }
 
     @Override
     @Transactional(readOnly = true)
@@ -564,6 +704,9 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         response.setAmount(payment.getAmount());
+        response.setTotalPayableAmount(payment.getTotalPayableAmount());
+        response.setPaidAmount(payment.getPaidAmount());
+        response.setOutstandingAmount( payment.getOutstandingAmount());
         response.setPaymentType(payment.getPaymentType());
         response.setPaymentMethod(payment.getPaymentMethod());
         response.setPaymentStatus(payment.getPaymentStatus());

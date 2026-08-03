@@ -4,6 +4,8 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,22 +13,19 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestParam;
 
-import com.skyline.dto.payment.MonthlyRevenueResponse;
 import com.skyline.dto.payment.CreatePaymentRequest;
+import com.skyline.dto.payment.MonthlyRevenueResponse;
+import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
 import com.skyline.dto.payment.PaymentDetailsResponse;
+import com.skyline.dto.payment.PaymentMethodRevenueResponse;
 import com.skyline.dto.payment.PaymentResponse;
+import com.skyline.dto.payment.PaymentStatusReportResponse;
+import com.skyline.dto.payment.RecentTransactionResponse;
 import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.service.PaymentService;
-import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
-import com.skyline.dto.payment.PaymentStatusReportResponse;
-import com.skyline.dto.payment.PaymentMethodRevenueResponse;
-import com.skyline.dto.payment.RecentTransactionResponse;
 
 import jakarta.validation.Valid;
 
@@ -50,19 +49,30 @@ public class PaymentController {
     }
 
     @GetMapping("/{paymentId}")
-    public ResponseEntity<PaymentResponse> getPaymentById(
-            @PathVariable Long paymentId) {
-
+        @PreAuthorize(
+                "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+        )
+        public ResponseEntity<PaymentResponse>
+        getPaymentById(
+                @PathVariable Long paymentId
+        ) {
         return ResponseEntity.ok(
-                paymentService.getPaymentById(paymentId));
-    }
+                paymentService.getPaymentById(
+                        paymentId
+                )
+        );
+        }
 
     @GetMapping
-    public ResponseEntity<List<PaymentResponse>> getAllPayments() {
-
+        @PreAuthorize(
+                "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+        )
+        public ResponseEntity<List<PaymentResponse>>
+        getAllPayments() {
         return ResponseEntity.ok(
-                paymentService.getAllPayments());
-    }
+                paymentService.getAllPayments()
+        );
+        }
 
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<List<PaymentResponse>> getPaymentsByCustomer(
@@ -92,13 +102,16 @@ public class PaymentController {
     }
 
     @DeleteMapping("/{paymentId}")
-    public ResponseEntity<Void> deletePayment(
-            @PathVariable Long paymentId) {
-
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Void> deletePayment(
+                @PathVariable Long paymentId
+        ) {
         paymentService.deletePayment(paymentId);
 
-        return ResponseEntity.noContent().build();
-    }
+        return ResponseEntity
+                .noContent()
+                .build();
+        }
 
     @GetMapping("/my-payments")
     @PreAuthorize("hasRole('CUSTOMER')")

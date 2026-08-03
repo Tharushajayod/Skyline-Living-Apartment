@@ -29,6 +29,7 @@ D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\m
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\RecentTransactionResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\TransactionResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\UpdatePaymentStatusRequest.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\UpdateTransactionStatusRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\RegisterRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\RegisterResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\ResetPasswordRequest.java

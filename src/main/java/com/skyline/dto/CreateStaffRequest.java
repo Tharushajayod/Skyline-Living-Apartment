@@ -18,7 +18,12 @@ public record CreateStaffRequest(
         @NotBlank(message = "Password is required")
         @Size(
                 min = 8,
-                message = "Password must contain at least 8 characters"
+                max = 100,
+                message = "Password must contain between 8 and 100 characters"
+        )
+        @jakarta.validation.constraints.Pattern(
+                regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@#$%^&+=!]).{8,100}$",
+                message = "Password must contain uppercase, lowercase, number and special character"
         )
         String password,
 

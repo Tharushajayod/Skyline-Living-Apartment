@@ -55,6 +55,7 @@ com\skyline\repository\PasswordResetTokenRepository.class
 com\skyline\dto\UpdateUserProfileRequest.class
 com\skyline\controller\UserController.class
 com\skyline\dto\payment\PaymentMethodRevenueResponse.class
+com\skyline\config\OpenApiConfig.class
 com\skyline\entity\PasswordResetToken.class
 com\skyline\security\CustomUserDetailsService.class
 com\skyline\dto\payment\PaymentStatusReportResponse.class

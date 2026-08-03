@@ -9,6 +9,9 @@ public class PaymentResponse {
     private Long customerId;
 
     private BigDecimal amount;
+    private BigDecimal totalPayableAmount;
+    private BigDecimal paidAmount;
+    private BigDecimal outstandingAmount;
 
     private String paymentType;
     private String paymentMethod;
@@ -49,6 +52,38 @@ public class PaymentResponse {
 
     public void setAmount(BigDecimal amount) {
         this.amount = amount;
+    }
+
+    public BigDecimal getTotalPayableAmount() {
+        return totalPayableAmount;
+    }
+
+    public void setTotalPayableAmount(
+            BigDecimal totalPayableAmount
+    ) {
+        this.totalPayableAmount =
+                totalPayableAmount;
+    }
+
+    public BigDecimal getPaidAmount() {
+        return paidAmount;
+    }
+
+    public void setPaidAmount(
+            BigDecimal paidAmount
+    ) {
+        this.paidAmount = paidAmount;
+    }
+
+    public BigDecimal getOutstandingAmount() {
+        return outstandingAmount;
+    }
+
+    public void setOutstandingAmount(
+            BigDecimal outstandingAmount
+    ) {
+        this.outstandingAmount =
+                outstandingAmount;
     }
 
     public String getPaymentType() {
