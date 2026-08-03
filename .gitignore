@@ -29,3 +29,10 @@ application-local.properties
 application-secret.properties
 
 uploads/
+
+src/main/resources/application-local.properties
+
+
+*.tmp
+*.bak
+*.swp
