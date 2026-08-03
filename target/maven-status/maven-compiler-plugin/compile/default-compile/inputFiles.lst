@@ -22,8 +22,10 @@ D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\m
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\PaymentDashboardSummaryResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\PaymentDetailsResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\PaymentEvidenceResponse.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\PaymentMethodRevenueResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\PaymentResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\PaymentStatusReportResponse.java
+D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\RecentTransactionResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\TransactionResponse.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\payment\UpdatePaymentStatusRequest.java
 D:\My Projects\Skyline Living Apartment Sale System\skyline-living-backend\src\main\java\com\skyline\dto\RegisterRequest.java

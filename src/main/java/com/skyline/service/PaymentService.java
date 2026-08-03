@@ -10,6 +10,8 @@ import com.skyline.dto.payment.PaymentStatusReportResponse;
 import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
 import com.skyline.dto.payment.MonthlyRevenueResponse;
+import com.skyline.dto.payment.PaymentMethodRevenueResponse;
+import com.skyline.dto.payment.RecentTransactionResponse;
 
 public interface PaymentService {
 
@@ -47,4 +49,8 @@ public interface PaymentService {
     PaymentStatusReportResponse getPaymentStatusReport();
 
     List<PaymentResponse> getOutstandingPayments();
+
+    List<PaymentMethodRevenueResponse>getRevenueByPaymentMethod();
+
+    List<RecentTransactionResponse>getRecentTransactions(int limit);
 }

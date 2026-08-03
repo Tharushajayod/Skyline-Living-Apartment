@@ -22,11 +22,14 @@ import com.skyline.repository.UserRepository;
 import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
 import com.skyline.dto.payment.MonthlyRevenueResponse;
 import com.skyline.dto.payment.PaymentStatusReportResponse;
+import com.skyline.dto.payment.PaymentMethodRevenueResponse;
+import com.skyline.dto.payment.RecentTransactionResponse;
 
 import jakarta.persistence.EntityNotFoundException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -499,6 +502,55 @@ public class PaymentServiceImpl implements PaymentService {
         .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<RecentTransactionResponse>
+    getRecentTransactions(int limit) {
+
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException(
+                    "Limit must be between 1 and 100"
+            );
+        }
+
+        return transactionRepository
+                .findAllByOrderByProcessedDateDesc(
+                        PageRequest.of(0, limit)
+                )
+                .stream()
+                .map(transaction -> {
+
+                    Payment payment =
+                            transaction.getPayment();
+
+                    String customerName = null;
+
+                    if (payment != null
+                            && payment.getCustomer() != null
+                            && payment.getCustomer().getUser() != null) {
+
+                        customerName = payment
+                                .getCustomer()
+                                .getUser()
+                                .getFullName();
+                    }
+
+                    return new RecentTransactionResponse(
+                            transaction.getTransactionId(),
+                            transaction.getTransactionNumber(),
+                            transaction.getReceiptNumber(),
+                            payment != null
+                                    ? payment.getPaymentId()
+                                    : null,
+                            customerName,
+                            transaction.getTransactionAmount(),
+                            transaction.getTransactionStatus(),
+                            transaction.getProcessedDate()
+                    );
+                })
+                .toList();
+    }
+
     private PaymentResponse mapToPaymentResponse(Payment payment) {
 
         PaymentResponse response = new PaymentResponse();
@@ -538,6 +590,24 @@ public class PaymentServiceImpl implements PaymentService {
         response.setRejectionReason(payment.getRejectionReason());
 
         return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentMethodRevenueResponse>
+    getRevenueByPaymentMethod() {
+
+        return paymentRepository
+                .getRevenueByPaymentMethod()
+                .stream()
+                .map(row ->
+                        new PaymentMethodRevenueResponse(
+                                (String) row[0],
+                                ((Number) row[1]).longValue(),
+                                (BigDecimal) row[2]
+                        )
+                )
+                .toList();
     }
 
     private void createSuccessfulTransactionIfRequired(

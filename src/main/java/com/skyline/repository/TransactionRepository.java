@@ -1,6 +1,8 @@
 package com.skyline.repository;
 
 import com.skyline.entity.Transaction;
+import org.springframework.data.domain.Pageable;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -20,5 +22,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             Long paymentId,
             String transactionStatus
     );
+
+    List<Transaction>findAllByOrderByProcessedDateDesc(Pageable pageable);
 }
 

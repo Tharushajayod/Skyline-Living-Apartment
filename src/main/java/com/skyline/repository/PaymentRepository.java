@@ -61,4 +61,19 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Object[]> getMonthlyRevenue(Integer year);
 
+    @Query(
+        value = """
+                SELECT
+                    payment_method,
+                    COUNT(*) AS payment_count,
+                    COALESCE(SUM(amount), 0) AS total_amount
+                FROM payments
+                WHERE payment_status = 'PAID'
+                GROUP BY payment_method
+                ORDER BY total_amount DESC
+                """,
+        nativeQuery = true
+    )
+    List<Object[]> getRevenueByPaymentMethod();
+
 }

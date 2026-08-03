@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.skyline.dto.payment.MonthlyRevenueResponse;
 import com.skyline.dto.payment.CreatePaymentRequest;
@@ -24,6 +25,8 @@ import com.skyline.dto.payment.UpdatePaymentStatusRequest;
 import com.skyline.service.PaymentService;
 import com.skyline.dto.payment.PaymentDashboardSummaryResponse;
 import com.skyline.dto.payment.PaymentStatusReportResponse;
+import com.skyline.dto.payment.PaymentMethodRevenueResponse;
+import com.skyline.dto.payment.RecentTransactionResponse;
 
 import jakarta.validation.Valid;
 
@@ -210,6 +213,35 @@ public class PaymentController {
 
         return ResponseEntity.ok(
                 paymentService.getOutstandingPayments()
+        );
+    }
+
+    @GetMapping("/reports/payment-methods")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<List<PaymentMethodRevenueResponse>>
+    getRevenueByPaymentMethod() {
+
+        return ResponseEntity.ok(
+                paymentService.getRevenueByPaymentMethod()
+        );
+    }
+
+    @GetMapping("/reports/recent-transactions")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<List<RecentTransactionResponse>>
+    getRecentTransactions(
+
+            @RequestParam(defaultValue = "10")
+            int limit
+
+    ) {
+
+        return ResponseEntity.ok(
+                paymentService.getRecentTransactions(limit)
         );
     }
 }
