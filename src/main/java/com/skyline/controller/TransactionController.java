@@ -26,32 +26,21 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/transactions")
 public class TransactionController {
 
-    private final TransactionService
-            transactionService;
+    private final TransactionService transactionService;
 
     public TransactionController(
             TransactionService transactionService
     ) {
-        this.transactionService =
-                transactionService;
+        this.transactionService = transactionService;
     }
 
     @PostMapping
-    @PreAuthorize(
-            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
-    )
-    public ResponseEntity<TransactionResponse>
-    createTransaction(
-            @Valid
-            @RequestBody
-            CreateTransactionRequest request
+    @PreAuthorize("hasRole('FINANCE_OFFICER')")
+    public ResponseEntity<TransactionResponse> createTransaction(
+            @Valid @RequestBody CreateTransactionRequest request
     ) {
-
         TransactionResponse response =
-                transactionService
-                        .createTransaction(
-                                request
-                        );
+                transactionService.createTransaction(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -60,19 +49,30 @@ public class TransactionController {
 
     @GetMapping("/{transactionId}")
     @PreAuthorize(
-            "hasAnyRole('CUSTOMER', 'FINANCE_OFFICER', 'ADMIN')"
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
     )
-    public ResponseEntity<TransactionResponse>
-    getTransactionById(
-            @PathVariable
-            Long transactionId
+    public ResponseEntity<TransactionResponse> getTransactionById(
+            @PathVariable Long transactionId
     ) {
-
         return ResponseEntity.ok(
-                transactionService
-                        .getTransactionById(
-                                transactionId
-                        )
+                transactionService.getTransactionById(
+                        transactionId
+                )
+        );
+    }
+
+    @GetMapping("/my-transactions/{transactionId}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<TransactionResponse>
+    getMyTransactionById(
+            @PathVariable Long transactionId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                transactionService.getMyTransactionById(
+                        transactionId,
+                        authentication.getName()
+                )
         );
     }
 
@@ -82,10 +82,8 @@ public class TransactionController {
     )
     public ResponseEntity<List<TransactionResponse>>
     getAllTransactions() {
-
         return ResponseEntity.ok(
-                transactionService
-                        .getAllTransactions()
+                transactionService.getAllTransactions()
         );
     }
 
@@ -95,15 +93,12 @@ public class TransactionController {
     )
     public ResponseEntity<TransactionResponse>
     getTransactionByNumber(
-            @PathVariable
-            String transactionNumber
+            @PathVariable String transactionNumber
     ) {
-
         return ResponseEntity.ok(
-                transactionService
-                        .getTransactionByNumber(
-                                transactionNumber
-                        )
+                transactionService.getTransactionByNumber(
+                        transactionNumber
+                )
         );
     }
 
@@ -113,15 +108,12 @@ public class TransactionController {
     )
     public ResponseEntity<List<TransactionResponse>>
     getTransactionsByPayment(
-            @PathVariable
-            Long paymentId
+            @PathVariable Long paymentId
     ) {
-
         return ResponseEntity.ok(
-                transactionService
-                        .getTransactionsByPayment(
-                                paymentId
-                        )
+                transactionService.getTransactionsByPayment(
+                        paymentId
+                )
         );
     }
 
@@ -131,15 +123,12 @@ public class TransactionController {
     )
     public ResponseEntity<List<TransactionResponse>>
     getTransactionsByStatus(
-            @PathVariable
-            String status
+            @PathVariable String status
     ) {
-
         return ResponseEntity.ok(
-                transactionService
-                        .getTransactionsByStatus(
-                                status
-                        )
+                transactionService.getTransactionsByStatus(
+                        status
+                )
         );
     }
 
@@ -149,35 +138,27 @@ public class TransactionController {
     )
     public ResponseEntity<TransactionResponse>
     updateTransactionStatus(
-            @PathVariable
-            Long transactionId,
-
+            @PathVariable Long transactionId,
             @Valid
             @RequestBody
             UpdateTransactionStatusRequest request
     ) {
-
         return ResponseEntity.ok(
-                transactionService
-                        .updateTransactionStatus(
-                                transactionId,
-                                request
-                        )
+                transactionService.updateTransactionStatus(
+                        transactionId,
+                        request
+                )
         );
     }
 
     @DeleteMapping("/{transactionId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void>
-    deleteTransaction(
-            @PathVariable
-            Long transactionId
+    public ResponseEntity<Void> deleteTransaction(
+            @PathVariable Long transactionId
     ) {
-
-        transactionService
-                .deleteTransaction(
-                        transactionId
-                );
+        transactionService.deleteTransaction(
+                transactionId
+        );
 
         return ResponseEntity
                 .noContent()
@@ -190,13 +171,10 @@ public class TransactionController {
     getMyTransactions(
             Authentication authentication
     ) {
-
         return ResponseEntity.ok(
-                transactionService
-                        .getMyTransactions(
-                                authentication
-                                        .getName()
-                        )
+                transactionService.getMyTransactions(
+                        authentication.getName()
+                )
         );
     }
 }

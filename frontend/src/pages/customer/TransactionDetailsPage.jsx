@@ -188,7 +188,7 @@ const TransactionDetailsPage = () => {
         setErrorMessage("");
 
         const response = await api.get(
-          `/transactions/${transactionId}`
+          `/transactions/my-transactions/${transactionId}`
         );
 
         setTransaction(response.data);

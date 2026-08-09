@@ -28,8 +28,7 @@ import jakarta.persistence.EntityNotFoundException;
 public class TransactionServiceImpl
         implements TransactionService {
 
-    private static final Set<String>
-            ALLOWED_STATUSES =
+    private static final Set<String> ALLOWED_STATUSES =
             Set.of(
                     "PENDING",
                     "SUCCESS",
@@ -38,35 +37,24 @@ public class TransactionServiceImpl
                     "REFUNDED"
             );
 
-    private final TransactionRepository
-            transactionRepository;
-
-    private final PaymentRepository
-            paymentRepository;
-
-    private final StaffRepository
-            staffRepository;
+    private final TransactionRepository transactionRepository;
+    private final PaymentRepository paymentRepository;
+    private final StaffRepository staffRepository;
 
     public TransactionServiceImpl(
             TransactionRepository transactionRepository,
             PaymentRepository paymentRepository,
             StaffRepository staffRepository
     ) {
-        this.transactionRepository =
-                transactionRepository;
-
-        this.paymentRepository =
-                paymentRepository;
-
-        this.staffRepository =
-                staffRepository;
+        this.transactionRepository = transactionRepository;
+        this.paymentRepository = paymentRepository;
+        this.staffRepository = staffRepository;
     }
 
     @Override
     public TransactionResponse createTransaction(
             CreateTransactionRequest request
     ) {
-
         Payment payment = paymentRepository
                 .findById(request.getPaymentId())
                 .orElseThrow(() ->
@@ -76,8 +64,7 @@ public class TransactionServiceImpl
                         )
                 );
 
-        Staff processedBy =
-                getCurrentStaff();
+        Staff processedBy = getCurrentStaff();
 
         String normalizedStatus =
                 normalizeStatus(
@@ -157,7 +144,6 @@ public class TransactionServiceImpl
     public TransactionResponse getTransactionById(
             Long transactionId
     ) {
-
         Transaction transaction =
                 getTransactionEntity(
                         transactionId
@@ -168,9 +154,32 @@ public class TransactionServiceImpl
 
     @Override
     @Transactional(readOnly = true)
+    public TransactionResponse getMyTransactionById(
+            Long transactionId,
+            String email
+    ) {
+        String normalizedEmail =
+                normalizeEmail(email);
+
+        Transaction transaction =
+                transactionRepository
+                        .findByTransactionIdAndPaymentCustomerUserEmail(
+                                transactionId,
+                                normalizedEmail
+                        )
+                        .orElseThrow(() ->
+                                new EntityNotFoundException(
+                                        "Transaction not found"
+                                )
+                        );
+
+        return mapToResponse(transaction);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<TransactionResponse>
     getAllTransactions() {
-
         return transactionRepository
                 .findAllByOrderByProcessedDateDesc()
                 .stream()
@@ -180,16 +189,13 @@ public class TransactionServiceImpl
 
     @Override
     @Transactional(readOnly = true)
-    public TransactionResponse
-    getTransactionByNumber(
+    public TransactionResponse getTransactionByNumber(
             String transactionNumber
     ) {
-
         Transaction transaction =
                 transactionRepository
                         .findByTransactionNumber(
-                                transactionNumber
-                                        .trim()
+                                transactionNumber.trim()
                         )
                         .orElseThrow(() ->
                                 new EntityNotFoundException(
@@ -206,7 +212,6 @@ public class TransactionServiceImpl
     getTransactionsByPayment(
             Long paymentId
     ) {
-
         if (!paymentRepository.existsById(
                 paymentId
         )) {
@@ -231,7 +236,6 @@ public class TransactionServiceImpl
     getTransactionsByStatus(
             String status
     ) {
-
         String normalizedStatus =
                 normalizeStatus(status);
 
@@ -253,12 +257,10 @@ public class TransactionServiceImpl
     }
 
     @Override
-    public TransactionResponse
-    updateTransactionStatus(
+    public TransactionResponse updateTransactionStatus(
             Long transactionId,
             UpdateTransactionStatusRequest request
     ) {
-
         Transaction transaction =
                 getTransactionEntity(
                         transactionId
@@ -340,7 +342,6 @@ public class TransactionServiceImpl
     public void deleteTransaction(
             Long transactionId
     ) {
-
         Transaction transaction =
                 getTransactionEntity(
                         transactionId
@@ -357,11 +358,9 @@ public class TransactionServiceImpl
     getMyTransactions(
             String email
     ) {
-
         return transactionRepository
                 .findByPaymentCustomerUserEmailOrderByProcessedDateDesc(
-                        email.trim()
-                                .toLowerCase()
+                        normalizeEmail(email)
                 )
                 .stream()
                 .map(this::mapToResponse)
@@ -372,7 +371,6 @@ public class TransactionServiceImpl
             String currentStatus,
             String newStatus
     ) {
-
         if (currentStatus.equals(newStatus)) {
             throw new IllegalArgumentException(
                     "Transaction already has the selected status"
@@ -415,7 +413,6 @@ public class TransactionServiceImpl
     private Transaction getTransactionEntity(
             Long transactionId
     ) {
-
         return transactionRepository
                 .findById(transactionId)
                 .orElseThrow(() ->
@@ -427,7 +424,6 @@ public class TransactionServiceImpl
     }
 
     private Staff getCurrentStaff() {
-
         Authentication authentication =
                 SecurityContextHolder
                         .getContext()
@@ -445,9 +441,9 @@ public class TransactionServiceImpl
         }
 
         String email =
-                authentication.getName()
-                        .trim()
-                        .toLowerCase();
+                normalizeEmail(
+                        authentication.getName()
+                );
 
         return staffRepository
                 .findByUserEmail(email)
@@ -462,7 +458,6 @@ public class TransactionServiceImpl
     private TransactionResponse mapToResponse(
             Transaction transaction
     ) {
-
         TransactionResponse response =
                 new TransactionResponse();
 
@@ -530,7 +525,6 @@ public class TransactionServiceImpl
         );
 
         if (transaction.getProcessedBy() != null) {
-
             response.setProcessedByStaffId(
                     transaction.getProcessedBy()
                             .getStaffId()
@@ -551,7 +545,6 @@ public class TransactionServiceImpl
     }
 
     private String generateTransactionNumber() {
-
         return "TXN-"
                 + UUID.randomUUID()
                         .toString()
@@ -563,7 +556,6 @@ public class TransactionServiceImpl
     private String normalizeStatus(
             String value
     ) {
-
         if (value == null
                 || value.isBlank()) {
             throw new IllegalArgumentException(
@@ -571,13 +563,30 @@ public class TransactionServiceImpl
             );
         }
 
-        return value.trim().toUpperCase();
+        return value
+                .trim()
+                .toUpperCase();
+    }
+
+    private String normalizeEmail(
+            String email
+    ) {
+        if (email == null
+                || email.isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "User email is required"
+            );
+        }
+
+        return email
+                .trim()
+                .toLowerCase();
     }
 
     private String normalizeNullable(
             String value
     ) {
-
         if (value == null
                 || value.isBlank()) {
             return null;

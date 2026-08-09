@@ -35,106 +35,139 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    public PaymentController(PaymentService paymentService) {
-        this.paymentService = paymentService;
+    public PaymentController(
+            PaymentService paymentService
+    ) {
+        this.paymentService =
+                paymentService;
     }
+
+    /* =====================================================
+       CREATE PAYMENT
+       Customer normally submits a payment.
+       Admin / Finance can also create records when required.
+    ====================================================== */
 
     @PostMapping
-    public ResponseEntity<PaymentResponse> createPayment(
-            @Valid @RequestBody CreatePaymentRequest request) {
+    @PreAuthorize(
+            "hasAnyRole('CUSTOMER', 'FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<PaymentResponse>
+    createPayment(
+            @Valid
+            @RequestBody
+            CreatePaymentRequest request
+    ) {
 
-        PaymentResponse response = paymentService.createPayment(request);
+        PaymentResponse response =
+                paymentService.createPayment(
+                        request
+                );
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
+    /* =====================================================
+       GET ONE PAYMENT
+       Finance and Admin only.
+    ====================================================== */
+
     @GetMapping("/{paymentId}")
-        @PreAuthorize(
-                "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
-        )
-        public ResponseEntity<PaymentResponse>
-        getPaymentById(
-                @PathVariable Long paymentId
-        ) {
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<PaymentResponse>
+    getPaymentById(
+            @PathVariable
+            Long paymentId
+    ) {
+
         return ResponseEntity.ok(
                 paymentService.getPaymentById(
                         paymentId
                 )
         );
-        }
-
-    @GetMapping
-        @PreAuthorize(
-                "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
-        )
-        public ResponseEntity<List<PaymentResponse>>
-        getAllPayments() {
-        return ResponseEntity.ok(
-                paymentService.getAllPayments()
-        );
-        }
-
-    @GetMapping("/customer/{customerId}")
-    public ResponseEntity<List<PaymentResponse>> getPaymentsByCustomer(
-            @PathVariable Long customerId) {
-
-        return ResponseEntity.ok(
-                paymentService.getPaymentsByCustomer(customerId));
     }
 
-    @PutMapping("/{paymentId}/status")
+    /* =====================================================
+       GET ALL PAYMENTS
+       Finance and Admin only.
+    ====================================================== */
+
+    @GetMapping
     @PreAuthorize(
             "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
     )
-    public ResponseEntity<PaymentResponse> updatePaymentStatus(
-            @PathVariable Long paymentId,
-            @Valid @RequestBody UpdatePaymentStatusRequest request,
-            Authentication authentication
-    ) {
+    public ResponseEntity<List<PaymentResponse>>
+    getAllPayments() {
 
         return ResponseEntity.ok(
-                paymentService.updatePaymentStatus(
-                        paymentId,
-                        request,
-                        authentication.getName()
-                )
+                paymentService.getAllPayments()
         );
     }
 
-    @DeleteMapping("/{paymentId}")
-        @PreAuthorize("hasRole('ADMIN')")
-        public ResponseEntity<Void> deletePayment(
-                @PathVariable Long paymentId
-        ) {
-        paymentService.deletePayment(paymentId);
+    /* =====================================================
+       GET PAYMENTS BY CUSTOMER ID
+       Do not allow normal customers to query arbitrary IDs.
+    ====================================================== */
 
-        return ResponseEntity
-                .noContent()
-                .build();
-        }
+    @GetMapping("/customer/{customerId}")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<List<PaymentResponse>>
+    getPaymentsByCustomer(
+            @PathVariable
+            Long customerId
+    ) {
+
+        return ResponseEntity.ok(
+                paymentService
+                        .getPaymentsByCustomer(
+                                customerId
+                        )
+        );
+    }
+
+    /* =====================================================
+       CURRENT CUSTOMER PAYMENTS
+       Uses authenticated email instead of a supplied ID.
+    ====================================================== */
 
     @GetMapping("/my-payments")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<List<PaymentResponse>>
     getMyPayments(
-
             Authentication authentication
     ) {
 
         return ResponseEntity.ok(
-
                 paymentService.getMyPayments(
-
                         authentication.getName()
-
                 )
-
         );
     }
 
+    /* =====================================================
+       PAYMENT DETAILS
+       Customer / Finance / Admin.
+
+       The PaymentService.getPaymentDetails(...) method
+       should continue checking ownership when the logged-in
+       user is a CUSTOMER.
+    ====================================================== */
+
     @GetMapping("/{paymentId}/details")
-    public ResponseEntity<PaymentDetailsResponse> getPaymentDetails(
-            @PathVariable Long paymentId,
+    @PreAuthorize(
+            "hasAnyRole('CUSTOMER', 'FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<PaymentDetailsResponse>
+    getPaymentDetails(
+            @PathVariable
+            Long paymentId,
+
             Authentication authentication
     ) {
 
@@ -146,6 +179,63 @@ public class PaymentController {
         );
     }
 
+    /* =====================================================
+       UPDATE PAYMENT STATUS
+       Finance / Admin
+    ====================================================== */
+
+    @PutMapping("/{paymentId}/status")
+    @PreAuthorize(
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
+    )
+    public ResponseEntity<PaymentResponse>
+    updatePaymentStatus(
+            @PathVariable
+            Long paymentId,
+
+            @Valid
+            @RequestBody
+            UpdatePaymentStatusRequest request,
+
+            Authentication authentication
+    ) {
+
+        return ResponseEntity.ok(
+                paymentService
+                        .updatePaymentStatus(
+                                paymentId,
+                                request,
+                                authentication.getName()
+                        )
+        );
+    }
+
+    /* =====================================================
+       DELETE PAYMENT
+       Admin only
+    ====================================================== */
+
+    @DeleteMapping("/{paymentId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void>
+    deletePayment(
+            @PathVariable
+            Long paymentId
+    ) {
+
+        paymentService.deletePayment(
+                paymentId
+        );
+
+        return ResponseEntity
+                .noContent()
+                .build();
+    }
+
+    /* =====================================================
+       PENDING PAYMENTS
+    ====================================================== */
+
     @GetMapping("/pending")
     @PreAuthorize(
             "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
@@ -154,11 +244,16 @@ public class PaymentController {
     getPendingPayments() {
 
         return ResponseEntity.ok(
-                paymentService.getPaymentsByStatus(
-                        "PENDING"
-                )
+                paymentService
+                        .getPaymentsByStatus(
+                                "PENDING"
+                        )
         );
     }
+
+    /* =====================================================
+       PAYMENTS BY STATUS
+    ====================================================== */
 
     @GetMapping("/status/{status}")
     @PreAuthorize(
@@ -166,13 +261,21 @@ public class PaymentController {
     )
     public ResponseEntity<List<PaymentResponse>>
     getPaymentsByStatus(
-            @PathVariable String status
+            @PathVariable
+            String status
     ) {
 
         return ResponseEntity.ok(
-                paymentService.getPaymentsByStatus(status)
+                paymentService
+                        .getPaymentsByStatus(
+                                status
+                        )
         );
     }
+
+    /* =====================================================
+       DASHBOARD SUMMARY
+    ====================================================== */
 
     @GetMapping("/dashboard-summary")
     @PreAuthorize(
@@ -182,28 +285,36 @@ public class PaymentController {
     getDashboardSummary() {
 
         return ResponseEntity.ok(
-                paymentService.getDashboardSummary()
+                paymentService
+                        .getDashboardSummary()
         );
     }
 
+    /* =====================================================
+       MONTHLY REVENUE REPORT
+    ====================================================== */
+
     @GetMapping("/reports/monthly-revenue")
     @PreAuthorize(
-            "hasAnyRole('FINANCE_OFFICER','ADMIN')"
+            "hasAnyRole('FINANCE_OFFICER', 'ADMIN')"
     )
     public ResponseEntity<List<MonthlyRevenueResponse>>
     getMonthlyRevenue(
-    
-            @RequestParam Integer year
-    
+            @RequestParam
+            Integer year
     ) {
-    
+
         return ResponseEntity.ok(
-    
-                paymentService.getMonthlyRevenue(year)
-    
+                paymentService
+                        .getMonthlyRevenue(
+                                year
+                        )
         );
-    
     }
+
+    /* =====================================================
+       PAYMENT STATUS REPORT
+    ====================================================== */
 
     @GetMapping("/reports/status")
     @PreAuthorize(
@@ -213,9 +324,14 @@ public class PaymentController {
     getPaymentStatusReport() {
 
         return ResponseEntity.ok(
-                paymentService.getPaymentStatusReport()
+                paymentService
+                        .getPaymentStatusReport()
         );
     }
+
+    /* =====================================================
+       OUTSTANDING PAYMENTS
+    ====================================================== */
 
     @GetMapping("/reports/outstanding")
     @PreAuthorize(
@@ -225,9 +341,14 @@ public class PaymentController {
     getOutstandingPayments() {
 
         return ResponseEntity.ok(
-                paymentService.getOutstandingPayments()
+                paymentService
+                        .getOutstandingPayments()
         );
     }
+
+    /* =====================================================
+       REVENUE BY PAYMENT METHOD
+    ====================================================== */
 
     @GetMapping("/reports/payment-methods")
     @PreAuthorize(
@@ -237,9 +358,14 @@ public class PaymentController {
     getRevenueByPaymentMethod() {
 
         return ResponseEntity.ok(
-                paymentService.getRevenueByPaymentMethod()
+                paymentService
+                        .getRevenueByPaymentMethod()
         );
     }
+
+    /* =====================================================
+       RECENT TRANSACTIONS REPORT
+    ====================================================== */
 
     @GetMapping("/reports/recent-transactions")
     @PreAuthorize(
@@ -247,14 +373,17 @@ public class PaymentController {
     )
     public ResponseEntity<List<RecentTransactionResponse>>
     getRecentTransactions(
-
-            @RequestParam(defaultValue = "10")
+            @RequestParam(
+                    defaultValue = "10"
+            )
             int limit
-
     ) {
 
         return ResponseEntity.ok(
-                paymentService.getRecentTransactions(limit)
+                paymentService
+                        .getRecentTransactions(
+                                limit
+                        )
         );
     }
 }

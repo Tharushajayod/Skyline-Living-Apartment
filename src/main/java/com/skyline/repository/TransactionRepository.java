@@ -13,13 +13,11 @@ import com.skyline.entity.Transaction;
 public interface TransactionRepository
         extends JpaRepository<Transaction, Long> {
 
-    Optional<Transaction>
-    findByTransactionNumber(
+    Optional<Transaction> findByTransactionNumber(
             String transactionNumber
     );
 
-    List<Transaction>
-    findByPaymentPaymentId(
+    List<Transaction> findByPaymentPaymentId(
             Long paymentId
     );
 
@@ -28,8 +26,13 @@ public interface TransactionRepository
             String email
     );
 
-    List<Transaction>
-    findAllByOrderByProcessedDateDesc();
+    Optional<Transaction>
+    findByTransactionIdAndPaymentCustomerUserEmail(
+            Long transactionId,
+            String email
+    );
+
+    List<Transaction> findAllByOrderByProcessedDateDesc();
 
     List<Transaction>
     findByTransactionStatusOrderByProcessedDateDesc(
@@ -41,8 +44,7 @@ public interface TransactionRepository
             String transactionStatus
     );
 
-    List<Transaction>
-    findAllByOrderByProcessedDateDesc(
+    List<Transaction> findAllByOrderByProcessedDateDesc(
             Pageable pageable
     );
 

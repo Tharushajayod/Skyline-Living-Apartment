@@ -14,8 +14,10 @@ public interface PaymentEvidenceService {
             String userEmail
     );
 
-    List<PaymentEvidenceResponse> getPaymentEvidence(
-            Long paymentId
+    List<PaymentEvidenceResponse>
+    getPaymentEvidence(
+            Long paymentId,
+            String userEmail
     );
 
     void deleteEvidence(

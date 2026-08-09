@@ -16,6 +16,11 @@ public interface TransactionService {
             Long transactionId
     );
 
+    TransactionResponse getMyTransactionById(
+            Long transactionId,
+            String email
+    );
+
     TransactionResponse getTransactionByNumber(
             String transactionNumber
     );
