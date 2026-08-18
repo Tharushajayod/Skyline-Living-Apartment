@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import static org.springframework.security.config.Customizer.withDefaults;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,70 +24,99 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtFilter) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtFilter
+    ) {
         this.jwtFilter = jwtFilter;
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http)
-            throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http
+    ) throws Exception {
 
         http
-        .csrf(csrf -> csrf.disable())
 
-        .cors(withDefaults())
-
-        .sessionManagement(session ->
-                session.sessionCreationPolicy(
-                        SessionCreationPolicy.STATELESS
+                .csrf(csrf ->
+                        csrf.disable()
                 )
-        )
 
-        .authorizeHttpRequests(auth -> auth
+                .cors(Customizer.withDefaults())
 
-                .requestMatchers(
-                        "/api/auth/register",
-                        "/api/auth/login",
-                        "/api/auth/forgot-password",
-                        "/api/auth/reset-password",
-
-                        "/swagger-ui.html",
-                        "/swagger-ui/**",
-                        "/v3/api-docs",
-                        "/v3/api-docs/**"
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
                 )
-                .permitAll()
 
-                .anyRequest()
-                .authenticated()
-        )
+                .authorizeHttpRequests(auth ->
+                        auth
 
-        .addFilterBefore(
-                jwtFilter,
-                UsernamePasswordAuthenticationFilter.class
-        );
+                                /*
+                                 * Public authentication endpoints
+                                 */
+                                .requestMatchers(
+                                        "/api/auth/register",
+                                        "/api/auth/login",
+                                        "/api/auth/forgot-password",
+                                        "/api/auth/reset-password"
+                                )
+                                .permitAll()
+
+                                /*
+                                 * Swagger
+                                 */
+                                .requestMatchers(
+                                        "/swagger-ui.html",
+                                        "/swagger-ui/**",
+                                        "/v3/api-docs",
+                                        "/v3/api-docs/**"
+                                )
+                                .permitAll()
+
+                                /*
+                                 * All other API requests
+                                 * require authentication.
+                                 */
+                                .anyRequest()
+                                .authenticated()
+                )
+
+                .addFilterBefore(
+                        jwtFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
     }
 
     @Bean
-    AuthenticationManager authenticationManager(
-            AuthenticationConfiguration config)
-            throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config
+    ) throws Exception {
 
-        return config.getAuthenticationManager();
+        return config
+                .getAuthenticationManager();
     }
 
     @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource
+    corsConfigurationSource() {
 
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
+        /*
+         * Allow both localhost and 127.0.0.1
+         * during frontend development.
+         */
         configuration.setAllowedOrigins(
                 List.of(
                         "http://localhost:5173",
-                        "http://localhost:5174"
+                        "http://localhost:5174",
+
+                        "http://127.0.0.1:5173",
+                        "http://127.0.0.1:5174"
                 )
         );
 
@@ -110,9 +139,19 @@ public class SecurityConfig {
                 )
         );
 
-        configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(
+                List.of(
+                        "Content-Disposition"
+                )
+        );
 
-        configuration.setMaxAge(3600L);
+        configuration.setAllowCredentials(
+                true
+        );
+
+        configuration.setMaxAge(
+                3600L
+        );
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
@@ -123,6 +162,5 @@ public class SecurityConfig {
         );
 
         return source;
-        }
-
+    }
 }
