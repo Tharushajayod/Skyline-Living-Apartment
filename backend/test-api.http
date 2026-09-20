@@ -1,0 +1,354 @@
+### ==========================================
+### SKYLINE LIVING API TEST SUITE
+### ==========================================
+
+### 1. AUTHENTICATION & REGISTRATION
+
+### 1.1 Register New Customer
+POST http://localhost:8080/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Michael Corleone",
+  "email": "michael@email.com",
+  "password": "password123",
+  "phone": "+94 77 999 8888"
+}
+
+> {%
+    client.global.set("customer_token", response.body.token);
+%}
+
+### 1.2 Login as Admin
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@skylineliving.com",
+  "password": "admin123"
+}
+
+> {%
+    client.global.set("admin_token", response.body.token);
+%}
+
+### 1.3 Login as Staff
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "staff@skylineliving.com",
+  "password": "staff123"
+}
+
+> {%
+    client.global.set("staff_token", response.body.token);
+%}
+
+### 1.4 Login as Customer (Sarah Chen)
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "sarah.chen@email.com",
+  "password": "customer123"
+}
+
+> {%
+    client.global.set("customer_token", response.body.token);
+%}
+
+### 1.5 Get Current Authenticated User Profile
+GET http://localhost:8080/api/auth/me
+Authorization: Bearer {{customer_token}}
+
+### ==========================================
+### 2. USER MANAGEMENT
+### ==========================================
+
+### 2.1 Get All Users (Admin Only)
+GET http://localhost:8080/api/users
+Authorization: Bearer {{admin_token}}
+
+### 2.2 Update Profile
+PUT http://localhost:8080/api/users/profile
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "name": "Sarah Chen - Updated",
+  "phone": "+94 77 111 2222",
+  "avatarUrl": "https://images.pexels.com/photos/8135118/pexels-photo-8135118.jpeg"
+}
+
+### 2.3 Change Password
+PUT http://localhost:8080/api/users/change-password
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "currentPassword": "customer123",
+  "newPassword": "newpassword123"
+}
+
+### ==========================================
+### 3. APARTMENT LISTINGS
+### ==========================================
+
+### 3.1 Get All Apartments (Public)
+GET http://localhost:8080/api/apartments
+
+### 3.2 Combined Search & Filter
+GET http://localhost:8080/api/apartments?search=colombo&type=Penthouse&status=Available&minPrice=10000000&maxPrice=35000000&bedrooms=4
+
+### 3.3 Get Featured Apartments
+GET http://localhost:8080/api/apartments?featured=true
+
+### 3.4 Get Apartment By ID (Accepts numeric ID or APT-001)
+GET http://localhost:8080/api/apartments/1
+
+### 3.5 Create Apartment (Staff/Admin)
+POST http://localhost:8080/api/apartments
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "apartmentNumber": "APT-005",
+  "title": "Ocean Breeze Luxury Two Bedroom",
+  "buildingName": "Skyline Ocean Tower",
+  "type": "2BR",
+  "status": "Available",
+  "price": 19500000,
+  "floor": 14,
+  "size": 135,
+  "bedrooms": 2,
+  "bathrooms": 2,
+  "address": "25 Galle Road",
+  "city": "Colombo",
+  "district": "Colombo 03",
+  "description": "Modern apartment with uninterrupted sunset ocean view and luxury amenities.",
+  "yearBuilt": 2025,
+  "featured": true,
+  "facilities": ["Swimming Pool", "Gym & Fitness Center", "24/7 Security", "Underground Parking"],
+  "images": [
+    {
+      "url": "https://images.pexels.com/photos/16110999/pexels-photo-16110999.jpeg",
+      "caption": "Living Room"
+    }
+  ]
+}
+
+### 3.6 Update Apartment (Staff/Admin)
+PUT http://localhost:8080/api/apartments/1
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "title": "Skyline Grand Penthouse - Renovated",
+  "buildingName": "Skyline Tower One",
+  "type": "Penthouse",
+  "status": "Available",
+  "price": 29000000,
+  "floor": 38,
+  "size": 250,
+  "bedrooms": 4,
+  "bathrooms": 4,
+  "address": "100 Galle Face Center Road",
+  "city": "Colombo",
+  "district": "Colombo 01",
+  "description": "Ultra-luxurious duplex penthouse with panoramic ocean views and private pool.",
+  "featured": true
+}
+
+### ==========================================
+### 4. VIEWING APPOINTMENTS
+### ==========================================
+
+### 4.1 Book Viewing Appointment (Customer)
+POST http://localhost:8080/api/appointments
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "apartmentId": "1",
+  "date": "2026-09-25",
+  "timeSlot": "10:00 AM - 11:00 AM",
+  "notes": "Looking to inspect master suite and parking facilities."
+}
+
+### 4.2 Get Viewing Appointments
+GET http://localhost:8080/api/appointments
+Authorization: Bearer {{customer_token}}
+
+### 4.3 Approve / Reschedule Viewing (Staff/Admin)
+PATCH http://localhost:8080/api/appointments/1/status
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "status": "Approved"
+}
+
+### ==========================================
+### 5. RESERVATIONS
+### ==========================================
+
+### 5.1 Place Reservation (Customer - Eligible After Viewing)
+POST http://localhost:8080/api/reservations
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "apartmentId": "1",
+  "reservationFee": 500000
+}
+
+### 5.2 Get Reservations
+GET http://localhost:8080/api/reservations
+Authorization: Bearer {{customer_token}}
+
+### ==========================================
+### 6. PAYMENTS & PROOFS
+### ==========================================
+
+### 6.1 Create Payment Record (Customer)
+POST http://localhost:8080/api/payments
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "apartmentId": "1",
+  "type": "Reservation Fee",
+  "amount": 500000,
+  "notes": "Reservation fee transfer via Commercial Bank"
+}
+
+### 6.2 Get Payments List
+GET http://localhost:8080/api/payments
+Authorization: Bearer {{customer_token}}
+
+### 6.3 Verify Payment (Staff/Admin)
+PATCH http://localhost:8080/api/payments/1/verify
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "notes": "Confirmed bank receipt and reconciled with ledger."
+}
+
+### ==========================================
+### 7. INQUIRIES & REPLIES
+### ==========================================
+
+### 7.1 Submit Customer Inquiry
+POST http://localhost:8080/api/inquiries
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "apartmentId": "1",
+  "subject": "Deed and Clear Title Inquiry",
+  "message": "Can you provide the title registration details and deed clearance for this property?",
+  "category": "General",
+  "priority": "High"
+}
+
+### 7.2 Get Inquiries
+GET http://localhost:8080/api/inquiries
+Authorization: Bearer {{customer_token}}
+
+### 7.3 Reply to Inquiry (Staff/Admin)
+POST http://localhost:8080/api/inquiries/1/replies
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "message": "Title is completely clear with tripartite condominium registry certificates available upon request."
+}
+
+### ==========================================
+### 8. REVIEWS & RATINGS
+### ==========================================
+
+### 8.1 Submit Review (Customer)
+POST http://localhost:8080/api/reviews
+Authorization: Bearer {{customer_token}}
+Content-Type: application/json
+
+{
+  "apartmentId": "1",
+  "rating": 5,
+  "title": "Outstanding Property",
+  "comment": "Exceptional view and first-rate amenities throughout."
+}
+
+### 8.2 Get Published Reviews for Apartment (Public)
+GET http://localhost:8080/api/apartments/1/reviews
+
+### 8.3 Moderate Review (Staff/Admin)
+PATCH http://localhost:8080/api/reviews/1/moderate
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "status": "Published"
+}
+
+### ==========================================
+### 9. FAVORITES
+### ==========================================
+
+### 9.1 Add to Favorites
+POST http://localhost:8080/api/favorites/1
+Authorization: Bearer {{customer_token}}
+
+### 9.2 Get Favorites
+GET http://localhost:8080/api/favorites
+Authorization: Bearer {{customer_token}}
+
+### 9.3 Remove Favorite
+DELETE http://localhost:8080/api/favorites/1
+Authorization: Bearer {{customer_token}}
+
+### ==========================================
+### 10. NOTIFICATIONS
+### ==========================================
+
+### 10.1 Get Notifications
+GET http://localhost:8080/api/notifications
+Authorization: Bearer {{customer_token}}
+
+### 10.2 Mark All Notifications Read
+PATCH http://localhost:8080/api/notifications/read-all
+Authorization: Bearer {{customer_token}}
+
+### ==========================================
+### 11. SALES & OWNERSHIP RECORDS
+### ==========================================
+
+### 11.1 Finalize Sale (Staff/Admin)
+POST http://localhost:8080/api/sales
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "apartmentId": "1",
+  "finalPrice": 28500000,
+  "customerEmail": "sarah.chen@email.com"
+}
+
+### 11.2 Get All Sales Records (Staff/Admin)
+GET http://localhost:8080/api/sales
+Authorization: Bearer {{staff_token}}
+
+### ==========================================
+### 12. DASHBOARD & MANAGEMENT REPORTS
+### ==========================================
+
+### 12.1 Dashboard Stats (Staff/Admin)
+GET http://localhost:8080/api/dashboard/stats
+Authorization: Bearer {{staff_token}}
+
+### 12.2 Dashboard Reports (Staff/Admin)
+GET http://localhost:8080/api/dashboard/reports
+Authorization: Bearer {{admin_token}}
