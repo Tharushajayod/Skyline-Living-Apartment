@@ -4,10 +4,12 @@ import com.skyline.dto.inquiry.InquiryReplyRequest;
 import com.skyline.dto.inquiry.InquiryRequest;
 import com.skyline.dto.inquiry.InquiryResponse;
 import com.skyline.entity.Apartment;
+import com.skyline.entity.ApartmentStatus;
 import com.skyline.entity.Inquiry;
 import com.skyline.entity.InquiryReply;
 import com.skyline.entity.User;
 import com.skyline.enums.*;
+import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ResourceNotFoundException;
 import com.skyline.repository.InquiryReplyRepository;
 import com.skyline.repository.InquiryRepository;
@@ -85,6 +87,9 @@ public class InquiryService {
         if (request.getApartmentId() != null && !request.getApartmentId().trim().isEmpty()) {
             Long aptId = IdParser.parseId(request.getApartmentId());
             apartment = apartmentService.getApartmentEntityById(aptId);
+            if (apartment.getStatus() == ApartmentStatus.SOLD) {
+                throw new BadRequestException("Cannot submit inquiry for a sold apartment");
+            }
             aptTitle = apartment.getTitle();
         }
 

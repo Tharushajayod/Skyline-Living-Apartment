@@ -71,7 +71,7 @@ export default function ManageApartmentsPage() {
   const fetchApartments = async () => {
     try {
       setLoading(true);
-      const data = await apartmentService.getAll();
+      const data = await apartmentService.getAll({ includeSold: true });
       setList(data);
     } catch (err: any) {
       console.error(err);
@@ -103,6 +103,10 @@ export default function ManageApartmentsPage() {
   }
 
   function openEdit(apt: Apartment) {
+    if (apt.status?.toUpperCase() === 'SOLD') {
+      toast('Sold apartments cannot be edited because they are part of completed sales records.', 'warning');
+      return;
+    }
     setEditing(apt);
     setForm({
       title: apt.title, buildingName: apt.buildingName, type: apt.type, status: apt.status,
@@ -238,6 +242,11 @@ export default function ManageApartmentsPage() {
 
   async function handleDelete() {
     if (!deleteTarget) return;
+    if (deleteTarget.status?.toUpperCase() === 'SOLD') {
+      toast('Sold apartments cannot be deleted because they are part of completed sales records.', 'error');
+      setDeleteTarget(null);
+      return;
+    }
     try {
       await apartmentService.delete(deleteTarget.id);
       setList(prev => prev.filter(a => a.id !== deleteTarget.id));
@@ -280,58 +289,142 @@ export default function ManageApartmentsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-slate-100">
         {loading ? (
-          <div className="p-12 text-center text-navy-400">Loading properties...</div>
+          <div className="p-12 text-center text-slate-400 font-medium">Loading properties...</div>
         ) : filtered.length === 0 ? (
           <EmptyState variant="search" title="No apartments found" description="Try adjusting your search or filters." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-navy-100 bg-navy-50/50 text-left text-xs uppercase tracking-wider text-navy-400">
-                  <th className="px-5 py-3 font-medium">Image</th>
-                  <th className="px-5 py-3 font-medium">Title</th>
-                  <th className="px-5 py-3 font-medium">Type</th>
-                  <th className="px-5 py-3 font-medium">Price</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Floor</th>
-                  <th className="px-5 py-3 font-medium">District</th>
-                  <th className="px-5 py-3 font-medium text-right">Actions</th>
+                <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
+                  <th className="px-5 py-3.5">Apartment & Residence</th>
+                  <th className="px-5 py-3.5">Layout & Floor</th>
+                  <th className="px-5 py-3.5">Pricing & Valuation</th>
+                  <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-navy-50">
-                {filtered.map(apt => (
-                  <tr key={apt.id} className="hover:bg-navy-50/30 transition-colors">
-                    <td className="px-5 py-3">
-                      <img src={apt.images?.[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=200&q=80'} alt={apt.title} className="w-14 h-14 rounded-lg object-cover" loading="lazy" />
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-navy-900">{apt.title}</span>
-                        {apt.featured && <Star className="w-3.5 h-3.5 text-gold-500 fill-gold-500" />}
-                      </div>
-                      <span className="text-xs text-navy-400">{apt.buildingName}</span>
-                    </td>
-                    <td className="px-5 py-3 text-navy-600">{apt.type}</td>
-                    <td className="px-5 py-3 font-medium text-navy-900">{formatCurrency(apt.price)}</td>
-                    <td className="px-5 py-3"><Badge variant={statusToVariant(apt.status)} size="sm" dot>{apt.status}</Badge></td>
-                    <td className="px-5 py-3 text-navy-600">{apt.floor}</td>
-                    <td className="px-5 py-3 text-navy-600">{apt.district}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(apt)} className="p-2 text-navy-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors" title="Edit">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        {isAdmin && (
-                          <button onClick={() => setDeleteTarget(apt)} className="p-2 text-navy-400 hover:text-error-600 hover:bg-error-50 rounded-lg transition-colors" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map(apt => {
+                  const isSold = apt.status?.toUpperCase() === 'SOLD';
+                  return (
+                    <tr key={apt.id} className="hover:bg-slate-50/60 transition-colors">
+                      {/* 1. Apartment & Residence */}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3.5">
+                          <img
+                            src={apt.images?.[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=200&q=80'}
+                            alt={apt.title}
+                            className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200/80 shadow-xs"
+                            loading="lazy"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-extrabold text-slate-900 leading-tight truncate max-w-[220px]">
+                                {apt.title}
+                              </span>
+                              {apt.featured && (
+                                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5 truncate">
+                              {apt.buildingName} • <span className="text-slate-400">{apt.district || apt.city}</span>
+                            </p>
+                            <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-medium">
+                              <span>{apt.bedrooms} Beds</span>
+                              <span>•</span>
+                              <span>{apt.bathrooms} Baths</span>
+                              {apt.size && (
+                                <>
+                                  <span>•</span>
+                                  <span>{apt.size} sq.ft</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 2. Layout & Floor */}
+                      <td className="px-5 py-3.5">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
+                          {apt.type}
+                        </span>
+                        <p className="text-xs text-slate-500 mt-1 font-medium">
+                          Floor {apt.floor || 'N/A'}
+                        </p>
+                      </td>
+
+                      {/* 3. Pricing & Valuation */}
+                      <td className="px-5 py-3.5">
+                        <p className="font-extrabold text-slate-900 text-sm">
+                          {formatCurrency(apt.price)}
+                        </p>
+                        {apt.size && apt.price ? (
+                          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                            {formatCurrency(Math.round(apt.price / Number(apt.size)))} / sq.ft
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 mt-0.5">Built {apt.yearBuilt || '2024'}</p>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+
+                      {/* 4. Status */}
+                      <td className="px-5 py-3.5">
+                        <Badge variant={statusToVariant(apt.status)} size="sm" dot>
+                          {apt.status}
+                        </Badge>
+                      </td>
+
+                      {/* 5. Actions */}
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isSold ? (
+                            <div className="flex items-center gap-1 text-slate-400">
+                              <button
+                                disabled
+                                className="p-2 text-slate-300 cursor-not-allowed rounded-lg opacity-40"
+                                title="Sold apartments cannot be edited."
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  disabled
+                                  className="p-2 text-slate-300 cursor-not-allowed rounded-lg opacity-40"
+                                  title="Sold apartments cannot be deleted."
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => openEdit(apt)}
+                                className="p-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-amber-200"
+                                title="Edit Apartment"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => setDeleteTarget(apt)}
+                                  className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-200"
+                                  title="Delete Apartment"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

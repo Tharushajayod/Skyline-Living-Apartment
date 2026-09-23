@@ -35,6 +35,10 @@ public class Reservation {
     @JoinColumn(name = "customer_id", nullable = false)
     private User customer;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "appointment_id")
+    private Appointment appointment;
+
     private String customerName;
     private String customerEmail;
 

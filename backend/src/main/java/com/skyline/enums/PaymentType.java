@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum PaymentType {
 
     RESERVATION_FEE("Reservation Fee"),
-    DOWN_PAYMENT("Down Payment"),
     INSTALLMENT("Installment"),
     FULL_PAYMENT("Full Payment"),
     INSTALLMENT_PAYMENT("Installment Payment"),
@@ -56,9 +55,6 @@ public enum PaymentType {
         }
         if (normalized.contains("FULL")) {
             return FULL_PAYMENT;
-        }
-        if (normalized.contains("DOWN")) {
-            return DOWN_PAYMENT;
         }
 
         throw new IllegalArgumentException(

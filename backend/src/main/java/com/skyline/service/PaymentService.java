@@ -19,6 +19,7 @@ import com.skyline.enums.PaymentStatus;
 import com.skyline.enums.PaymentType;
 import com.skyline.enums.ReservationStatus;
 import com.skyline.enums.UserRole;
+import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ForbiddenException;
 import com.skyline.exception.ResourceNotFoundException;
 import com.skyline.repository.ApartmentRepository;
@@ -343,6 +344,10 @@ public class PaymentService {
             throw new ResourceNotFoundException(
                     "Reservation or apartment is required"
             );
+        }
+
+        if (request.getType() == PaymentType.RESERVATION_FEE && apartment.getStatus() == ApartmentStatus.SOLD) {
+            throw new BadRequestException("Cannot make payment for a sold apartment");
         }
 
         // =====================================================

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight,
-  Building2, CheckCircle2, Sparkles, ShieldCheck, Star, KeyRound, Award
+  Building2, CheckCircle2, Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useToast } from '@/shared/components/ui/Toast';
@@ -22,6 +22,7 @@ export default function RegisterPage() {
     confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -67,83 +68,63 @@ export default function RegisterPage() {
     }
   };
 
-  const benefits = [
-    { title: 'Priority 48-Hour Holds', desc: 'Lock signature units before public open-houses' },
-    { title: 'Architectural Viewings', desc: 'Schedule private VIP on-site walk-throughs' },
-    { title: 'Transparent Deed Tracking', desc: 'Direct legal deed registration & payment records' },
-    { title: 'Direct Concierge Channel', desc: '24/7 dedicated luxury apartment advisor' },
-  ];
-
   return (
-    <div className="min-h-screen flex bg-[#fafbfe] relative overflow-hidden">
-      {/* Ambient background glows */}
-      <div className="absolute -top-32 -left-32 w-[550px] h-[550px] bg-gradient-to-br from-gold-100/60 via-champagne-100/40 to-transparent rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-gradient-to-tl from-amber-100/40 via-gold-50/50 to-transparent rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-[calc(100vh-80px)] flex flex-col lg:flex-row items-stretch justify-center">
+      
+      {/* Left Section: Light Luxury Visual Banner (Exact Match with LoginPage) */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-amber-50/80 via-white to-amber-100/40 border-r border-amber-200/60 p-12 xl:p-16 flex-col justify-between overflow-hidden">
+        
+        {/* Decorative Ambient Shapes */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-amber-200/30 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-yellow-200/20 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Left Section: Full Height Light Luxury Showcase */}
-      <div className="hidden lg:flex lg:w-1/2 relative p-12 xl:p-16 flex-col justify-between overflow-hidden border-r border-gold-200/50 bg-gradient-to-br from-white via-champagne-50/60 to-gold-50/40">
-        
-        {/* Background Subtle Architectural Pattern */}
-        <div className="absolute inset-0 bg-[radial-gradient(#d97706_0.75px,transparent_0.75px)] [background-size:24px_24px] opacity-15" />
-        
         {/* Top Branding */}
         <div className="relative z-10">
-          <Link to="/" className="inline-flex items-center gap-3.5 group">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-gold-400 via-gold-500 to-gold-600 flex items-center justify-center text-white shadow-lg shadow-gold-500/25 group-hover:scale-105 transition duration-300">
+          <Link to="/" className="inline-flex items-center gap-3 group">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20 group-hover:scale-105 transition">
               <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-2xl font-black tracking-tight text-slate-900 font-serif">
-                Skyline<span className="text-gold-600">Living</span>
+              <p className="text-xl font-extrabold tracking-tight text-slate-900">
+                Skyline<span className="text-amber-600">Living</span>
               </p>
-              <p className="text-[11px] uppercase tracking-widest text-gold-700 font-bold">
-                Ultra-Luxury Residences
+              <p className="text-[11px] uppercase tracking-wider text-amber-700 font-bold">
+                Luxury Real Estate Concierge
               </p>
             </div>
           </Link>
         </div>
 
         {/* Center Presentation */}
-        <div className="relative z-10 my-auto py-10 max-w-lg">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gold-100/80 border border-gold-300/60 text-gold-900 text-xs font-bold uppercase tracking-wider mb-5 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-gold-600" />
-            Exclusive Membership Privileges
+        <div className="relative z-10 max-w-lg my-auto py-8">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100/80 border border-amber-300/80 text-amber-900 text-xs font-bold mb-4 shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span>Colombo's Most Prestigious Residences</span>
           </div>
 
-          <h1 className="text-4xl xl:text-5xl font-extrabold text-slate-900 leading-[1.15] font-serif tracking-tight mb-4">
-            Own Your Place Above The <br />
-            <span className="gold-gradient-text">Skyline Horizon</span>
+          <h1 className="text-3xl xl:text-5xl font-extrabold leading-tight text-slate-900 tracking-tight mb-4">
+            Join the <br />
+            <span className="gold-gradient-text">
+              Skyline Community
+            </span>
           </h1>
 
-          <p className="text-slate-600 text-base leading-relaxed mb-8">
-            Create an account to gain instant access to verified architectural floor plans, flexible milestone payment schedules, and priority reservation allocations.
+          <p className="text-slate-600 text-sm xl:text-base leading-relaxed mb-8">
+            Create your verified account to reserve luxury residences, track milestone payment schedules, and schedule private showings.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            {benefits.map((b, i) => (
-              <div key={i} className="p-4 rounded-2xl bg-white/80 border border-gold-100/80 shadow-sm hover:shadow-md hover:border-gold-300 transition duration-300 group">
-                <div className="w-8 h-8 rounded-xl bg-gold-100 text-gold-700 flex items-center justify-center font-bold text-xs mb-2.5 group-hover:bg-gold-500 group-hover:text-white transition">
-                  {i === 0 ? <KeyRound className="w-4 h-4" /> : i === 1 ? <Star className="w-4 h-4" /> : i === 2 ? <ShieldCheck className="w-4 h-4" /> : <Award className="w-4 h-4" />}
-                </div>
-                <h4 className="text-sm font-bold text-slate-900">{b.title}</h4>
-                <p className="text-xs text-slate-500 mt-1 leading-snug">{b.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Trust Banner */}
-          <div className="p-4 rounded-2xl bg-white/90 border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="flex -space-x-2">
-              <img className="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80" alt="Avatar" />
-              <img className="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80" alt="Avatar" />
-              <img className="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80" alt="Avatar" />
+          <div className="grid grid-cols-3 gap-4 pt-6 border-t border-amber-200/60">
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl p-4 border border-amber-200/50 shadow-xs">
+              <p className="text-2xl font-black text-amber-600 font-sans tabular-nums">100%</p>
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mt-0.5">Verified Deeds</p>
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800">Joined by over 450+ verified penthouse owners</p>
-              <div className="flex items-center gap-1 text-[11px] text-amber-500 font-semibold mt-0.5">
-                <div className="flex text-amber-500">★★★★★</div>
-                <span className="text-slate-500 ml-1">4.9/5 satisfaction rate</span>
-              </div>
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl p-4 border border-amber-200/50 shadow-xs">
+              <p className="text-2xl font-black text-slate-900 font-sans tabular-nums">10%</p>
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mt-0.5">Initial Hold Fee</p>
+            </div>
+            <div className="bg-white/80 backdrop-blur-md rounded-2xl p-4 border border-amber-200/50 shadow-xs">
+              <p className="text-2xl font-black text-emerald-600 font-sans tabular-nums">Live</p>
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mt-0.5">Payment Sync</p>
             </div>
           </div>
         </div>
@@ -151,28 +132,25 @@ export default function RegisterPage() {
         {/* Footer info */}
         <div className="relative z-10 flex items-center justify-between text-xs text-slate-500 font-medium">
           <p>© 2026 Skyline Living. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <Link to="/contact" className="hover:text-gold-700 transition">VIP Concierge</Link>
-            <Link to="/apartments" className="hover:text-gold-700 transition">Explore Units</Link>
-          </div>
+          <p className="flex items-center gap-1 text-amber-800 font-semibold">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Bank-Grade Security
+          </p>
         </div>
+
       </div>
 
-      {/* Right Section: Form */}
-      <div className="flex-1 flex items-center justify-center px-6 sm:px-12 lg:px-16 py-12 relative z-10">
-        <div className="w-full max-w-lg">
+      {/* Right Section: Luxury Light Register Form (Matches LoginPage) */}
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-10 lg:px-16 py-12">
+        <div className="w-full max-w-md">
           
-          <div className="luxury-glass rounded-3xl border border-white/90 shadow-[0_20px_50px_rgba(180,83,9,0.08)] p-8 sm:p-10 backdrop-blur-xl">
-            <div className="mb-6 text-center sm:text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-50 border border-gold-200 text-gold-800 text-[11px] font-bold uppercase tracking-wider mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-gold-600" />
-                Register New Resident
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-serif">
+          <div className="luxury-glass rounded-3xl p-8 sm:p-10 shadow-xl relative overflow-hidden">
+            
+            <div className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                 Create Your Account
               </h2>
-              <p className="text-sm text-slate-600 mt-1 font-normal">
-                Join Skyline Living and access private luxury properties.
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                Join Skyline Living and discover your next home.
               </p>
             </div>
 
@@ -181,7 +159,7 @@ export default function RegisterPage() {
                 label="Full Name"
                 name="name"
                 placeholder="e.g. Tharusha Jayod"
-                icon={<User className="w-4 h-4 text-gold-600" />}
+                icon={<User className="w-4 h-4 text-slate-400" />}
                 value={form.name}
                 onChange={(e) => update('name', e.target.value)}
                 error={errors.name}
@@ -192,7 +170,7 @@ export default function RegisterPage() {
                 name="email"
                 type="email"
                 placeholder="name@example.com"
-                icon={<Mail className="w-4 h-4 text-gold-600" />}
+                icon={<Mail className="w-4 h-4 text-slate-400" />}
                 value={form.email}
                 onChange={(e) => update('email', e.target.value)}
                 error={errors.email}
@@ -203,7 +181,7 @@ export default function RegisterPage() {
                 name="phone"
                 type="tel"
                 placeholder="077 123 4567"
-                icon={<Phone className="w-4 h-4 text-gold-600" />}
+                icon={<Phone className="w-4 h-4 text-slate-400" />}
                 value={form.phone}
                 onChange={(e) => update('phone', e.target.value)}
                 error={errors.phone}
@@ -216,7 +194,7 @@ export default function RegisterPage() {
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="At least 6 characters"
-                    icon={<Lock className="w-4 h-4 text-gold-600" />}
+                    icon={<Lock className="w-4 h-4 text-slate-400" />}
                     value={form.password}
                     onChange={(e) => update('password', e.target.value)}
                     error={errors.password}
@@ -224,7 +202,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-[38px] text-slate-400 hover:text-gold-700 transition"
+                    className="absolute right-3.5 top-[38px] text-slate-400 hover:text-slate-700 transition cursor-pointer"
                     title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -233,54 +211,58 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <Input
-                  label="Confirm Password"
-                  name="confirmPassword"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Re-enter password"
-                  icon={<Lock className="w-4 h-4 text-gold-600" />}
-                  value={form.confirmPassword}
-                  onChange={(e) => update('confirmPassword', e.target.value)}
-                  error={errors.confirmPassword}
-                />
+                <div className="relative">
+                  <Input
+                    label="Confirm Password"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Re-enter password"
+                    icon={<Lock className="w-4 h-4 text-slate-400" />}
+                    value={form.confirmPassword}
+                    onChange={(e) => update('confirmPassword', e.target.value)}
+                    error={errors.confirmPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3.5 top-[38px] text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <label className="flex items-start gap-2.5 text-xs text-slate-600 cursor-pointer pt-1 select-none">
                 <input
                   type="checkbox"
                   required
-                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-gold-600 focus:ring-gold-400 cursor-pointer accent-gold-600"
+                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
                 />
                 <span className="leading-relaxed">
                   I agree to the{' '}
-                  <span className="text-gold-700 font-bold hover:underline">Terms of Service</span> and{' '}
-                  <span className="text-gold-700 font-bold hover:underline">Privacy Policy</span>
+                  <span className="text-amber-700 hover:text-amber-800 font-bold hover:underline">Terms of Service</span> and{' '}
+                  <span className="text-amber-700 hover:text-amber-800 font-bold hover:underline">Privacy Policy</span>
                 </span>
               </label>
 
-              {/* Luxury Gold Create Account Button */}
+              {/* Submit Button (Exact match with LoginPage) */}
               <div className="pt-2">
-                <button
+                <Button
                   type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-gold-500 via-gold-600 to-amber-600 hover:from-gold-600 hover:to-amber-700 text-white font-bold text-sm shadow-lg shadow-gold-500/25 flex items-center justify-center gap-2 transition duration-300 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+                  loading={loading}
+                  icon={!loading ? <ArrowRight className="w-4 h-4" /> : undefined}
+                  className="w-full bg-gradient-to-r from-amber-500 via-amber-500 to-yellow-400 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-extrabold text-sm py-3 rounded-2xl border-0 shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span>Complete Registration</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                  Create Account
+                </Button>
               </div>
             </form>
 
-            <p className="text-center text-xs sm:text-sm text-slate-500 mt-6 pt-6 border-t border-gold-100 font-normal">
+            <p className="text-center text-xs sm:text-sm text-slate-500 mt-6 pt-6 border-t border-slate-100 font-normal">
               Already have an account?{' '}
-              <Link to="/login" className="text-gold-700 hover:text-gold-800 font-bold hover:underline">
-                Sign in to your portal
+              <Link to="/login" className="text-amber-700 hover:text-amber-800 font-extrabold hover:underline">
+                Sign in
               </Link>
             </p>
           </div>

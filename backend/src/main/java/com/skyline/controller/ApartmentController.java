@@ -36,10 +36,11 @@ public class ApartmentController {
             @RequestParam(required = false) Integer bedrooms,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) Boolean featured) {
+            @RequestParam(required = false) Boolean featured,
+            @RequestParam(required = false) Boolean includeSold) {
 
         List<ApartmentResponse> result = apartmentService.searchApartments(
-                search, type, status, district, bedrooms, minPrice, maxPrice, featured);
+                search, type, status, district, bedrooms, minPrice, maxPrice, featured, includeSold);
         return ResponseEntity.ok(result);
     }
 

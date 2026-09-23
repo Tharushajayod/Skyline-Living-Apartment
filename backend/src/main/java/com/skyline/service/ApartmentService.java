@@ -7,8 +7,11 @@ import com.skyline.entity.Apartment;
 import com.skyline.entity.ApartmentImage;
 import com.skyline.entity.ApartmentStatus;
 import com.skyline.enums.ApartmentType;
+import com.skyline.exception.ConflictException;
 import com.skyline.exception.ResourceNotFoundException;
 import com.skyline.repository.ApartmentRepository;
+import com.skyline.repository.OwnershipRecordRepository;
+import com.skyline.repository.SaleRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -25,9 +28,16 @@ import java.util.stream.Collectors;
 public class ApartmentService {
 
     private final ApartmentRepository apartmentRepository;
+    private final SaleRepository saleRepository;
+    private final OwnershipRecordRepository ownershipRecordRepository;
 
-    public ApartmentService(ApartmentRepository apartmentRepository) {
+    public ApartmentService(
+            ApartmentRepository apartmentRepository,
+            SaleRepository saleRepository,
+            OwnershipRecordRepository ownershipRecordRepository) {
         this.apartmentRepository = apartmentRepository;
+        this.saleRepository = saleRepository;
+        this.ownershipRecordRepository = ownershipRecordRepository;
     }
 
     // Dynamic combined search & filter
@@ -40,6 +50,19 @@ public class ApartmentService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             Boolean featured) {
+        return searchApartments(search, type, status, district, bedrooms, minPrice, maxPrice, featured, false);
+    }
+
+    public List<ApartmentResponse> searchApartments(
+            String search,
+            ApartmentType type,
+            ApartmentStatus status,
+            String district,
+            Integer bedrooms,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean featured,
+            Boolean includeSold) {
 
         Specification<Apartment> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -59,6 +82,9 @@ public class ApartmentService {
 
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            } else if (!Boolean.TRUE.equals(includeSold)) {
+                // By default, public inventory/search never exposes SOLD apartments
+                predicates.add(cb.notEqual(root.get("status"), ApartmentStatus.SOLD));
             }
 
             if (district != null && !district.trim().isEmpty() && !"all".equalsIgnoreCase(district.trim())) {
@@ -139,11 +165,9 @@ public class ApartmentService {
                 .longitude(request.getLongitude() != null ? request.getLongitude() : 79.8612)
                 .featured(request.getFeatured() != null ? request.getFeatured() : false)
                 .createdAt(LocalDateTime.now())
-                // legacy
                 .area(effectiveSize)
                 .floorNumber(effectiveFloor)
                 .location(effectiveAddress)
-                .imageUrl(request.getImageUrl())
                 .build();
 
         if (request.getImages() != null && !request.getImages().isEmpty()) {
@@ -169,6 +193,12 @@ public class ApartmentService {
     @Transactional
     public ApartmentResponse updateApartment(Long id, ApartmentRequest request) {
         Apartment existing = getApartmentEntityById(id);
+
+        if (existing.getStatus() == ApartmentStatus.SOLD ||
+                saleRepository.findByApartmentId(id).isPresent() ||
+                ownershipRecordRepository.findByApartmentId(id).isPresent()) {
+            throw new ConflictException("Sold apartments cannot be edited because they are part of completed sales records.");
+        }
 
         if (request.getTitle() != null) existing.setTitle(request.getTitle());
         if (request.getBuildingName() != null) existing.setBuildingName(request.getBuildingName());
@@ -227,14 +257,28 @@ public class ApartmentService {
 
     @Transactional
     public Apartment updateApartment(Apartment apartment) {
+        if (apartment.getId() != null) {
+            Apartment existing = apartmentRepository.findById(apartment.getId()).orElse(null);
+            if (existing != null && (existing.getStatus() == ApartmentStatus.SOLD ||
+                    saleRepository.findByApartmentId(existing.getId()).isPresent() ||
+                    ownershipRecordRepository.findByApartmentId(existing.getId()).isPresent())) {
+                throw new ConflictException("Sold apartments cannot be edited because they are part of completed sales records.");
+            }
+        }
         return apartmentRepository.save(apartment);
     }
 
+    @Transactional
     public void deleteApartment(Long id) {
-        if (!apartmentRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Apartment not found with id: " + id);
+        Apartment apartment = getApartmentEntityById(id);
+
+        if (apartment.getStatus() == ApartmentStatus.SOLD ||
+                saleRepository.findByApartmentId(id).isPresent() ||
+                ownershipRecordRepository.findByApartmentId(id).isPresent()) {
+            throw new ConflictException("Sold apartments cannot be deleted because they are part of completed sales records.");
         }
-        apartmentRepository.deleteById(id);
+
+        apartmentRepository.delete(apartment);
     }
 
     public List<ApartmentResponse> getApartmentsByStatus(ApartmentStatus status) {

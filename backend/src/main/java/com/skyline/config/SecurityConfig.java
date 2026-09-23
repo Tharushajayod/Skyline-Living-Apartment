@@ -94,10 +94,12 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/api/reviews",
                                 "/api/reviews/**"
                         ).permitAll()
 
                         .requestMatchers(
+                                HttpMethod.GET,
                                 "/api/uploads/**"
                         ).permitAll()
 

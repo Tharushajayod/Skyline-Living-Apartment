@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search, SlidersHorizontal, X, MapPin, Home, ChevronDown,
-  ArrowUpDown, LayoutGrid, List, Sparkles, Building2, Eye, Bed, Bath, Maximize, ArrowRight
+  ArrowUpDown, LayoutGrid, List, Sparkles, Building2, Eye, Bed, Bath, Maximize, ArrowRight,
+  RefreshCw, CheckCircle2
 } from 'lucide-react';
 import type { Apartment, ApartmentType, ApartmentStatus } from '@/shared/types';
 import { apartmentService } from '@/shared/services/apartmentService';
@@ -23,9 +24,65 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'size', label: 'Largest Floor Area' },
 ];
 
+// Lightweight scroll reveal wrapper
+function RevealOnScroll({
+  children,
+  className = '',
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -30px 0px' }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        transitionDelay: `${delay}ms`,
+        transitionDuration: '650ms',
+        transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      }}
+      className={`transition-all ${
+        isVisible
+          ? 'opacity-100 translate-y-0'
+          : 'opacity-0 translate-y-5 pointer-events-none'
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function ApartmentListingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [allApartments, setAllApartments] = useState<Apartment[]>([]);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -40,17 +97,27 @@ export default function ApartmentListingPage() {
   const bedrooms = searchParams.get('bedrooms') ?? 'all';
   const sort = (searchParams.get('sort') as SortKey) ?? 'newest';
 
+  const loadApartments = async () => {
+    try {
+      setLoading(true);
+      setFetchError(null);
+      const data = await apartmentService.getAll();
+      // Enforce: sold apartments must never appear in normal public listings
+      const availableOnly = Array.isArray(data)
+        ? data.filter((a) => (a.status || '').toLowerCase() !== 'sold')
+        : [];
+      setAllApartments(availableOnly);
+    } catch (err: any) {
+      console.error('Failed to load apartments:', err);
+      setFetchError('Unable to load residences right now. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Load apartments
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    apartmentService.getAll().then((data) => {
-      if (active) {
-        setAllApartments(data);
-        setLoading(false);
-      }
-    });
-    return () => { active = false; };
+    loadApartments();
   }, []);
 
   // District options
@@ -65,11 +132,11 @@ export default function ApartmentListingPage() {
     return Array.from(set).sort();
   }, [allApartments]);
 
-  // Apply filters - Do not display sold apartments
+  // Apply filters - strictly exclude sold apartments
   const filtered = useMemo(() => {
     let result = allApartments.filter((a) => (a.status || '').toLowerCase() !== 'sold');
     if (search) {
-      const q = search.toLowerCase();
+      const q = search.toLowerCase().trim();
       result = result.filter((a) =>
         (a.title && a.title.toLowerCase().includes(q)) ||
         (a.district && a.district.toLowerCase().includes(q)) ||
@@ -121,50 +188,51 @@ export default function ApartmentListingPage() {
 
   // ---------- Filter Panel Component ----------
   const FilterPanel = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-gold-200/60">
-        <h3 className="font-serif font-bold text-slate-900 text-lg flex items-center gap-2">
-          <SlidersHorizontal className="w-5 h-5 text-gold-600" />
-          Filter Portfolio
+    <div className="space-y-5">
+      <div className="flex items-center justify-between pb-3.5 border-b border-slate-200/80">
+        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+          <SlidersHorizontal className="w-4 h-4 text-amber-600" />
+          <span>Filters</span>
         </h3>
         {activeFilterCount > 0 && (
           <button
+            type="button"
             onClick={clearAllFilters}
-            className="text-xs text-gold-700 hover:text-gold-900 font-bold flex items-center gap-1 bg-gold-100/70 hover:bg-gold-200 px-2.5 py-1 rounded-lg transition"
+            className="text-[11px] text-amber-800 hover:text-amber-900 font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition cursor-pointer"
           >
-            <X className="w-3 h-3" /> Clear ({activeFilterCount})
+            <X className="w-3 h-3" /> Reset ({activeFilterCount})
           </button>
         )}
       </div>
 
       {/* Search Input */}
       <div>
-        <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 block mb-1.5">
-          Keyword Search
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+          Keywords
         </label>
         <div className="relative">
-          <Search className="w-4 h-4 text-gold-600 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 text-amber-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Tower name, street, specs..."
+            placeholder="Tower, street, specs..."
             value={search}
             onChange={(e) => updateParam('search', e.target.value)}
-            className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-400/20 transition"
+            className="w-full h-10 pl-9 pr-3 bg-slate-50/70 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 transition placeholder-slate-400"
           />
         </div>
       </div>
 
       {/* Property Type */}
       <div>
-        <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 block mb-1.5">
-          Residence Classification
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+          Residence Type
         </label>
         <select
           value={type}
           onChange={(e) => updateParam('type', e.target.value)}
-          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-400/20 transition cursor-pointer"
+          className="w-full h-10 px-3 bg-slate-50/70 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 transition cursor-pointer"
         >
-          <option value="all">All Architectural Types</option>
+          <option value="all">All Residence Types</option>
           {APARTMENT_TYPES.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
@@ -173,15 +241,15 @@ export default function ApartmentListingPage() {
 
       {/* Availability Status */}
       <div>
-        <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 block mb-1.5">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
           Availability Status
         </label>
         <select
           value={status}
           onChange={(e) => updateParam('status', e.target.value)}
-          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-400/20 transition cursor-pointer"
+          className="w-full h-10 px-3 bg-slate-50/70 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 transition cursor-pointer"
         >
-          <option value="all">All Availability States</option>
+          <option value="all">All Available Units</option>
           {APARTMENT_STATUSES.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
@@ -190,15 +258,15 @@ export default function ApartmentListingPage() {
 
       {/* District */}
       <div>
-        <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 block mb-1.5">
-          Metropolitan District
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+          District / Zone
         </label>
         <select
           value={district}
           onChange={(e) => updateParam('district', e.target.value)}
-          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-400/20 transition cursor-pointer"
+          className="w-full h-10 px-3 bg-slate-50/70 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 transition cursor-pointer"
         >
-          <option value="all">All Districts</option>
+          <option value="all">All Locations</option>
           {districts.map((d) => (
             <option key={d} value={d}>{d}</option>
           ))}
@@ -207,7 +275,7 @@ export default function ApartmentListingPage() {
 
       {/* Bedrooms */}
       <div>
-        <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 block mb-1.5">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
           Bedrooms
         </label>
         <div className="grid grid-cols-5 gap-1.5">
@@ -222,10 +290,10 @@ export default function ApartmentListingPage() {
               key={item.val}
               type="button"
               onClick={() => updateParam('bedrooms', item.val)}
-              className={`py-2 text-xs font-bold rounded-xl border transition ${
+              className={`h-9 text-xs font-bold rounded-xl border transition cursor-pointer ${
                 bedrooms === item.val
-                  ? 'bg-gradient-to-r from-gold-500 to-amber-600 text-white border-gold-600 shadow-sm'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-gold-300'
+                  ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-2xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-white hover:border-slate-300'
               }`}
             >
               {item.label}
@@ -236,7 +304,7 @@ export default function ApartmentListingPage() {
 
       {/* Price Range */}
       <div>
-        <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 block mb-1.5">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
           Price Range (Rs.)
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -245,22 +313,23 @@ export default function ApartmentListingPage() {
             placeholder="Min Price"
             value={minPrice}
             onChange={(e) => updateParam('minPrice', e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-gold-500"
+            className="w-full h-10 px-3 bg-slate-50/70 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 transition placeholder-slate-400"
           />
           <input
             type="number"
             placeholder="Max Price"
             value={maxPrice}
             onChange={(e) => updateParam('maxPrice', e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-gold-500"
+            className="w-full h-10 px-3 bg-slate-50/70 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15 transition placeholder-slate-400"
           />
         </div>
       </div>
 
       <div className="pt-2">
         <button
+          type="button"
           onClick={clearAllFilters}
-          className="w-full py-2.5 rounded-xl border border-slate-200 hover:border-gold-300 bg-white hover:bg-gold-50/50 text-slate-700 font-bold text-xs transition"
+          className="w-full h-10 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer shadow-2xs"
         >
           Reset All Parameters
         </button>
@@ -269,46 +338,49 @@ export default function ApartmentListingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#fafbfe] text-slate-900 relative overflow-hidden">
+    <div className="min-h-screen bg-[#fafbfe] text-slate-900 relative overflow-hidden font-sans selection:bg-amber-100 selection:text-amber-900">
+      
       {/* Background ambient lighting */}
-      <div className="absolute top-0 right-1/4 w-[800px] h-[400px] bg-gradient-to-b from-gold-100/40 to-transparent rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-1/4 w-[700px] h-[350px] bg-gradient-to-b from-amber-100/30 via-amber-50/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-      {/* Page Header */}
-      <div className="bg-gradient-to-b from-white via-champagne-50/40 to-[#fafbfe] border-b border-gold-200/60 pt-10 pb-8 px-4 sm:px-6 lg:px-10">
-        <div className="w-full max-w-[1600px] mx-auto">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-3">
-            <Link to="/" className="hover:text-gold-700 transition flex items-center gap-1">
-              <Home className="w-3.5 h-3.5 text-gold-600" />
-              <span>Skyline Living</span>
+      {/* Clean Header Area */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200/70 pt-8 sm:pt-10 pb-6 sm:pb-8 px-4 sm:px-6 lg:px-10">
+        <div className="w-full max-w-[1520px] mx-auto">
+          
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3 font-medium">
+            <Link to="/" className="hover:text-amber-600 transition flex items-center gap-1">
+              <Home className="w-3.5 h-3.5" />
+              <span>Home</span>
             </Link>
-            <ChevronDown className="w-3 h-3 -rotate-90 text-slate-400" />
-            <span className="text-gold-800 font-bold">Residences Portfolio</span>
+            <ChevronDown className="w-3 h-3 -rotate-90 text-slate-300" />
+            <span className="text-slate-700 font-semibold">Residences</span>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-100 text-gold-900 text-[11px] font-bold uppercase tracking-wider mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-gold-600" />
-                Verified Architectural Collection
-              </div>
-              <h1 className="text-3xl sm:text-5xl font-black font-serif text-slate-900 tracking-tight">
-                Luxury Apartments & Penthouses
+              <h1 className="text-2xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+                Explore Residences
               </h1>
+              <p className="text-xs sm:text-sm text-slate-600 max-w-xl font-normal mt-1 leading-relaxed">
+                Discover available verified luxury apartments and signature suites across Skyline Living.
+              </p>
             </div>
-            <p className="text-sm text-slate-600 max-w-md font-normal">
-              Explore freehold units, compare architectural floor plans, and secure 48-hour priority reservation holds directly online.
-            </p>
+
+            <div className="text-xs text-slate-500 font-medium shrink-0">
+              <span>{filtered.length} {filtered.length === 1 ? 'residence available' : 'residences available'}</span>
+            </div>
           </div>
+
         </div>
       </div>
 
-      {/* Full-Width Canvas Layout */}
-      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8">
+      {/* Main Content Layout */}
+      <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-10 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           
           {/* Desktop Sticky Sidebar */}
-          <aside className="hidden lg:block w-80 shrink-0">
-            <div className="sticky top-24 luxury-glass rounded-3xl p-6 border border-white/90 shadow-[0_15px_40px_rgba(180,83,9,0.06)] backdrop-blur-xl">
+          <aside className="hidden lg:block w-72 shrink-0">
+            <div className="sticky top-24 bg-white rounded-3xl p-5 border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,0.03)]">
               <FilterPanel />
             </div>
           </aside>
@@ -317,28 +389,29 @@ export default function ApartmentListingPage() {
           <div className="flex-1 min-w-0">
             
             {/* Top Toolbar */}
-            <div className="luxury-glass rounded-2xl p-4 border border-white/90 shadow-sm backdrop-blur-md mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={() => setShowMobileFilters(true)}
-                  className="lg:hidden inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gold-50 border border-gold-200 text-gold-900 font-bold text-xs"
+                  className="lg:hidden inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-900 font-bold text-xs transition cursor-pointer"
                 >
-                  <SlidersHorizontal className="w-4 h-4 text-gold-600" />
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
                   <span>Filters</span>
                   {activeFilterCount > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-gold-600 text-white text-[10px] flex items-center justify-center">
+                    <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black flex items-center justify-center">
                       {activeFilterCount}
                     </span>
                   )}
                 </button>
 
-                <p className="text-xs sm:text-sm font-semibold text-slate-700">
+                <p className="text-xs text-slate-600 font-medium">
                   {loading ? (
-                    <span className="text-gold-700 animate-pulse">Scanning database...</span>
+                    <span className="text-amber-700 animate-pulse">Loading residences...</span>
                   ) : (
                     <>
-                      Showing <span className="font-extrabold text-slate-900">{filtered.length}</span> verified{' '}
+                      Showing <span className="font-bold text-slate-900">{filtered.length}</span>{' '}
                       {filtered.length === 1 ? 'residence' : 'residences'}
                     </>
                   )}
@@ -346,40 +419,42 @@ export default function ApartmentListingPage() {
               </div>
 
               {/* View mode toggle & Sort Dropdown */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 {/* Grid / List View Toggle */}
-                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                   <button
+                    type="button"
                     onClick={() => setViewMode('grid')}
-                    className={`p-1.5 rounded-lg text-xs font-bold transition ${
+                    className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                       viewMode === 'grid'
-                        ? 'bg-white text-gold-800 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-700'
                     }`}
                     title="Grid View"
                   >
-                    <LayoutGrid className="w-4 h-4" />
+                    <LayoutGrid className="w-3.5 h-3.5" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => setViewMode('list')}
-                    className={`p-1.5 rounded-lg text-xs font-bold transition ${
+                    className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                       viewMode === 'list'
-                        ? 'bg-white text-gold-800 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-400 hover:text-slate-700'
                     }`}
-                    title="Comprehensive Spec List View"
+                    title="Spec List View"
                   >
-                    <List className="w-4 h-4" />
+                    <List className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 {/* Sort dropdown */}
-                <div className="flex items-center gap-2">
-                  <ArrowUpDown className="w-4 h-4 text-gold-600 hidden sm:block" />
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
                   <select
                     value={sort}
                     onChange={(e) => handleSortChange(e.target.value)}
-                    className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-gold-500 cursor-pointer shadow-sm"
+                    className="h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 cursor-pointer shadow-2xs"
                   >
                     {SORT_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -390,24 +465,40 @@ export default function ApartmentListingPage() {
 
             </div>
 
-            {/* Units Display */}
-            {loading ? (
+            {/* Error State */}
+            {fetchError ? (
+              <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs p-10 text-center">
+                <p className="text-slate-900 font-bold text-sm mb-1">{fetchError}</p>
+                <p className="text-slate-500 text-xs mb-4">Please check your network connection and try again.</p>
+                <button
+                  type="button"
+                  onClick={loadApartments}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer shadow-sm"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Try Again</span>
+                </button>
+              </div>
+            ) : loading ? (
+              /* Loading Skeletons */
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <CardSkeleton key={i} />
                 ))}
               </div>
             ) : filtered.length === 0 ? (
-              <div className="luxury-glass rounded-3xl p-12 text-center border border-white/90 shadow-sm">
+              /* Clean Minimal Empty State */
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-2xs">
                 <EmptyState
                   variant="search"
-                  title="No residences match your exact criteria"
-                  description="Try clearing some filter tags or modifying your price boundary to view available units."
+                  title="No residences match your search"
+                  description="Try adjusting your filter options, clearing keywords, or resetting your price boundary."
                   action={
                     activeFilterCount > 0 ? (
                       <button
+                        type="button"
                         onClick={clearAllFilters}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-white font-bold text-xs shadow-md"
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-sm transition cursor-pointer"
                       >
                         Reset All Filters
                       </button>
@@ -416,91 +507,97 @@ export default function ApartmentListingPage() {
                 />
               </div>
             ) : viewMode === 'grid' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 animate-fadeInUp">
-                {filtered.map((apt) => (
-                  <ApartmentCard key={apt.id} apartment={apt} />
+              /* Grid View */
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filtered.map((apt, index) => (
+                  <RevealOnScroll key={apt.id} delay={(index % 6) * 60}>
+                    <ApartmentCard apartment={apt} />
+                  </RevealOnScroll>
                 ))}
               </div>
             ) : (
-              /* Spec List View (Full Horizontal Details with No Sideways Scroll) */
-              <div className="space-y-4 animate-fadeInUp">
-                {filtered.map((apt) => {
-                  const img = apt.images?.[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80';
+              /* List View */
+              <div className="space-y-4">
+                {filtered.map((apt, index) => {
+                  const img =
+                    apt.images?.[0]?.url ||
+                    (apt as any).imageUrl ||
+                    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80';
                   return (
-                    <div
-                      key={apt.id}
-                      className="luxury-card-hover bg-white rounded-3xl border border-slate-200/90 shadow-sm p-5 flex flex-col md:flex-row items-center gap-6 group"
-                    >
-                      <div className="w-full md:w-60 h-44 rounded-2xl overflow-hidden shrink-0 relative bg-slate-100">
-                        <img
-                          src={img}
-                          alt={apt.title}
-                          className="w-full h-full object-cover group-hover:scale-108 transition duration-700"
-                        />
-                        <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-slate-900 text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                          {apt.status}
-                        </span>
-                      </div>
-
-                      <div className="flex-1 min-w-0 w-full">
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                          <div>
-                            <h3 className="text-xl font-bold font-serif text-slate-900 group-hover:text-gold-700 transition">
-                              {apt.title}
-                            </h3>
-                            <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-medium">
-                              <MapPin className="w-3.5 h-3.5 text-gold-600 shrink-0" />
-                              {apt.district}, {apt.city} • {apt.buildingName || 'Signature Tower'}
-                            </p>
-                          </div>
-                          <div className="text-left sm:text-right">
-                            <p className="text-[10px] uppercase font-bold text-gold-600">List Price</p>
-                            <p className="text-2xl font-black text-slate-900 font-sans tabular-nums">
-                              {formatCurrency(apt.price)}
-                            </p>
-                          </div>
+                    <RevealOnScroll key={apt.id} delay={(index % 6) * 50}>
+                      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 p-5 flex flex-col md:flex-row items-center gap-6 group">
+                        <div className="w-full md:w-56 h-40 rounded-2xl overflow-hidden shrink-0 relative bg-slate-100">
+                          <img
+                            src={img}
+                            alt={apt.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500 ease-out"
+                            loading="lazy"
+                          />
+                          <span className="absolute top-2.5 left-2.5 bg-white/90 backdrop-blur-md text-slate-900 text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-2xs">
+                            {apt.status || 'Available'}
+                          </span>
                         </div>
 
-                        <p className="text-xs text-slate-500 line-clamp-2 mt-2 leading-relaxed">
-                          {apt.description}
-                        </p>
-
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-                          <div className="flex items-center gap-4 text-xs font-bold text-slate-700">
-                            <span className="flex items-center gap-1">
-                              <Bed className="w-4 h-4 text-gold-600" />
-                              {apt.bedrooms === 0 ? 'Studio' : `${apt.bedrooms} Beds`}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Bath className="w-4 h-4 text-gold-600" />
-                              {apt.bathrooms} Baths
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Maximize className="w-4 h-4 text-gold-600" />
-                              {apt.size} m² ({Math.round(apt.size * 10.764)} sqft)
-                            </span>
-                            <span className="text-slate-400">|</span>
-                            <span className="text-slate-500">Floor {apt.floor}</span>
+                        <div className="flex-1 min-w-0 w-full">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                            <div>
+                              <h3 className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-amber-600 transition line-clamp-1">
+                                {apt.title}
+                              </h3>
+                              <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 font-medium">
+                                <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>{apt.district}, {apt.city} • {apt.buildingName || 'Skyline Tower'}</span>
+                              </p>
+                            </div>
+                            <div className="text-left sm:text-right">
+                              <p className="text-[9px] uppercase font-bold text-amber-600 tracking-wider">Purchase Price</p>
+                              <p className="text-lg sm:text-xl font-black text-slate-900 tabular-nums">
+                                {formatCurrency(apt.price)}
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <Link
-                              to="/compare"
-                              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-gold-50 text-slate-700 hover:text-gold-800 text-xs font-bold transition border border-slate-200"
-                            >
-                              Compare
-                            </Link>
-                            <Link
-                              to={`/apartments/${apt.id}`}
-                              className="px-5 py-2 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-white text-xs font-bold transition shadow-sm hover:shadow-md flex items-center gap-1.5"
-                            >
-                              <span>View Specs & Hold</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </Link>
+                          <p className="text-xs text-slate-500 line-clamp-2 mt-2 leading-relaxed font-normal">
+                            {apt.description}
+                          </p>
+
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3.5 text-xs text-slate-600">
+                              <span className="flex items-center gap-1 font-semibold">
+                                <Bed className="w-3.5 h-3.5 text-amber-600" />
+                                {apt.bedrooms === 0 ? 'Studio' : `${apt.bedrooms} Beds`}
+                              </span>
+                              <span className="flex items-center gap-1 font-semibold">
+                                <Bath className="w-3.5 h-3.5 text-amber-600" />
+                                {apt.bathrooms} Baths
+                              </span>
+                              <span className="flex items-center gap-1 font-semibold">
+                                <Maximize className="w-3.5 h-3.5 text-amber-600" />
+                                {apt.size} m² ({Math.round(apt.size * 10.764)} sqft)
+                              </span>
+                              <span className="text-slate-300 hidden sm:inline">|</span>
+                              <span className="text-slate-500 text-xs hidden sm:inline">Floor {apt.floor}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Link
+                                to="/compare"
+                                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition border border-slate-200"
+                              >
+                                Compare
+                              </Link>
+                              <Link
+                                to={`/apartments/${apt.id}`}
+                                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <span>View Details</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </Link>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </RevealOnScroll>
                   );
                 })}
               </div>
@@ -511,18 +608,19 @@ export default function ApartmentListingPage() {
 
       {/* Mobile Filter Drawer */}
       {showMobileFilters && (
-        <div className="fixed inset-0 z-50 lg:hidden animate-fade-in">
+        <div className="fixed inset-0 z-50 lg:hidden">
           <div
-            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
             onClick={() => setShowMobileFilters(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-84 max-w-[85%] bg-[#fafbfe] shadow-2xl overflow-y-auto p-6 z-10 border-r border-gold-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-serif font-bold text-slate-900 text-xl flex items-center gap-2">
-                <SlidersHorizontal className="w-5 h-5 text-gold-600" />
-                Filter Units
+          <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[85%] bg-white shadow-2xl overflow-y-auto p-6 z-10 border-r border-slate-200">
+            <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-amber-600" />
+                <span>Filters</span>
               </h3>
               <button
+                type="button"
                 onClick={() => setShowMobileFilters(false)}
                 className="text-slate-400 hover:text-slate-900 p-1.5 rounded-lg transition"
               >
@@ -530,12 +628,13 @@ export default function ApartmentListingPage() {
               </button>
             </div>
             <FilterPanel />
-            <div className="mt-6">
+            <div className="mt-6 pt-4 border-t border-slate-100">
               <button
+                type="button"
                 onClick={() => setShowMobileFilters(false)}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-gold-500 to-amber-600 text-white font-bold text-xs shadow-md"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold text-xs shadow-sm transition"
               >
-                Show {filtered.length} Matching Units
+                Show {filtered.length} Matching Residences
               </button>
             </div>
           </div>

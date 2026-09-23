@@ -101,19 +101,11 @@ export default function ManagementDashboardPage() {
 
   return (
     <div className="space-y-8 pb-16">
-      
+
       {/* Top Header Banner */}
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
-              Skyline Management Console
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live DB Sync
-            </span>
-          </div>
+
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Dashboard Overview
           </h1>
@@ -208,7 +200,7 @@ export default function ManagementDashboardPage() {
 
       {/* Primary Analytics Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Sales Performance Chart */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-7">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
@@ -277,7 +269,7 @@ export default function ManagementDashboardPage() {
 
       {/* Recent Activity Feeds */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Appointments */}
         <ModernActivityCard
           title="Recent Viewings"
@@ -329,8 +321,8 @@ export default function ManagementDashboardPage() {
   );
 }
 
-function ModernKPICard({ 
-  title, value, subtitle, icon, to, badgeText, highlight, badgePositive 
+function ModernKPICard({
+  title, value, subtitle, icon, to, badgeText, highlight, badgePositive
 }: {
   title: string;
   value: string | number;
@@ -344,22 +336,20 @@ function ModernKPICard({
   return (
     <Link
       to={to}
-      className={`group bg-white rounded-3xl border p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-200 flex flex-col justify-between ${
-        highlight ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200/90 hover:border-amber-300'
-      }`}
+      className={`group bg-white rounded-3xl border p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-200 flex flex-col justify-between ${highlight ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200/90 hover:border-amber-300'
+        }`}
     >
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:scale-105 transition">
           {icon}
         </div>
         {badgeText && (
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-            badgePositive 
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgePositive
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : highlight 
+              : highlight
                 ? 'bg-amber-100 text-amber-800 border-amber-300'
                 : 'bg-slate-100 text-slate-600 border-slate-200'
-          }`}>
+            }`}>
             {badgeText}
           </span>
         )}
@@ -409,7 +399,7 @@ function ModernActivityCard({
         ) : (
           <div className="space-y-3">
             {items.map((item) => (
-              <div 
+              <div
                 key={item.id}
                 className="flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
               >

@@ -956,168 +956,96 @@ export default function VerifyPaymentsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-
                 <table className="w-full text-sm">
-
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/75 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
-                      <th className="px-6 py-4">
-                        Slip ID
-                      </th>
-
-                      <th className="px-6 py-4">
-                        Customer
-                      </th>
-
-                      <th className="px-6 py-4">
-                        Residence Unit
-                      </th>
-
-                      <th className="px-6 py-4">
-                        Payment Category
-                      </th>
-
-                      <th className="px-6 py-4">
-                        Amount Deposited
-                      </th>
-
-                      <th className="px-6 py-4">
-                        Uploaded At
-                      </th>
-
-                      <th className="px-6 py-4">
-                        Bank Slip
-                      </th>
-
-                      <th className="px-6 py-4 text-right">
-                        Verification Action
-                      </th>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
+                      <th className="px-5 py-3.5">Slip Reference</th>
+                      <th className="px-5 py-3.5">Customer & Unit</th>
+                      <th className="px-5 py-3.5">Amount & Category</th>
+                      <th className="px-5 py-3.5 text-center">Bank Slip</th>
+                      <th className="px-5 py-3.5 text-right">Audit & Action</th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
+                    {filtered.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                        {/* 1. Slip Reference */}
+                        <td className="px-5 py-3.5">
+                          <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                            #{p.id}
+                          </span>
+                          <p className="text-[11px] text-slate-400 mt-1 font-medium">
+                            {formatDateTime(p.uploadedAt)}
+                          </p>
+                        </td>
 
-                    {filtered.map(
-                      (p) => (
-                        <tr
-                          key={p.id}
-                          className="hover:bg-slate-50/60 transition-colors"
-                        >
+                        {/* 2. Customer & Unit */}
+                        <td className="px-5 py-3.5">
+                          <p className="font-extrabold text-slate-900 text-sm">
+                            {p.customerName}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5 truncate max-w-[200px]">
+                            {p.apartmentTitle}
+                          </p>
+                        </td>
 
-                          <td className="px-6 py-4">
-                            <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                              {p.id}
-                            </span>
-                          </td>
+                        {/* 3. Amount & Category */}
+                        <td className="px-5 py-3.5">
+                          <p className="font-extrabold text-slate-900 text-sm">
+                            {formatCurrency(p.amount)}
+                          </p>
+                          <span className="inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/80">
+                            {p.type}
+                          </span>
+                        </td>
 
-                          <td className="px-6 py-4">
-                            <p className="font-bold text-slate-900 text-sm">
-                              {p.customerName}
-                            </p>
-                          </td>
+                        {/* 4. Bank Slip */}
+                        <td className="px-5 py-3.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setProofTarget(p)}
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-xl border border-amber-200 transition cursor-pointer shadow-2xs"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View Slip
+                          </button>
+                        </td>
 
-                          <td className="px-6 py-4">
-                            <p className="font-semibold text-slate-800 text-sm truncate max-w-[180px]">
-                              {p.apartmentTitle}
-                            </p>
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                              {p.type}
-                            </span>
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <span className="font-extrabold text-slate-900 text-sm">
-                              {formatCurrency(
-                                p.amount
-                              )}
-                            </span>
-                          </td>
-
-                          <td className="px-6 py-4 text-xs font-medium text-slate-500">
-                            {formatDateTime(
-                              p.uploadedAt
-                            )}
-                          </td>
-
-                          <td className="px-6 py-4">
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setProofTarget(
-                                  p
-                                )
-                              }
-                              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200 transition cursor-pointer"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              View Slip
-                            </button>
-
-                          </td>
-
-                          <td className="px-6 py-4 text-right">
-
-                            <div className="flex items-center justify-end gap-1.5">
-
-                              {p.status ===
-                              'Pending' ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      openAction(
-                                        p,
-                                        'verify'
-                                      )
-                                    }
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition cursor-pointer"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                    Verify
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      openAction(
-                                        p,
-                                        'reject'
-                                      )
-                                    }
-                                    className="px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-700 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                    Reject
-                                  </button>
-                                </>
-                              ) : (
-                                <Badge
-                                  variant={statusToVariant(
-                                    p.status
-                                  )}
-                                  size="sm"
-                                  dot
+                        {/* 5. Status & Actions */}
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {p.status === 'Pending' ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openAction(p, 'verify')}
+                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition cursor-pointer"
                                 >
-                                  {p.status}
-                                </Badge>
-                              )}
+                                  <Check className="w-3.5 h-3.5" />
+                                  Verify
+                                </button>
 
-                            </div>
-
-                          </td>
-
-                        </tr>
-                      )
-                    )}
-
+                                <button
+                                  type="button"
+                                  onClick={() => openAction(p, 'reject')}
+                                  className="px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-700 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <Badge variant={statusToVariant(p.status)} size="sm" dot>
+                                {p.status}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
-
                 </table>
-
               </div>
             )}
 
@@ -1134,68 +1062,27 @@ export default function VerifyPaymentsPage() {
           {/* PLAN FILTER */}
 
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-
-            <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto">
-
-              {[
-                'Pending',
-                'Approved',
-                'Rejected',
-                'Completed',
-                'All',
-              ].map(
-                (status) => {
-                  const count =
-                    planCounts[
-                      status as keyof typeof planCounts
-                    ] || 0;
-
-                  const active =
-                    planStatusFilter ===
-                    status;
-
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() =>
-                        setPlanStatusFilter(
-                          status
-                        )
-                      }
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition whitespace-nowrap cursor-pointer ${
-                        active
-                          ? 'bg-amber-50 text-amber-800 border-amber-300 shadow-sm'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {status}
-
-                      <span className="ml-2 text-[10px]">
-                        {count}
-                      </span>
-                    </button>
-                  );
-                }
-              )}
-
+            <div className="w-full sm:w-72">
+              <Input
+                placeholder="Search plan ID, customer or unit..."
+                icon={<Search className="w-4 h-4 text-slate-400" />}
+                value={planSearch}
+                onChange={(e) => setPlanSearch(e.target.value)}
+              />
             </div>
 
-            <div className="w-full md:w-72">
-
-              <Input
-                placeholder="Search customer or residence..."
-                icon={
-                  <Search className="w-4 h-4 text-slate-400" />
-                }
-                value={planSearch}
-                onChange={(e) =>
-                  setPlanSearch(
-                    e.target.value
-                  )
-                }
+            <div className="w-full sm:w-56">
+              <Select
+                options={[
+                  { value: '', label: 'All Plan Statuses' },
+                  { value: 'Pending', label: 'Pending Approval' },
+                  { value: 'Approved', label: 'Approved Plans' },
+                  { value: 'Rejected', label: 'Rejected Plans' },
+                  { value: 'Completed', label: 'Completed Plans' },
+                ]}
+                value={planStatusFilter}
+                onChange={(e) => setPlanStatusFilter(e.target.value)}
               />
-
             </div>
 
           </div>
@@ -1206,15 +1093,15 @@ export default function VerifyPaymentsPage() {
 
             {plansLoading ? (
               <div className="p-16 text-center text-slate-400 text-sm">
-                Loading payment plan requests...
+                Loading payment plan applications...
               </div>
             ) : filteredPlans.length ===
               0 ? (
               <div className="p-12 text-center">
                 <EmptyState
                   variant="inbox"
-                  title="No payment plan requests"
-                  description="Customer installment and part-payment requests will appear here."
+                  title="No payment plans found"
+                  description="Customer requested installment schemes will appear here for management approval."
                 />
               </div>
             ) : (
@@ -1224,47 +1111,14 @@ export default function VerifyPaymentsPage() {
 
                   <thead>
 
-                    <tr className="border-b border-slate-200 bg-slate-50/75 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
 
-                      <th className="px-5 py-4">
-                        Plan
-                      </th>
-
-                      <th className="px-5 py-4">
-                        Customer
-                      </th>
-
-                      <th className="px-5 py-4">
-                        Residence
-                      </th>
-
-                      <th className="px-5 py-4">
-                        Type
-                      </th>
-
-                      <th className="px-5 py-4">
-                        Payments
-                      </th>
-
-                      <th className="px-5 py-4">
-                        Regular Amount
-                      </th>
-
-                      <th className="px-5 py-4">
-                        Remaining
-                      </th>
-
-                      <th className="px-5 py-4">
-                        First Due
-                      </th>
-
-                      <th className="px-5 py-4">
-                        Status
-                      </th>
-
-                      <th className="px-5 py-4 text-right">
-                        Action
-                      </th>
+                      <th className="px-5 py-3.5">Plan & Scheme</th>
+                      <th className="px-5 py-3.5">Customer & Residence</th>
+                      <th className="px-5 py-3.5">Installment Terms</th>
+                      <th className="px-5 py-3.5">Financial Breakdown</th>
+                      <th className="px-5 py-3.5 text-center">Status</th>
+                      <th className="px-5 py-3.5 text-right">Action</th>
 
                     </tr>
 
@@ -1279,69 +1133,51 @@ export default function VerifyPaymentsPage() {
                           className="hover:bg-slate-50/60 transition"
                         >
 
-                          {/* PLAN ID */}
+                          {/* PLAN & SCHEME */}
 
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-3.5">
 
-                            <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
                               {plan.id?.startsWith('PLN-') ? plan.id : `PLN-${plan.id}`}
                             </span>
 
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                <Layers3 className="w-3 h-3" />
+                                {plan.planType}
+                              </span>
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                              <CalendarDays className="w-3 h-3 text-slate-400" />
+                              First due: {formatPlanDate(plan.startDate)}
+                            </p>
+
                           </td>
 
-                          {/* CUSTOMER */}
+                          {/* CUSTOMER & RESIDENCE */}
 
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-3.5">
 
-                            <p className="font-bold text-slate-900">
+                            <p className="font-extrabold text-slate-900 text-sm">
                               {plan.customerName}
                             </p>
 
-                            <p className="text-[11px] text-slate-400 mt-0.5">
+                            <p className="text-xs text-slate-500 mt-0.5 truncate max-w-[180px]">
+                              {plan.apartmentTitle}
+                            </p>
+
+                            <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[180px]">
                               {plan.customerEmail}
                             </p>
 
                           </td>
 
-                          {/* APARTMENT */}
+                          {/* INSTALLMENT TERMS */}
 
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-3.5">
 
-                            <p className="font-semibold text-slate-800 max-w-[170px] truncate">
-                              {plan.apartmentTitle}
-                            </p>
-
-                          </td>
-
-                          {/* TYPE */}
-
-                          <td className="px-5 py-4">
-
-                            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-
-                              <Layers3 className="w-3.5 h-3.5" />
-
-                              {plan.planType}
-
-                            </span>
-
-                          </td>
-
-                          {/* NUMBER OF PAYMENTS */}
-
-                          <td className="px-5 py-4">
-
-                            <span className="font-extrabold text-slate-900">
-                              {plan.numberOfPayments}
-                            </span>
-
-                          </td>
-
-                          {/* PAYMENT AMOUNT */}
-
-                          <td className="px-5 py-4">
-
-                            <p className="font-extrabold text-slate-900">
+                            <p className="font-extrabold text-slate-900 text-sm">
                               {formatCurrency(
                                 Number(
                                   plan.paymentAmount ||
@@ -1350,27 +1186,17 @@ export default function VerifyPaymentsPage() {
                               )}
                             </p>
 
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              per payment
+                            <p className="text-xs text-slate-500 mt-0.5 font-semibold">
+                              {plan.numberOfPayments} Total Installments
                             </p>
 
                           </td>
 
-                          {/* REMAINING */}
+                          {/* FINANCIAL BREAKDOWN */}
 
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-3.5">
 
-                            <p className="font-extrabold text-slate-900">
-                              {formatCurrency(
-                                Number(
-                                  plan.remainingAmount ||
-                                    0
-                                )
-                              )}
-                            </p>
-
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              Total:{' '}
+                            <p className="font-extrabold text-slate-900 text-sm">
                               {formatCurrency(
                                 Number(
                                   plan.totalPlanAmount ||
@@ -1379,27 +1205,21 @@ export default function VerifyPaymentsPage() {
                               )}
                             </p>
 
-                          </td>
-
-                          {/* START DATE */}
-
-                          <td className="px-5 py-4">
-
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-
-                              <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-
-                              {formatPlanDate(
-                                plan.startDate
+                            <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                              Remaining:{' '}
+                              {formatCurrency(
+                                Number(
+                                  plan.remainingAmount ||
+                                    0
+                                )
                               )}
-
-                            </div>
+                            </p>
 
                           </td>
 
                           {/* STATUS */}
 
-                          <td className="px-5 py-4">
+                          <td className="px-5 py-3.5 text-center">
 
                             <span
                               className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${getPlanStatusClasses(
@@ -1413,11 +1233,11 @@ export default function VerifyPaymentsPage() {
 
                           {/* ACTION */}
 
-                          <td className="px-5 py-4 text-right">
+                          <td className="px-5 py-3.5 text-right">
 
                             {String(plan.status || '').toLowerCase() ===
                             'pending' ? (
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex items-center justify-end gap-1.5">
 
                                 <button
                                   type="button"
@@ -1427,7 +1247,7 @@ export default function VerifyPaymentsPage() {
                                       'approve'
                                     )
                                   }
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
                                 >
                                   <Check className="w-3.5 h-3.5" />
                                   Approve
@@ -1441,7 +1261,7 @@ export default function VerifyPaymentsPage() {
                                       'reject'
                                     )
                                   }
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 font-bold text-xs transition cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 font-bold text-xs transition cursor-pointer"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                   Reject

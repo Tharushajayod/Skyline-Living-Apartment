@@ -64,7 +64,7 @@ function App() {
                     <Route path="/payment-history" element={<ProtectedRoute><PaymentHistoryPage /></ProtectedRoute>} />
                     <Route path="/inquiries" element={<ProtectedRoute><InquiriesPage /></ProtectedRoute>} />
                     <Route path="/favorites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
-                    <Route path="/reviews" element={<ProtectedRoute><ReviewsPage /></ProtectedRoute>} />
+                    <Route path="/reviews" element={<ReviewsPage />} />
                     <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                   </Route>
 

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import {
   ArrowRight,
   BadgePercent,
@@ -22,6 +22,13 @@ import {
   WalletCards,
   X,
   XCircle,
+  RefreshCw,
+  Search,
+  Filter,
+  Eye,
+  AlertCircle,
+  FileCheck,
+  ChevronRight,
 } from 'lucide-react';
 
 import type {
@@ -62,13 +69,7 @@ import {
    TYPES
    ========================================================= */
 
-const tabFilters = [
-  'Overview',
-  'Outstanding',
-  'History',
-] as const;
-
-type TabType = (typeof tabFilters)[number];
+type TabType = 'All' | 'Verified' | 'Pending' | 'Rejected';
 
 type SettlementMode =
   | 'Full'
@@ -80,73 +81,17 @@ interface PropertyAccount {
   reservationId: string;
   apartmentId: string;
   apartmentTitle: string;
-
   totalPrice: number;
   totalPaid: number;
   remainingBalance: number;
-
   reservationFee: number;
   reservationFeePaid: boolean;
   reservationFeePending?: boolean;
-
   reservationStatus: string;
   apartmentStatus?: string;
-
   isFullyPaid: boolean;
-
   plan?: PaymentPlan;
 }
-
-/* =========================================================
-   HELPERS
-   ========================================================= */
-
-const getToken = () =>
-  localStorage.getItem('auth_token') ||
-  localStorage.getItem('token') ||
-  sessionStorage.getItem('token');
-
-const getStatusClasses = (status?: string) => {
-  switch (status) {
-    case 'Verified':
-    case 'Paid':
-    case 'Completed':
-    case 'Approved':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-
-    case 'Pending':
-    case 'Pending Verification':
-    case 'Upcoming':
-      return 'bg-amber-50 text-amber-800 border-amber-200';
-
-    case 'Rejected':
-    case 'Cancelled':
-      return 'bg-red-50 text-red-700 border-red-200';
-
-    default:
-      return 'bg-slate-50 text-slate-600 border-slate-200';
-  }
-};
-
-const formatPlanType = (type?: string) => {
-  if (!type) return 'Payment Plan';
-
-  if (
-    type === 'INSTALLMENT' ||
-    type === 'Installment Plan'
-  ) {
-    return 'Installment Plan';
-  }
-
-  if (
-    type === 'PART_PAYMENT' ||
-    type === 'Part Payment Plan'
-  ) {
-    return 'Part Payment Plan';
-  }
-
-  return type;
-};
 
 /* =========================================================
    COMPONENT
@@ -155,79 +100,77 @@ const formatPlanType = (type?: string) => {
 export default function PaymentsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
 
   /* -----------------------------
-     DATA
+     SWR INSTANT CACHE INITIALIZATION (0ms)
      ----------------------------- */
+  const [payments, setPayments] = useState<Payment[]>(() => {
+    if (user?.email) {
+      return paymentService.getCachedByCustomer(user.email) || [];
+    }
+    return [];
+  });
 
-  const [payments, setPayments] = useState<Payment[]>(() => (user?.email ? paymentService.getCachedByCustomer(user.email) : null) || []);
-  const [plans, setPlans] = useState<PaymentPlan[]>(() => (user?.email ? paymentPlanService.getCachedAll(user.email) : null) || []);
-  const [reservations, setReservations] = useState<Reservation[]>(() => reservationService.getCachedAll() || []);
-  const [apartments, setApartments] = useState<Apartment[]>(() => apartmentService.getCached() || []);
+  const [plans, setPlans] = useState<PaymentPlan[]>(() => {
+    if (user?.email) {
+      return paymentPlanService.getCachedAll(user.email) || [];
+    }
+    return [];
+  });
 
-  const [loading, setLoading] = useState(!user?.email || !(paymentService.getCachedByCustomer(user.email) && reservationService.getCachedAll()));
+  const [reservations, setReservations] = useState<Reservation[]>(() => {
+    if (user?.email) {
+      return reservationService.getCachedByCustomer(user.email) || [];
+    }
+    return [];
+  });
+
+  const [apartments, setApartments] = useState<Apartment[]>(() => {
+    return apartmentService.getCached('apartments_all') || [];
+  });
+
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (user?.email && paymentService.getCachedByCustomer(user.email)) {
+      return false;
+    }
+    return true;
+  });
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   /* -----------------------------
-     PAGE
+     PAGE STATE
      ----------------------------- */
-
-  const [activeTab, setActiveTab] =
-    useState<TabType>('Overview');
-
-  const [selectedAccountId, setSelectedAccountId] =
-    useState('');
+  const [activeTab, setActiveTab] = useState<TabType>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState('');
 
   /* -----------------------------
-     PAYMENT MODAL
+     PAYMENT MODALS STATE
      ----------------------------- */
-
-  const [paymentModalOpen, setPaymentModalOpen] =
-    useState(false);
-
-  const [settlementMode, setSettlementMode] =
-    useState<SettlementMode>('Full');
-
-  const [paymentAmount, setPaymentAmount] =
-    useState('');
-
-  const [paymentNotes, setPaymentNotes] =
-    useState('');
-
-  const [paymentSlip, setPaymentSlip] =
-    useState<File | null>(null);
-
-  const [submittingPayment, setSubmittingPayment] =
-    useState(false);
-
-  const fileInputRef =
-    useRef<HTMLInputElement>(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [settlementMode, setSettlementMode] = useState<SettlementMode>('Full');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentSlip, setPaymentSlip] = useState<File | null>(null);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* -----------------------------
-     PLAN REQUEST
+     PLAN REQUEST STATE
      ----------------------------- */
-
-  const [planPaymentAmount, setPlanPaymentAmount] =
-    useState('');
-
-  const [planPaymentCount, setPlanPaymentCount] =
-    useState(6);
-
-  const [planStartDate, setPlanStartDate] =
-    useState('');
-
-  const [planNotes, setPlanNotes] =
-    useState('');
-
-  const [submittingPlan, setSubmittingPlan] =
-    useState(false);
+  const [planPaymentAmount, setPlanPaymentAmount] = useState('');
+  const [planPaymentCount, setPlanPaymentCount] = useState(6);
+  const [planStartDate, setPlanStartDate] = useState('');
+  const [planNotes, setPlanNotes] = useState('');
+  const [submittingPlan, setSubmittingPlan] = useState(false);
 
   /* -----------------------------
-     RECEIPT
+     RECEIPT & PLAN ITEM MODAL STATE
      ----------------------------- */
-
-  const [receiptTarget, setReceiptTarget] =
-    useState<Payment | null>(null);
-
+  const [receiptTarget, setReceiptTarget] = useState<Payment | null>(null);
   const [planPayTarget, setPlanPayTarget] = useState<{
     plan: PaymentPlan;
     item: NonNullable<PaymentPlan['items']>[number];
@@ -238,553 +181,314 @@ export default function PaymentsPage() {
   const planSlipInputRef = useRef<HTMLInputElement>(null);
 
   /* =========================================================
-     LOAD DATA
+     OPTIMIZED DATA LOADING (CONCURRENT & TARGETED)
      ========================================================= */
-
-  const loadData = async (showSpinner = false) => {
+  const loadData = useCallback(async (showRefreshing = false) => {
     if (!user?.email) {
       setLoading(false);
       return;
     }
 
-    if (showSpinner) {
-      setLoading(true);
+    if (showRefreshing) {
+      setIsRefreshing(true);
     }
+    setError(null);
 
     try {
+      // Use getByCustomer instead of fetching the entire database
       const [
-        paymentData,
-        reservationData,
-        apartmentData,
-        planData,
-      ] = await Promise.all([
-        paymentService
-          .getByCustomer(user.email)
-          .catch(() => []),
-
-        reservationService
-          .getAll()
-          .catch(() => []),
-
-        apartmentService
-          .getAll()
-          .catch(() => []),
-
-        paymentPlanService
-          .getAll(user.email)
-          .catch(() => []),
+        paymentRes,
+        reservationRes,
+        apartmentRes,
+        planRes,
+      ] = await Promise.allSettled([
+        paymentService.getByCustomer(user.email),
+        reservationService.getByCustomer(user.email),
+        apartmentService.getAll({ includeSold: true }),
+        paymentPlanService.getAll(user.email),
       ]);
 
-      setPayments(
-        Array.isArray(paymentData)
-          ? paymentData
-          : [],
-      );
+      if (paymentRes.status === 'fulfilled' && Array.isArray(paymentRes.value)) {
+        setPayments(paymentRes.value);
+      } else if (paymentRes.status === 'rejected') {
+        console.error('Failed to load customer payments:', paymentRes.reason);
+      }
 
-      const myReservations =
-        Array.isArray(reservationData)
-          ? reservationData.filter(
-              (reservation) =>
-                reservation.customerEmail?.toLowerCase() ===
-                user.email?.toLowerCase(),
-            )
-          : [];
+      if (reservationRes.status === 'fulfilled' && Array.isArray(reservationRes.value)) {
+        setReservations(reservationRes.value);
+      }
 
-      setReservations(myReservations);
+      if (apartmentRes.status === 'fulfilled' && Array.isArray(apartmentRes.value)) {
+        setApartments(apartmentRes.value);
+      }
 
-      setApartments(
-        Array.isArray(apartmentData)
-          ? apartmentData
-          : [],
-      );
-
-      setPlans(
-        Array.isArray(planData)
-          ? planData
-          : [],
-      );
-    } catch (error) {
-      console.error(
-        'Failed to load payment information:',
-        error,
-      );
-
-      toast(
-        'Unable to load payment information.',
-        'error',
-      );
+      if (planRes.status === 'fulfilled' && Array.isArray(planRes.value)) {
+        setPlans(planRes.value);
+      }
+    } catch (err: any) {
+      console.error('Failed to load payment center records:', err);
+      if (payments.length === 0) {
+        setError('Unable to load payment information. Please check your connection.');
+      }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  };
+  }, [user?.email, payments.length]);
 
   useEffect(() => {
-    const hasCache = user?.email && paymentService.getCachedByCustomer(user.email) && reservationService.getCachedAll();
-    loadData(!hasCache);
+    let mounted = true;
+    loadData();
+    return () => {
+      mounted = false;
+    };
   }, [user?.email]);
 
   /* =========================================================
-     PROPERTY ACCOUNTS
+     PROPERTY ACCOUNTS DERIVATION
      ========================================================= */
+  const propertyAccounts: PropertyAccount[] = useMemo(() => {
+    return reservations.map((reservation) => {
+      const apartment = apartments.find(
+        (item) => item.id === reservation.apartmentId || item.title === reservation.apartmentTitle
+      );
 
-  const propertyAccounts: PropertyAccount[] =
-    useMemo(() => {
-      return reservations.map((reservation) => {
-        const apartment = apartments.find(
-          (item) =>
-            item.id === reservation.apartmentId ||
-            item.title ===
-              reservation.apartmentTitle,
-        );
-
-        const propertyPayments =
-          payments.filter((payment) => {
-            const sameApartment =
-              payment.apartmentId ===
-                reservation.apartmentId ||
-              payment.apartmentTitle ===
-                reservation.apartmentTitle;
-
-            return (
-              sameApartment &&
-              payment.status === 'Verified'
-            );
-          });
-
-        const totalPaid =
-          propertyPayments.reduce(
-            (total, payment) =>
-              total +
-              (Number(payment.amount) || 0),
-            0,
-          );
-
-        const totalPrice =
-          Number(apartment?.price || 0);
-
-        const remainingBalance = Math.max(
-          totalPrice - totalPaid,
-          0,
-        );
-
-        const pendingResFeePayment = payments.find((payment) => {
-          const sameApartment =
-            payment.apartmentId === reservation.apartmentId ||
-            payment.apartmentTitle === reservation.apartmentTitle ||
-            payment.reservationId === reservation.id;
-
-          const isResFee =
-            payment.type === 'Reservation Fee' ||
-            String(payment.type).toLowerCase().includes('reservation');
-
-          return (
-            sameApartment &&
-            isResFee &&
-            (payment.status === 'Pending' || payment.status === 'Pending Verification')
-          );
-        });
-
-        const reservationFeePaid =
-          reservation.status === 'Confirmed' ||
-          reservation.status === 'Approved' ||
-          propertyPayments.some(
-            (payment) =>
-              payment.type === 'Reservation Fee' ||
-              String(payment.type).toLowerCase().includes('reservation'),
-          );
-
-        const reservationFeePending = !reservationFeePaid && !!pendingResFeePayment;
-
-        const relatedPlans = plans
-          .filter(
-            (plan) =>
-              plan.reservationId ===
-                reservation.id ||
-              plan.apartmentId ===
-                reservation.apartmentId,
-          )
-          .sort((a, b) => {
-            return (
-              new Date(
-                b.createdAt || 0,
-              ).getTime() -
-              new Date(
-                a.createdAt || 0,
-              ).getTime()
-            );
-          });
-
-        const activePlan =
-          relatedPlans.find(
-            (plan) =>
-              plan.status === 'Approved',
-          ) ||
-          relatedPlans.find(
-            (plan) =>
-              plan.status === 'Pending',
-          ) ||
-          relatedPlans.find(
-            (plan) =>
-              plan.status === 'Completed',
-          );
-
-        return {
-          reservationId: reservation.id,
-          apartmentId:
-            reservation.apartmentId,
-          apartmentTitle:
-            reservation.apartmentTitle,
-
-          totalPrice,
-          totalPaid,
-          remainingBalance,
-
-          reservationFee:
-            Number(
-              reservation.reservationFee ||
-                totalPrice * 0.1,
-            ),
-
-          reservationFeePaid,
-          reservationFeePending,
-
-          reservationStatus:
-            reservation.status,
-
-          apartmentStatus:
-            apartment?.status,
-
-          isFullyPaid:
-            remainingBalance <= 0,
-
-          plan: activePlan,
-        };
+      const propertyPayments = payments.filter((payment) => {
+        const sameApartment =
+          payment.apartmentId === reservation.apartmentId ||
+          payment.apartmentTitle === reservation.apartmentTitle;
+        return sameApartment && payment.status === 'Verified';
       });
-    }, [
-      reservations,
-      apartments,
-      payments,
-      plans,
-    ]);
 
-  const selectedAccount = useMemo(
-    () =>
-      propertyAccounts.find(
-        (account) =>
-          account.reservationId ===
-          selectedAccountId,
-      ),
-    [propertyAccounts, selectedAccountId],
-  );
-
-  /* =========================================================
-     SUMMARY
-     ========================================================= */
-
-  const summary = useMemo(() => {
-    const totalPropertyValue =
-      propertyAccounts.reduce(
-        (sum, account) =>
-          sum + account.totalPrice,
-        0,
+      const totalPaid = propertyPayments.reduce(
+        (total, payment) => total + (Number(payment.amount) || 0),
+        0
       );
 
-    const totalPaid =
-      propertyAccounts.reduce(
-        (sum, account) =>
-          sum + account.totalPaid,
-        0,
+      const totalPrice = Number(apartment?.price || 0);
+      const remainingBalance = Math.max(0, totalPrice - totalPaid);
+
+      const isFullyPaid = totalPrice > 0 && totalPaid >= totalPrice;
+
+      const feePayments = payments.filter(
+        (p) =>
+          (p.apartmentId === reservation.apartmentId ||
+            p.apartmentTitle === reservation.apartmentTitle) &&
+          (p.type === 'RESERVATION_FEE' || p.type === 'Reservation Fee')
       );
 
-    const remaining =
-      propertyAccounts.reduce(
-        (sum, account) =>
-          sum + account.remainingBalance,
-        0,
+      const reservationFeePaid = feePayments.some((p) => p.status === 'Verified');
+      const reservationFeePending =
+        !reservationFeePaid && feePayments.some((p) => p.status === 'Pending');
+
+      const matchingPlan = plans.find(
+        (plan) =>
+          (plan.reservationId === reservation.id ||
+            plan.apartmentId === reservation.apartmentId) &&
+          (plan.status === 'Approved' || plan.status === 'Pending')
       );
 
-    const pendingVerification =
-      payments.filter(
-        (payment) =>
-          payment.status === 'Pending',
-      ).length;
+      return {
+        reservationId: reservation.id,
+        apartmentId: reservation.apartmentId,
+        apartmentTitle: reservation.apartmentTitle,
+        totalPrice,
+        totalPaid,
+        remainingBalance,
+        reservationFee: Number(reservation.reservationFee || 0),
+        reservationFeePaid,
+        reservationFeePending,
+        reservationStatus: reservation.status,
+        apartmentStatus: apartment?.status,
+        isFullyPaid,
+        plan: matchingPlan,
+      };
+    });
+  }, [reservations, apartments, payments, plans]);
+
+  const selectedAccount = useMemo(() => {
+    return propertyAccounts.find((account) => account.reservationId === selectedAccountId);
+  }, [propertyAccounts, selectedAccountId]);
+
+  // Financial KPIs
+  const financialStats = useMemo(() => {
+    const verifiedPayments = payments.filter((p) => p.status === 'Verified');
+    const pendingPayments = payments.filter((p) => p.status === 'Pending');
+    const totalPaidAll = verifiedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const totalPendingAll = pendingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const totalOutstandingAll = propertyAccounts.reduce(
+      (sum, acc) => sum + acc.remainingBalance,
+      0
+    );
 
     return {
-      totalPropertyValue,
-      totalPaid,
-      remaining,
-      pendingVerification,
+      totalPaid: totalPaidAll,
+      totalPending: totalPendingAll,
+      totalOutstanding: totalOutstandingAll,
+      verifiedCount: verifiedPayments.length,
+      pendingCount: pendingPayments.length,
+      accountsCount: propertyAccounts.length,
     };
-  }, [propertyAccounts, payments]);
+  }, [payments, propertyAccounts]);
+
+  // Filtered Transactions
+  const filteredTransactions = useMemo(() => {
+    return payments.filter((payment) => {
+      // Tab filter
+      let matchesTab = true;
+      if (activeTab === 'Verified') {
+        matchesTab = payment.status === 'Verified';
+      } else if (activeTab === 'Pending') {
+        matchesTab = payment.status === 'Pending';
+      } else if (activeTab === 'Rejected') {
+        matchesTab = payment.status === 'Rejected';
+      }
+
+      // Search filter
+      const query = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !query ||
+        payment.id?.toLowerCase().includes(query) ||
+        payment.apartmentTitle?.toLowerCase().includes(query) ||
+        payment.type?.toLowerCase().includes(query) ||
+        payment.notes?.toLowerCase().includes(query);
+
+      return matchesTab && matchesSearch;
+    });
+  }, [payments, activeTab, searchQuery]);
 
   /* =========================================================
-     PAYMENT LISTS
+     AUTO-PAY HANDLER FROM RESERVATIONS PAGE
      ========================================================= */
-
-  const outstandingPayments = useMemo(
-    () =>
-      payments.filter(
-        (payment) =>
-          payment.status === 'Pending',
-      ),
-    [payments],
-  );
-
-  const historyPayments = useMemo(
-    () =>
-      payments.filter(
-        (payment) =>
-          payment.status === 'Verified' ||
-          payment.status === 'Rejected',
-      ),
-    [payments],
-  );
-
-  /* =========================================================
-     MODAL
-     ========================================================= */
-
-  const openPaymentModal = (
-    account: PropertyAccount,
-    mode: SettlementMode = 'Full',
-  ) => {
-    setSelectedAccountId(
-      account.reservationId,
-    );
-
-    setSettlementMode(mode);
-
-    setPaymentSlip(null);
-    setPaymentNotes('');
-    setPlanNotes('');
-
-    if (mode === 'ReservationFee') {
-      setPaymentAmount(
-        String(account.reservationFee),
-      );
-    } else {
-      setPaymentAmount(
-        String(account.remainingBalance),
-      );
-    }
-
-    const defaultCount = 6;
-
-    setPlanPaymentCount(defaultCount);
-
-    setPlanPaymentAmount(
-      account.remainingBalance > 0
-        ? String(
-            Math.floor(
-              account.remainingBalance /
-                defaultCount,
-            ),
-          )
-        : '',
-    );
-
-    const nextMonth = new Date();
-
-    nextMonth.setMonth(
-      nextMonth.getMonth() + 1,
-    );
-
-    setPlanStartDate(
-      nextMonth
-        .toISOString()
-        .split('T')[0],
-    );
-
-    setPaymentModalOpen(true);
-  };
-
-  useEffect(() => {
-    if (!selectedAccount) return;
-
-    if (settlementMode === 'ReservationFee') {
-      setPaymentAmount(
-        String(
-          selectedAccount.reservationFee,
-        ),
-      );
-    } else if (settlementMode === 'Full') {
-      setPaymentAmount(
-        String(
-          selectedAccount.remainingBalance,
-        ),
-      );
-    }
-  }, [
-    settlementMode,
-    selectedAccountId,
-    selectedAccount?.remainingBalance,
-    selectedAccount?.reservationFee,
-  ]);
-
-  const location = useLocation();
+  const autoPayReservationId = (location.state as { autoPayReservationId?: string })
+    ?.autoPayReservationId;
   const autoPayHandled = useRef(false);
-  const autoPayReservationId = (location.state as { autoPayReservationId?: string })?.autoPayReservationId;
 
   useEffect(() => {
     if (autoPayHandled.current || !autoPayReservationId || propertyAccounts.length === 0) return;
-    const target = propertyAccounts.find(
-      (a) => (a.reservationId === autoPayReservationId || a.apartmentId === autoPayReservationId) && !a.reservationFeePaid
+    const match = propertyAccounts.find(
+      (a) =>
+        (a.reservationId === autoPayReservationId || a.apartmentId === autoPayReservationId) &&
+        !a.reservationFeePaid
     );
-    if (target) {
+    if (match) {
       autoPayHandled.current = true;
-      openPaymentModal(target, 'ReservationFee');
+      openPaymentModal(match, 'ReservationFee');
     }
   }, [autoPayReservationId, propertyAccounts]);
 
   /* =========================================================
-     PAYMENT SUBMISSION (RESERVATION FEE / FULL PAYMENT)
+     MODAL CONTROLS
      ========================================================= */
+  const openPaymentModal = (
+    account: PropertyAccount,
+    mode: SettlementMode = 'Full'
+  ) => {
+    setSelectedAccountId(account.reservationId);
+    setSettlementMode(mode);
 
-  const handleFullPayment = async () => {
-    if (!selectedAccount) {
-      toast(
-        'Please select a property.',
-        'error',
-      );
-      return;
+    if (mode === 'ReservationFee') {
+      setPaymentAmount(String(account.reservationFee));
+    } else {
+      setPaymentAmount(String(account.remainingBalance));
     }
 
-    const isResFee = settlementMode === 'ReservationFee';
+    setPlanPaymentAmount(String(Math.ceil(account.remainingBalance / planPaymentCount)));
+    setPaymentSlip(null);
+    setPaymentNotes('');
+    setPaymentModalOpen(true);
+  };
 
-    if (
-      !isResFee &&
-      selectedAccount.remainingBalance <= 0
-    ) {
-      toast(
-        'This property is already fully paid.',
-        'error',
-      );
+  /* =========================================================
+     SUBMIT FULL / RESERVATION FEE PAYMENT
+     ========================================================= */
+  const handleFullPayment = async () => {
+    if (!selectedAccount) {
+      toast('Please select a property account.', 'error');
       return;
     }
 
     if (!paymentSlip) {
-      toast(
-        isResFee
-          ? 'Please attach the bank transfer receipt for the 10% reservation fee.'
-          : 'Please attach the bank transfer receipt.',
-        'error',
-      );
+      toast('Please upload the bank deposit slip / transfer receipt.', 'error');
       return;
     }
 
     setSubmittingPayment(true);
 
     try {
+      const isResFee = settlementMode === 'ReservationFee';
+
       const payload = {
-        reservationId:
-          selectedAccount.reservationId,
-
-        apartmentId:
-          selectedAccount.apartmentId,
-
-        type: isResFee ? 'RESERVATION_FEE' : 'FULL_PAYMENT',
-
-        amount: isResFee
-          ? selectedAccount.reservationFee
-          : selectedAccount.remainingBalance,
-
+        reservationId: selectedAccount.reservationId,
+        apartmentId: selectedAccount.apartmentId,
+        type: isResFee ? ('RESERVATION_FEE' as const) : ('FULL_PAYMENT' as const),
+        amount: isResFee ? selectedAccount.reservationFee : selectedAccount.remainingBalance,
         notes:
           paymentNotes ||
           (isResFee
             ? '10% Reservation fee hold deposit'
-            : 'Full remaining balance payment'),
+            : 'Full remaining balance payment settlement'),
       };
 
       const createdPayment = await paymentService.create(payload);
 
       const formData = new FormData();
       formData.append('file', paymentSlip);
-
       await paymentService.uploadProof(createdPayment.id, formData);
 
       toast(
         isResFee
           ? '10% Reservation fee submitted successfully! It is now waiting for staff verification.'
           : 'Full payment submitted successfully. It is now waiting for staff verification.',
-        'success',
+        'success'
       );
 
       setPaymentModalOpen(false);
       setPaymentSlip(null);
       setPaymentNotes('');
-
       await loadData();
     } catch (error: any) {
-      toast(
-        error?.message ||
-          'Payment submission failed.',
-        'error',
-      );
+      toast(error?.message || 'Payment submission failed.', 'error');
     } finally {
       setSubmittingPayment(false);
     }
   };
 
   /* =========================================================
-     PLAN REQUEST
+     SUBMIT PAYMENT PLAN REQUEST
      ========================================================= */
-
   const handlePlanRequest = async () => {
     if (!selectedAccount) {
-      toast(
-        'Please select a property.',
-        'error',
-      );
+      toast('Please select a property account.', 'error');
       return;
     }
 
-    const amount = Number(
-      planPaymentAmount,
-    );
-
-    if (
-      !amount ||
-      amount <= 0
-    ) {
-      toast(
-        'Enter a valid payment amount.',
-        'error',
-      );
+    const amount = Number(planPaymentAmount);
+    if (!amount || amount <= 0) {
+      toast('Enter a valid payment amount.', 'error');
       return;
     }
 
-    if (
-      !planPaymentCount ||
-      planPaymentCount < 2
-    ) {
-      toast(
-        'A payment plan must contain at least 2 payments.',
-        'error',
-      );
+    if (!planPaymentCount || planPaymentCount < 2) {
+      toast('A payment plan must contain at least 2 installments.', 'error');
       return;
     }
 
     if (!planStartDate) {
-      toast(
-        'Please select the first due date.',
-        'error',
-      );
+      toast('Please select the first due date.', 'error');
       return;
     }
 
-    const existingActivePlan =
-      plans.find(
-        (plan) =>
-          plan.reservationId ===
-            selectedAccount.reservationId &&
-          (plan.status === 'Pending' ||
-            plan.status === 'Approved'),
-      );
+    const existingActivePlan = plans.find(
+      (plan) =>
+        plan.reservationId === selectedAccount.reservationId &&
+        (plan.status === 'Pending' || plan.status === 'Approved')
+    );
 
     if (existingActivePlan) {
       toast(
-        `This property already has a ${existingActivePlan.status.toLowerCase()} payment plan.`,
-        'error',
+        `This property already has an active ${existingActivePlan.status.toLowerCase()} payment plan.`,
+        'error'
       );
       return;
     }
@@ -793,53 +497,34 @@ export default function PaymentsPage() {
 
     try {
       await paymentPlanService.create({
-        reservationId:
-          selectedAccount.reservationId,
-
-        planType:
-          settlementMode ===
-          'Installment'
-            ? 'INSTALLMENT'
-            : 'PART_PAYMENT',
-
-        numberOfPayments:
-          planPaymentCount,
-
+        reservationId: selectedAccount.reservationId,
+        planType: settlementMode === 'Installment' ? 'INSTALLMENT' : 'PART_PAYMENT',
+        numberOfPayments: planPaymentCount,
         paymentAmount: amount,
-
-        startDate:
-          planStartDate,
-
-        notes:
-          planNotes || undefined,
+        startDate: planStartDate,
+        notes: planNotes || undefined,
       });
 
       toast(
-        'Payment plan request submitted. No payment is required until the plan is approved.',
-        'success',
+        'Payment plan request submitted. No payment is required until the plan is reviewed and approved.',
+        'success'
       );
 
       setPaymentModalOpen(false);
-
       await loadData();
     } catch (error: any) {
-      toast(
-        error?.message ||
-          'Unable to submit payment plan.',
-        'error',
-      );
+      toast(error?.message || 'Unable to submit payment plan.', 'error');
     } finally {
       setSubmittingPlan(false);
     }
   };
 
   /* =========================================================
-     APPROVED PLAN PAYMENT
+     SUBMIT SCHEDULED INSTALLMENT PAYMENT
      ========================================================= */
-
   const handlePlanItemPay = (
     plan: PaymentPlan,
-    item: NonNullable<PaymentPlan['items']>[number],
+    item: NonNullable<PaymentPlan['items']>[number]
   ) => {
     setPlanPayTarget({ plan, item });
     setPlanPaySlip(null);
@@ -874,331 +559,641 @@ export default function PaymentsPage() {
       formData.append('file', planPaySlip);
       await paymentService.uploadProof(created.id, formData);
 
-      toast('Payment submitted. It is waiting for staff verification.', 'success');
+      toast('Installment payment submitted. Waiting for staff verification.', 'success');
       setPlanPayTarget(null);
       setPlanPaySlip(null);
       setPlanPayNotes('');
       await loadData();
     } catch (error: any) {
-      toast(error?.message || 'Unable to submit scheduled payment.', 'error');
+      toast(error?.message || 'Unable to submit scheduled installment payment.', 'error');
     } finally {
       setSubmittingPlanPayment(false);
     }
   };
 
   /* =========================================================
-     FILE
+     FILE HANDLERS
      ========================================================= */
-
-  const handleSlipSelected = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file =
-      event.target.files?.[0];
-
-    if (!file) return;
-
-    const maxSize =
-      5 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      toast(
-        'Receipt file must be 5MB or smaller.',
-        'error',
-      );
-      return;
-    }
-
-    setPaymentSlip(file);
-  };
-
-  const handlePlanSlipSelected = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleSlipSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
+    if (file.size > 5 * 1024 * 1024) {
       toast('Receipt file must be 5MB or smaller.', 'error');
       return;
     }
+    setPaymentSlip(file);
+  };
 
+  const handlePlanSlipSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Receipt file must be 5MB or smaller.', 'error');
+      return;
+    }
     setPlanPaySlip(file);
   };
 
-  /* =========================================================
-     LOADING
-     ========================================================= */
-
-  if (loading) {
-    return (
-      <div className="min-h-[65vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-amber-600" />
-          </div>
-
-          <div className="text-center">
-            <p className="text-sm font-extrabold text-slate-900">
-              Loading Payment Center
-            </p>
-
-            <p className="text-xs text-slate-400 mt-1">
-              Preparing your property
-              accounts...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     RENDER
-     ========================================================= */
+  // Helper for Payment Status Badge
+  const getPaymentStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'Verified':
+      case 'Paid':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Verified & Settled
+          </span>
+        );
+      case 'Pending':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Pending Verification
+          </span>
+        );
+      case 'Rejected':
+      case 'Failed':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            Rejected
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+            {status || 'Recorded'}
+          </span>
+        );
+    }
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
-
-      {/* =====================================================
-          HERO
-          ===================================================== */}
-
-      <div className="relative overflow-hidden rounded-[28px] bg-slate-950 text-white mb-7 shadow-xl shadow-slate-900/10">
-
-        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-amber-500/10 blur-3xl" />
-
-        <div className="absolute -bottom-24 left-1/3 w-64 h-64 rounded-full bg-amber-400/5 blur-3xl" />
-
-        <div className="relative p-6 sm:p-8">
-
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-
-            <div className="max-w-2xl">
-
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-[11px] font-bold text-amber-300 mb-4">
-
-                <ShieldCheck className="w-3.5 h-3.5" />
-
-                SECURE PROPERTY PAYMENT CENTER
-              </div>
-
-              <h1 className="text-2xl sm:text-4xl font-black tracking-tight">
-
-                Payments &{' '}
-
-                <span className="text-amber-400">
-                  Settlements
-                </span>
+    <div className="min-h-screen bg-[#fafbfe] text-slate-900 pb-20 font-sans selection:bg-amber-100 selection:text-amber-900">
+      
+      {/* ======================================================== */}
+      {/* 1. COMPACT PAGE HEADER (REPLACING THE LARGE DARK BOX)    */}
+      {/* ======================================================== */}
+      <div className="bg-white border-b border-slate-200/80 pt-8 pb-7 px-4 sm:px-6 lg:px-10">
+        <div className="w-full max-w-[1520px] mx-auto">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            
+            {/* Title & Description */}
+            <div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight">
+                Payments
               </h1>
-
-              <p className="text-sm sm:text-base text-slate-400 mt-3 max-w-xl leading-relaxed">
-
-                Track verified payments,
-                remaining balances and
-                approved payment plans for
-                your Skyline Living
-                residences.
+              <p className="text-xs sm:text-sm text-slate-500 max-w-2xl mt-1 font-normal">
+                Track your payments, transactions, and outstanding balances in one place.
               </p>
-
             </div>
 
-            {propertyAccounts.some(
-              (account) =>
-                !account.isFullyPaid &&
-                !account.plan,
-            ) && (
+            {/* Header Action Bar */}
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <button
                 type="button"
-                onClick={() => {
-                  const account =
-                    propertyAccounts.find(
-                      (item) =>
-                        !item.isFullyPaid &&
-                        !item.plan,
-                    );
-
-                  if (account) {
-                    openPaymentModal(
-                      account,
-                    );
-                  }
-                }}
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 active:scale-[0.98] text-slate-950 font-extrabold text-sm transition shadow-lg shadow-amber-500/10"
+                onClick={() => loadData(true)}
+                disabled={isRefreshing}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer disabled:opacity-50"
+                title="Refresh payments"
               >
-                <Plus className="w-4 h-4" />
-
-                Settle Balance
+                <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
               </button>
-            )}
+
+              <Link
+                to="/reservations"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-amber-600" />
+                <span>My Reservations</span>
+              </Link>
+
+              {propertyAccounts.some((a) => !a.isFullyPaid) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const acc = propertyAccounts.find((item) => !item.isFullyPaid);
+                    if (acc) {
+                      openPaymentModal(acc, !acc.reservationFeePaid ? 'ReservationFee' : 'Full');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Make a Payment</span>
+                </button>
+              )}
+            </div>
 
           </div>
         </div>
       </div>
 
-      {/* =====================================================
-          SUMMARY
-          ===================================================== */}
+      {/* ======================================================== */}
+      {/* MAIN FINANCIAL CANVAS */}
+      {/* ======================================================== */}
+      <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-10 py-8 space-y-8">
+        
+        {/* ======================================================== */}
+        {/* 2. FINANCIAL OVERVIEW KPI ROW (Compact Summary Cards) */}
+        {/* ======================================================== */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          {/* KPI 1: Total Paid */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-600 shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Paid</p>
+              <p className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5 truncate">
+                {formatCurrency(financialStats.totalPaid)}
+              </p>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+          {/* KPI 2: Outstanding Balance */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 shrink-0">
+              <WalletCards className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Outstanding</p>
+              <p className="text-lg sm:text-2xl font-bold text-amber-900 mt-0.5 truncate">
+                {formatCurrency(financialStats.totalOutstanding)}
+              </p>
+            </div>
+          </div>
 
-        <SummaryCard
-          icon={
-            <Building2 className="w-5 h-5" />
-          }
-          label="Property Value"
-          value={formatCurrency(
-            summary.totalPropertyValue,
-          )}
-          description={`${propertyAccounts.length} active ${
-            propertyAccounts.length === 1
-              ? 'property'
-              : 'properties'
-          }`}
-        />
+          {/* KPI 3: Pending Verification */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-indigo-50 border border-indigo-200/60 flex items-center justify-center text-indigo-600 shrink-0">
+              <Clock3 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-800">Under Review</p>
+              <p className="text-lg sm:text-2xl font-bold text-indigo-950 mt-0.5 truncate">
+                {formatCurrency(financialStats.totalPending)}
+              </p>
+            </div>
+          </div>
 
-        <SummaryCard
-          icon={
-            <CheckCircle2 className="w-5 h-5" />
-          }
-          label="Verified Paid"
-          value={formatCurrency(
-            summary.totalPaid,
-          )}
-          description="Confirmed by staff"
-          accent="green"
-        />
-
-        <SummaryCard
-          icon={
-            <WalletCards className="w-5 h-5" />
-          }
-          label="Remaining"
-          value={formatCurrency(
-            summary.remaining,
-          )}
-          description="Across all properties"
-          accent="amber"
-        />
-
-        <SummaryCard
-          icon={
-            <Clock3 className="w-5 h-5" />
-          }
-          label="Awaiting Audit"
-          value={String(
-            summary.pendingVerification,
-          )}
-          description="Payment submissions"
-        />
-
-      </div>
-
-      {/* =====================================================
-          TABS
-          ===================================================== */}
-
-      <div className="flex items-center gap-1 bg-slate-100 rounded-2xl p-1.5 mb-6 w-full sm:w-fit">
-
-        {tabFilters.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() =>
-              setActiveTab(tab)
-            }
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-extrabold transition ${
-              activeTab === tab
-                ? 'bg-white text-slate-950 shadow-sm'
-                : 'text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-
-      </div>
-
-      {/* =====================================================
-          OVERVIEW
-          ===================================================== */}
-
-      {activeTab === 'Overview' && (
-        <div className="space-y-6">
-
-          {propertyAccounts.length ===
-          0 ? (
-            <EmptyState
-              icon={<Building2 className="w-12 h-12 text-navy-300" />}
-              title="No property payment accounts"
-              description="A payment account will appear after you place a reservation."
-            />
-          ) : (
-            propertyAccounts.map(
-              (account) => (
-                <PropertyAccountCard
-                  key={
-                    account.reservationId
-                  }
-                  account={account}
-                  onOpenPayment={
-                    openPaymentModal
-                  }
-                  onPayPlanItem={
-                    handlePlanItemPay
-                  }
-                />
-              ),
-            )
-          )}
+          {/* KPI 4: Active Property Accounts */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Reserved Units</p>
+              <p className="text-lg sm:text-2xl font-bold text-slate-900 mt-0.5">
+                {financialStats.accountsCount} {financialStats.accountsCount === 1 ? 'Unit' : 'Units'}
+              </p>
+            </div>
+          </div>
 
         </div>
-      )}
 
-      {/* =====================================================
-          OUTSTANDING
-          ===================================================== */}
+        {/* ======================================================== */}
+        {/* 3. ERROR BANNER IF ANY */}
+        {/* ======================================================== */}
+        {error && (
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-between text-rose-800 text-xs">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => loadData(true)}
+              className="underline font-bold hover:text-rose-950 cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
-      {activeTab === 'Outstanding' && (
-        <PaymentList
-          payments={
-            outstandingPayments
-          }
-          emptyTitle="No payments awaiting verification"
-          emptyDescription="Submitted payment receipts waiting for staff review will appear here."
-          onReceipt={
-            setReceiptTarget
-          }
-        />
-      )}
+        {/* ======================================================== */}
+        {/* 4. PROPERTY PROGRESS & SETTLEMENT ACCOUNTS SECTION      */}
+        {/* ======================================================== */}
+        {propertyAccounts.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  Property Settlement Balances
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Real-time escrow reconciliation, hold deposits, and active installment schedules.
+                </p>
+              </div>
+            </div>
 
-      {/* =====================================================
-          HISTORY
-          ===================================================== */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {propertyAccounts.map((account) => {
+                const paidPercent =
+                  account.totalPrice > 0
+                    ? Math.min(100, Math.round((account.totalPaid / account.totalPrice) * 100))
+                    : 0;
+                const plan = account.plan;
 
-      {activeTab === 'History' && (
-        <PaymentList
-          payments={historyPayments}
-          emptyTitle="No payment history yet"
-          emptyDescription="Verified and rejected payment records will appear here."
-          onReceipt={
-            setReceiptTarget
-          }
-        />
-      )}
+                return (
+                  <div
+                    key={account.reservationId}
+                    className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-6 shadow-2xs flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Top Header */}
+                      <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                        <div>
+                          <div className="flex items-center gap-2 text-[11px] font-mono font-medium text-slate-400">
+                            <span>Reservation #{account.reservationId}</span>
+                          </div>
+                          <h3 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
+                            {account.apartmentTitle}
+                          </h3>
+                        </div>
 
-      {/* =====================================================
-          SETTLEMENT MODAL
-          ===================================================== */}
+                        <Badge
+                          variant={
+                            account.isFullyPaid
+                              ? 'success'
+                              : account.apartmentStatus === 'Sold'
+                              ? 'success'
+                              : 'warning'
+                          }
+                          dot
+                        >
+                          {account.isFullyPaid
+                            ? 'Fully Settled'
+                            : account.apartmentStatus || 'Reserved'}
+                        </Badge>
+                      </div>
 
+                      {/* Financial Amount Triple-Deck */}
+                      <div className="grid grid-cols-3 gap-2.5 mt-4 text-center">
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                          <p className="text-[10px] font-bold uppercase text-slate-400">Unit Price</p>
+                          <p className="text-xs font-bold text-slate-900 mt-0.5 truncate">
+                            {formatCurrency(account.totalPrice)}
+                          </p>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                          <p className="text-[10px] font-bold uppercase text-emerald-700">Verified Paid</p>
+                          <p className="text-xs font-bold text-emerald-900 mt-0.5 truncate">
+                            {formatCurrency(account.totalPaid)}
+                          </p>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-100">
+                          <p className="text-[10px] font-bold uppercase text-amber-800">Remaining</p>
+                          <p className="text-xs font-bold text-amber-950 mt-0.5 truncate">
+                            {formatCurrency(account.remainingBalance)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Payment Progress Bar */}
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between text-[11px] mb-1.5">
+                          <span className="font-semibold text-slate-500">Settlement Progress</span>
+                          <span className="font-bold text-slate-900">{paidPercent}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                            style={{ width: `${paidPercent}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* 10% Fee Indicator / Plan Pill */}
+                      <div className="mt-4 pt-3 border-t border-slate-100">
+                        {account.reservationFeePaid ? (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>10% Hold Deposit Verified ({formatCurrency(account.reservationFee)})</span>
+                          </div>
+                        ) : account.reservationFeePending ? (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold">
+                            <Clock3 className="w-3.5 h-3.5 text-amber-700 animate-pulse" />
+                            <span>10% Deposit Awaiting Staff Verification</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+                            <CircleDollarSign className="w-3.5 h-3.5 text-amber-600" />
+                            <span>10% Reservation Fee Due: {formatCurrency(account.reservationFee)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Active Payment Plan Items List (if applicable) */}
+                      {plan && plan.status === 'Approved' && plan.items && plan.items.length > 0 && (
+                        <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                            <span className="flex items-center gap-1.5">
+                              <CalendarDays className="w-3.5 h-3.5 text-amber-600" />
+                              Installment Schedule ({plan.items.filter((i) => i.status === 'Paid').length}/{plan.items.length} Paid)
+                            </span>
+                            <span className="text-[11px] text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md">
+                              {plan.planType === 'INSTALLMENT' ? 'Monthly Plan' : 'Part Payment Plan'}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                            {plan.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="p-2 rounded-xl bg-white border border-slate-200/60 flex items-center justify-between text-xs"
+                              >
+                                <div>
+                                  <span className="font-bold text-slate-900">
+                                    Payment #{item.sequenceNo}
+                                  </span>
+                                  <span className="text-slate-400 text-[11px] ml-2">
+                                    Due {formatDate(item.dueDate)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-900">
+                                    {formatCurrency(Number(item.amount))}
+                                  </span>
+                                  {item.status === 'Paid' ? (
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                                      Paid
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePlanItemPay(plan, item)}
+                                      className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold transition cursor-pointer"
+                                    >
+                                      Pay Now
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Actions */}
+                    {!account.isFullyPaid && (
+                      <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                        {!account.reservationFeePaid && !account.reservationFeePending ? (
+                          <button
+                            type="button"
+                            onClick={() => openPaymentModal(account, 'ReservationFee')}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-2xs"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>Pay 10% Deposit</span>
+                          </button>
+                        ) : !plan ? (
+                          <button
+                            type="button"
+                            onClick={() => openPaymentModal(account, 'Full')}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs"
+                          >
+                            <span>Balance Settlement</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 5. TRANSACTION HISTORY (MAIN FOCUS OF PAGE)             */}
+        {/* ======================================================== */}
+        <div className="space-y-4">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                Transaction History
+              </h2>
+              <p className="text-xs text-slate-500">
+                Audit log of all verified bank transfers, hold fees, and pending receipts.
+              </p>
+            </div>
+          </div>
+
+          {/* Filter Tabs & Search Controls */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            
+            {/* Status Tabs */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => setActiveTab('All')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'All'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>All</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'All' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {payments.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('Verified')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'Verified'
+                    ? 'bg-white text-emerald-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Verified</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'Verified' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {payments.filter((p) => p.status === 'Verified').length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('Pending')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'Pending'
+                    ? 'bg-white text-amber-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Pending Review</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'Pending' ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-700'}`}>
+                  {payments.filter((p) => p.status === 'Pending').length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('Rejected')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'Rejected'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Rejected</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'Rejected' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {payments.filter((p) => p.status === 'Rejected').length}
+                </span>
+              </button>
+            </div>
+
+            {/* Search Box */}
+            <div className="relative min-w-[260px] sm:min-w-[320px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by payment ID, type, or apartment..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 hover:bg-slate-100/60 focus:bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-xl border border-slate-200 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-hidden transition"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+          </div>
+
+          {/* Transactions List */}
+          <div className="space-y-3">
+            {loading && payments.length === 0 ? (
+              /* Skeleton Loader */
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs animate-pulse flex flex-col sm:flex-row justify-between items-center gap-4"
+                  >
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="w-10 h-10 bg-slate-200 rounded-xl" />
+                      <div className="space-y-2">
+                        <div className="h-4 w-32 bg-slate-200 rounded" />
+                        <div className="h-3 w-48 bg-slate-100 rounded" />
+                      </div>
+                    </div>
+                    <div className="h-6 w-24 bg-slate-200 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredTransactions.length === 0 ? (
+              /* Empty State */
+              <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center shadow-2xs space-y-4 max-w-xl mx-auto">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200/60 text-amber-600 flex items-center justify-center mx-auto">
+                  <ReceiptText className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {searchQuery || activeTab !== 'All'
+                      ? 'No matching transactions'
+                      : 'No payments recorded yet'}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 leading-relaxed">
+                    {searchQuery || activeTab !== 'All'
+                      ? 'Try clearing your search query or selecting a different status tab.'
+                      : 'Your payment activity will appear here once a deposit or settlement slip is uploaded.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Transactions Rows */
+              filteredTransactions.map((payment) => (
+                <div
+                  key={payment.id}
+                  className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs hover:border-amber-300 hover:shadow-xs transition duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  {/* Left Side: Icon & Info */}
+                  <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                      <Landmark className="w-5 h-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                        <span className="font-bold text-sm text-slate-900">
+                          {payment.apartmentTitle || 'Skyline Property'}
+                        </span>
+                        <span className="text-xs text-slate-300">•</span>
+                        <span className="text-[11px] font-mono text-slate-400 font-medium">
+                          #{payment.id}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-slate-500 font-medium">
+                        <span className="inline-flex items-center gap-1 text-slate-700 font-semibold">
+                          {payment.type || 'Direct Bank Settlement'}
+                        </span>
+                        <span>•</span>
+                        <span>{formatDate(payment.uploadedAt)}</span>
+                        {payment.notes && (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-400 italic truncate max-w-[200px]">
+                              "{payment.notes}"
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Side: Amount & Status & Action */}
+                  <div className="flex items-center justify-between sm:justify-end gap-4 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                    <div className="text-right">
+                      <p className="text-base font-bold text-slate-900">
+                        {formatCurrency(Number(payment.amount))}
+                      </p>
+                      <div className="mt-0.5">{getPaymentStatusBadge(payment.status)}</div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setReceiptTarget(payment)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
+                      title="View transaction receipt details"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Record</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* ======================================================== */}
+      {/* 6. BALANCE SETTLEMENT & 10% FEE MODAL                    */}
+      {/* ======================================================== */}
       <Modal
         open={paymentModalOpen}
         onClose={() => {
-          if (
-            !submittingPayment &&
-            !submittingPlan
-          ) {
+          if (!submittingPayment && !submittingPlan) {
             setPaymentModalOpen(false);
           }
         }}
@@ -1210,124 +1205,78 @@ export default function PaymentsPage() {
         size="lg"
         footer={
           <div className="w-full flex items-center justify-between gap-3">
-
             <Button
               variant="outline"
-              onClick={() =>
-                setPaymentModalOpen(false)
-              }
-              disabled={
-                submittingPayment ||
-                submittingPlan
-              }
+              onClick={() => setPaymentModalOpen(false)}
+              disabled={submittingPayment || submittingPlan}
             >
               Cancel
             </Button>
 
-            {settlementMode === 'Full' ||
-            settlementMode === 'ReservationFee' ? (
+            {settlementMode === 'Full' || settlementMode === 'ReservationFee' ? (
               <button
                 type="button"
-                onClick={
-                  handleFullPayment
-                }
-                disabled={
-                  submittingPayment
-                }
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                onClick={handleFullPayment}
+                disabled={submittingPayment}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition flex items-center gap-2 disabled:opacity-50 cursor-pointer shadow-2xs"
               >
                 {submittingPayment ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-
-                {settlementMode === 'ReservationFee'
-                  ? 'Submit Reservation Fee'
-                  : 'Submit Payment'}
+                <span>
+                  {settlementMode === 'ReservationFee'
+                    ? 'Submit 10% Deposit Slip'
+                    : 'Submit Balance Slip'}
+                </span>
               </button>
             ) : (
               <button
                 type="button"
-                onClick={
-                  handlePlanRequest
-                }
-                disabled={
-                  submittingPlan
-                }
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                onClick={handlePlanRequest}
+                disabled={submittingPlan}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition flex items-center gap-2 disabled:opacity-50 cursor-pointer shadow-2xs"
               >
                 {submittingPlan ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <ArrowRight className="w-4 h-4" />
                 )}
-
-                Submit Plan Request
+                <span>Submit Plan Request</span>
               </button>
             )}
-
           </div>
         }
       >
-
         <div className="space-y-5">
-
-          {/* PROPERTY */}
-
-          {propertyAccounts.length >
-            0 && (
+          {/* Property Selector */}
+          {propertyAccounts.length > 0 && (
             <Select
-              label="Property"
-              value={
-                selectedAccountId
-              }
+              label="Selected Property Account"
+              value={selectedAccountId}
               onChange={(event) => {
-                const id =
-                  event.target.value;
-
-                setSelectedAccountId(
-                  id,
-                );
-
-                const account =
-                  propertyAccounts.find(
-                    (item) =>
-                      item.reservationId ===
-                      id,
-                  );
-
+                const id = event.target.value;
+                setSelectedAccountId(id);
+                const account = propertyAccounts.find((item) => item.reservationId === id);
                 if (account) {
                   setPaymentAmount(
                     String(
                       settlementMode === 'ReservationFee'
                         ? account.reservationFee
-                        : account.remainingBalance,
-                    ),
+                        : account.remainingBalance
+                    )
                   );
-
                   setPlanPaymentAmount(
-                    String(
-                      Math.ceil(
-                        account.remainingBalance /
-                          planPaymentCount,
-                      ),
-                    ),
+                    String(Math.ceil(account.remainingBalance / planPaymentCount))
                   );
                 }
               }}
               options={propertyAccounts
-                .filter(
-                  (account) =>
-                    !account.isFullyPaid,
-                )
+                .filter((account) => !account.isFullyPaid)
                 .map((account) => ({
-                  value:
-                    account.reservationId,
-
-                  label: `${
-                    account.apartmentTitle
-                  } • ${
+                  value: account.reservationId,
+                  label: `${account.apartmentTitle} • ${
                     settlementMode === 'ReservationFee'
                       ? formatCurrency(account.reservationFee) + ' reservation deposit'
                       : formatCurrency(account.remainingBalance) + ' remaining'
@@ -1336,290 +1285,225 @@ export default function PaymentsPage() {
             />
           )}
 
-          {/* BALANCE */}
-
+          {/* Account Balance Summary */}
           {selectedAccount && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-
-              <div className="flex items-center gap-3 mb-4">
-
-                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-amber-600" />
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+                  <Building2 className="w-4 h-4 text-amber-600" />
                 </div>
-
                 <div>
-                  <p className="font-extrabold text-sm text-slate-900">
-                    {
-                      selectedAccount.apartmentTitle
-                    }
+                  <p className="font-bold text-xs text-slate-900">
+                    {selectedAccount.apartmentTitle}
                   </p>
-
-                  <p className="text-[11px] text-slate-400">
-                    Reservation{' '}
-                    {
-                      selectedAccount.reservationId
-                    }
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    Reservation #{selectedAccount.reservationId}
                   </p>
                 </div>
-
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-
-                <MiniAmount
-                  label="Price"
-                  value={
-                    selectedAccount.totalPrice
-                  }
-                />
-
-                <MiniAmount
-                  label="Verified"
-                  value={
-                    selectedAccount.totalPaid
-                  }
-                  green
-                />
-
-                <MiniAmount
-                  label="Remaining"
-                  value={
-                    selectedAccount.remainingBalance
-                  }
-                  amber
-                />
-
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="p-2 rounded-xl bg-white border border-slate-100">
+                  <p className="text-[9px] uppercase font-bold text-slate-400">Total Price</p>
+                  <p className="font-bold text-slate-900 mt-0.5">
+                    {formatCurrency(selectedAccount.totalPrice)}
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <p className="text-[9px] uppercase font-bold text-emerald-700">Verified</p>
+                  <p className="font-bold text-emerald-900 mt-0.5">
+                    {formatCurrency(selectedAccount.totalPaid)}
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-amber-50 border border-amber-100">
+                  <p className="text-[9px] uppercase font-bold text-amber-800">Remaining</p>
+                  <p className="font-bold text-amber-950 mt-0.5">
+                    {formatCurrency(selectedAccount.remainingBalance)}
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* OPTIONS */}
-
+          {/* Settlement Option Switcher */}
           {settlementMode === 'ReservationFee' ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-              <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex items-center gap-2 mb-1">
                 <BadgePercent className="w-4 h-4 text-amber-700" />
-                <p className="text-xs font-extrabold text-amber-950 uppercase tracking-wider">
+                <p className="text-xs font-bold text-amber-950 uppercase tracking-wider">
                   10% Reservation Hold Deposit
                 </p>
               </div>
               <p className="text-xs text-amber-900/90 leading-relaxed">
-                To secure and hold <strong className="text-slate-900">{selectedAccount?.apartmentTitle}</strong>, please deposit the 10% reservation fee of <strong className="text-slate-900 font-bold">{formatCurrency(selectedAccount?.reservationFee || 0)}</strong>. Once verified and approved by management, your balance settlement options (Full Payment, Installment Plan, Part Payment) will automatically unlock.
+                To secure <strong className="text-slate-900">{selectedAccount?.apartmentTitle}</strong>, please deposit the 10% reservation fee of <strong className="text-slate-900 font-bold">{formatCurrency(selectedAccount?.reservationFee || 0)}</strong>. Once verified, your balance settlement options will unlock.
               </p>
             </div>
           ) : (
             <div>
-              <p className="text-sm font-bold text-slate-800 mb-2">
-                How would you like to
-                settle the remaining
-                balance?
+              <p className="text-xs font-bold text-slate-700 mb-2">
+                Settlement Structure:
               </p>
-
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <SettlementOption
-                  active={
-                    settlementMode ===
-                    'Full'
-                  }
-                  icon={
-                    <CreditCard className="w-5 h-5" />
-                  }
-                  title="Full Payment"
-                  description="Clear the full remaining balance"
-                  onClick={() =>
-                    setSettlementMode(
-                      'Full',
-                    )
-                  }
-                />
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode('Full')}
+                  className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                    settlementMode === 'Full'
+                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 text-slate-700 mb-1" />
+                  <p className="text-xs font-bold text-slate-900">Full Settlement</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Clear remaining balance</p>
+                </button>
 
-                <SettlementOption
-                  active={
-                    settlementMode ===
-                    'Installment'
-                  }
-                  icon={
-                    <CalendarDays className="w-5 h-5" />
-                  }
-                  title="Installments"
-                  description="Request a monthly payment plan"
-                  onClick={() =>
-                    setSettlementMode(
-                      'Installment',
-                    )
-                  }
-                />
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode('Installment')}
+                  className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                    settlementMode === 'Installment'
+                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <CalendarDays className="w-4 h-4 text-slate-700 mb-1" />
+                  <p className="text-xs font-bold text-slate-900">Installment Plan</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Monthly schedule</p>
+                </button>
 
-                <SettlementOption
-                  active={
-                    settlementMode ===
-                    'PartPayment'
-                  }
-                  icon={
-                    <Layers3 className="w-5 h-5" />
-                  }
-                  title="Part Payment"
-                  description="Split the balance into agreed parts"
-                  onClick={() =>
-                    setSettlementMode(
-                      'PartPayment',
-                    )
-                  }
-                />
+                <button
+                  type="button"
+                  onClick={() => setSettlementMode('PartPayment')}
+                  className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                    settlementMode === 'PartPayment'
+                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <Layers3 className="w-4 h-4 text-slate-700 mb-1" />
+                  <p className="text-xs font-bold text-slate-900">Part Payment</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Agreed milestone parts</p>
+                </button>
               </div>
             </div>
           )}
 
-          {/* FULL PAYMENT OR RESERVATION FEE */}
-
-          {(settlementMode === 'Full' ||
-            settlementMode === 'ReservationFee') && (
+          {/* Full Payment or Reservation Fee Bank Details & Upload */}
+          {(settlementMode === 'Full' || settlementMode === 'ReservationFee') && (
             <div className="space-y-4">
-
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-
-                <div className="flex items-start gap-3">
-
-                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center border border-amber-200 shrink-0">
-                    <CircleDollarSign className="w-5 h-5 text-amber-600" />
-                  </div>
-
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs">
+                <div className="flex items-center gap-2 text-slate-700 font-bold mb-2">
+                  <Landmark className="w-4 h-4 text-amber-600" />
+                  <span>Beneficiary Escrow Account Details</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <p className="text-xs font-extrabold text-amber-950">
-                      {settlementMode === 'ReservationFee'
-                        ? '10% Reservation Hold Deposit'
-                        : 'Full Balance Settlement'}
-                    </p>
-
-                    <p className="text-xl font-black text-slate-950 mt-1">
-                      {formatCurrency(
-                        settlementMode === 'ReservationFee'
-                          ? selectedAccount?.reservationFee || 0
-                          : selectedAccount?.remainingBalance || 0,
-                      )}
-                    </p>
-
-                    <p className="text-[11px] text-amber-800 mt-1">
-                      {settlementMode === 'ReservationFee'
-                        ? 'Your reservation is confirmed once this deposit is verified by staff.'
-                        : 'The apartment becomes Sold after this full payment is verified by staff.'}
-                    </p>
+                    <span className="text-slate-400">Bank:</span>
+                    <p className="font-bold text-slate-900">Commercial Bank PLC</p>
                   </div>
-
+                  <div>
+                    <span className="text-slate-400">Branch:</span>
+                    <p className="font-bold text-slate-900">Colombo City Centre</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Account Name:</span>
+                    <p className="font-bold text-slate-900">Skyline Living Residences (Pvt) Ltd</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Account No:</span>
+                    <p className="font-bold text-slate-900 font-mono">1000 8945 2311</p>
+                  </div>
                 </div>
               </div>
 
-              <BankDetails />
+              {/* Upload Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Bank Transfer / Deposit Slip Receipt <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleSlipSelected}
+                  className="hidden"
+                />
 
-              <ReceiptUpload
-                file={paymentSlip}
-                fileInputRef={
-                  fileInputRef
-                }
-                onFileSelected={
-                  handleSlipSelected
-                }
-                onRemove={() =>
-                  setPaymentSlip(null)
-                }
-              />
+                {paymentSlip ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-white border border-emerald-200 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4 text-emerald-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">
+                          {paymentSlip.name}
+                        </p>
+                        <p className="text-[10px] text-emerald-700">Receipt attached</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentSlip(null)}
+                      className="p-1.5 rounded-lg hover:bg-red-100 text-red-600 transition"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-2xl p-5 bg-slate-50 hover:bg-amber-50/30 transition flex flex-col items-center cursor-pointer"
+                  >
+                    <Upload className="w-5 h-5 text-amber-600 mb-1.5" />
+                    <p className="text-xs font-bold text-slate-800">Click to upload deposit slip</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, or PDF up to 5MB</p>
+                  </button>
+                )}
+              </div>
 
               <Textarea
-                label="Transaction Reference / Notes"
+                label="Transaction Notes / Reference (Optional)"
                 rows={2}
-                placeholder="Bank reference, transaction ID, or optional note"
+                placeholder="Bank transaction reference number or remarks..."
                 value={paymentNotes}
-                onChange={(event) =>
-                  setPaymentNotes(
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => setPaymentNotes(event.target.value)}
               />
-
             </div>
           )}
 
-          {/* PLAN */}
-
-          {(settlementMode ===
-            'Installment' ||
-            settlementMode ===
-              'PartPayment') && (
+          {/* Installment Plan Request Form */}
+          {(settlementMode === 'Installment' || settlementMode === 'PartPayment') && (
             <div className="space-y-4">
-
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-
-                <div className="flex gap-3">
-
-                  <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-
-                  <div>
-                    <p className="text-xs font-extrabold text-blue-950">
-                      Admin Approval
-                      Required
-                    </p>
-
-                    <p className="text-[11px] leading-relaxed text-blue-700 mt-1">
-                      No bank slip is
-                      required now. Submit
-                      your proposed plan.
-                      Once approved, the
-                      apartment is locked
-                      as Sold and your
-                      payment schedule
-                      becomes available.
-                    </p>
-                  </div>
-
-                </div>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] leading-relaxed">
+                  No payment slip is required now. Submit your proposed schedule. Once reviewed and approved by the finance team, your scheduled payments will appear here.
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
-                  label={
-                    settlementMode ===
-                    'Installment'
-                      ? 'Regular Installment Amount (Rs.)'
-                      : 'Regular Part Amount (Rs.)'
-                  }
+                  label="Proposed Installment Amount (Rs.)"
                   type="number"
                   min="1"
-                  value={
-                    planPaymentAmount
-                  }
-                  onChange={(event) =>
-                    setPlanPaymentAmount(
-                      event.target.value,
-                    )
-                  }
+                  value={planPaymentAmount}
+                  onChange={(event) => setPlanPaymentAmount(event.target.value)}
                 />
 
                 <Input
-                  label={
-                    settlementMode ===
-                    'Installment'
-                      ? 'Number of Installments'
-                      : 'Number of Parts'
-                  }
+                  label="Number of Installments"
                   type="number"
                   min="2"
-                  value={
-                    planPaymentCount
-                  }
+                  value={planPaymentCount}
                   onChange={(event) => {
-                    const count = Math.max(
-                      2,
-                      Number(event.target.value) || 2,
-                    );
+                    const count = Math.max(2, Number(event.target.value) || 2);
                     setPlanPaymentCount(count);
                     if (selectedAccount?.remainingBalance) {
                       setPlanPaymentAmount(
-                        String(
-                          Math.floor(
-                            selectedAccount.remainingBalance / count,
-                          ),
-                        ),
+                        String(Math.floor(selectedAccount.remainingBalance / count))
                       );
                     }
                   }}
@@ -1629,180 +1513,93 @@ export default function PaymentsPage() {
                   label="First Due Date"
                   type="date"
                   value={planStartDate}
-                  onChange={(event) =>
-                    setPlanStartDate(
-                      event.target.value,
-                    )
-                  }
+                  onChange={(event) => setPlanStartDate(event.target.value)}
                 />
-
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">
-                    Payment Breakdown
-                  </p>
-
-                  <p className="text-sm font-black text-slate-900 mt-1">
-                    {planPaymentCount - 1} × {formatCurrency(Number(planPaymentAmount || 0))}
-                  </p>
-
-                  <p className="text-xs font-bold text-amber-700 mt-0.5">
-                    Final payment: {formatCurrency(
-                      Math.max(
-                        0,
-                        (selectedAccount?.remainingBalance || 0) -
-                          Number(planPaymentAmount || 0) * (planPaymentCount - 1),
-                      ),
-                    )}
-                  </p>
-
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Total: {formatCurrency(selectedAccount?.remainingBalance || 0)}
-                  </p>
-
-                </div>
-
               </div>
 
               <Textarea
                 label="Plan Request Notes (Optional)"
-                rows={3}
-                placeholder={
-                  settlementMode ===
-                  'Installment'
-                    ? 'Add any information for the finance team...'
-                    : 'Describe your preferred part-payment arrangement...'
-                }
+                rows={2}
+                placeholder="Describe your requested payment timeline..."
                 value={planNotes}
-                onChange={(event) =>
-                  setPlanNotes(
-                    event.target.value,
-                  )
-                }
+                onChange={(event) => setPlanNotes(event.target.value)}
               />
-
             </div>
           )}
-
         </div>
-
       </Modal>
 
-      {/* =====================================================
-          RECEIPT MODAL
-          ===================================================== */}
-
+      {/* ======================================================== */}
+      {/* 7. TRANSACTION RECORD DETAILS MODAL                      */}
+      {/* ======================================================== */}
       <Modal
         open={!!receiptTarget}
-        onClose={() =>
-          setReceiptTarget(null)
-        }
-        title="Payment Record"
+        onClose={() => setReceiptTarget(null)}
+        title="Payment Record Details"
         size="md"
       >
-
         {receiptTarget && (
-          <div className="space-y-4">
-
+          <div className="space-y-4 text-xs">
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-
               <div className="flex items-start justify-between gap-4">
-
                 <div>
-                  <p className="text-xs text-slate-400">
-                    Payment ID
-                  </p>
-
-                  <p className="font-mono font-bold text-sm text-slate-900">
-                    {receiptTarget.id}
-                  </p>
+                  <p className="text-slate-400 text-[11px]">Payment Transaction ID</p>
+                  <p className="font-mono font-bold text-slate-900 mt-0.5">#{receiptTarget.id}</p>
                 </div>
-
-                <Badge
-                  variant={statusToVariant(
-                    receiptTarget.status,
-                  )}
-                  size="sm"
-                  dot
-                >
-                  {receiptTarget.status}
-                </Badge>
-
+                {getPaymentStatusBadge(receiptTarget.status)}
               </div>
 
-              <div className="border-t border-slate-200 mt-4 pt-4">
-
-                <p className="text-[11px] text-slate-400">
-                  Amount
+              <div className="border-t border-slate-200 mt-3 pt-3">
+                <p className="text-[11px] text-slate-400">Total Settled Amount</p>
+                <p className="text-2xl font-bold text-slate-900 mt-0.5">
+                  {formatCurrency(Number(receiptTarget.amount))}
                 </p>
-
-                <p className="text-xl font-black text-slate-950">
-                  {formatCurrency(
-                    Number(
-                      receiptTarget.amount,
-                    ),
-                  )}
-                </p>
-
               </div>
-
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <p className="text-[10px] uppercase font-bold text-slate-400">Payment Category</p>
+                <p className="font-bold text-slate-900 mt-0.5">{receiptTarget.type}</p>
+              </div>
 
-              <InfoBox
-                label="Type"
-                value={
-                  receiptTarget.type
-                }
-              />
-
-              <InfoBox
-                label="Submitted"
-                value={formatDate(
-                  receiptTarget.uploadedAt,
-                )}
-              />
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <p className="text-[10px] uppercase font-bold text-slate-400">Submission Date</p>
+                <p className="font-bold text-slate-900 mt-0.5">
+                  {formatDate(receiptTarget.uploadedAt)}
+                </p>
+              </div>
 
               {receiptTarget.verifiedAt && (
-                <InfoBox
-                  label="Verified"
-                  value={formatDate(
-                    receiptTarget.verifiedAt,
-                  )}
-                />
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <p className="text-[10px] uppercase font-bold text-emerald-700">Verified Date</p>
+                  <p className="font-bold text-emerald-900 mt-0.5">
+                    {formatDate(receiptTarget.verifiedAt)}
+                  </p>
+                </div>
               )}
 
               {receiptTarget.verifiedBy && (
-                <InfoBox
-                  label="Verified By"
-                  value={
-                    receiptTarget.verifiedBy
-                  }
-                />
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Verified By</p>
+                  <p className="font-bold text-slate-900 mt-0.5">{receiptTarget.verifiedBy}</p>
+                </div>
               )}
-
             </div>
 
             {receiptTarget.notes && (
-              <div className="rounded-xl border border-slate-200 p-3">
-
-                <p className="text-[10px] uppercase font-bold text-slate-400">
-                  Notes
-                </p>
-
-                <p className="text-xs text-slate-700 mt-1 whitespace-pre-wrap">
-                  {receiptTarget.notes}
-                </p>
-
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <p className="text-[10px] uppercase font-bold text-slate-400">Notes & Reference</p>
+                <p className="text-slate-700 mt-0.5 italic">"{receiptTarget.notes}"</p>
               </div>
             )}
-
           </div>
         )}
-
       </Modal>
 
+      {/* ======================================================== */}
+      {/* 8. PAY SCHEDULED INSTALLMENT MODAL                       */}
+      {/* ======================================================== */}
       <Modal
         open={!!planPayTarget}
         onClose={() => {
@@ -1812,7 +1609,7 @@ export default function PaymentsPage() {
             setPlanPayNotes('');
           }
         }}
-        title="Pay Scheduled Amount"
+        title="Pay Scheduled Installment"
         size="md"
         footer={
           <div className="flex items-center justify-end gap-3 w-full">
@@ -1839,39 +1636,83 @@ export default function PaymentsPage() {
         }
       >
         {planPayTarget && (
-          <div className="space-y-4">
-            <div className="rounded-2xl bg-gradient-to-br from-amber-500/10 via-slate-50 to-slate-100 border border-amber-200/60 p-4">
+          <div className="space-y-4 text-xs">
+            <div className="rounded-2xl bg-amber-50 border border-amber-200/60 p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  Payment #{planPayTarget.item.sequenceNo}
+                <span className="font-bold text-amber-900 uppercase tracking-wider text-[11px]">
+                  Installment #{planPayTarget.item.sequenceNo}
                 </span>
-                <span className="text-xs font-semibold text-slate-500">
+                <span className="font-semibold text-slate-500 text-[11px]">
                   Due {formatDate(planPayTarget.item.dueDate)}
                 </span>
               </div>
-              <p className="text-2xl font-black text-slate-950 mt-1">
+              <p className="text-2xl font-bold text-slate-950 mt-1">
                 {formatCurrency(Number(planPayTarget.item.amount))}
               </p>
-              <p className="text-xs text-slate-600 mt-1 font-medium">
+              <p className="text-slate-600 mt-1 font-medium">
                 {planPayTarget.plan.apartmentTitle}
               </p>
             </div>
 
-            <BankDetails />
+            {/* Bank details */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[11px]">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-slate-400">Bank:</span>
+                  <p className="font-bold text-slate-900">Commercial Bank PLC</p>
+                </div>
+                <div>
+                  <span className="text-slate-400">Account No:</span>
+                  <p className="font-bold text-slate-900 font-mono">1000 8945 2311</p>
+                </div>
+              </div>
+            </div>
 
-            <ReceiptUpload
-              file={planPaySlip}
-              fileInputRef={planSlipInputRef}
-              onFileSelected={handlePlanSlipSelected}
-              onRemove={() => {
-                setPlanPaySlip(null);
-                if (planSlipInputRef.current) planSlipInputRef.current.value = '';
-              }}
-            />
+            {/* Upload Slip */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Bank Transfer Receipt Slip <span className="text-rose-500">*</span>
+              </label>
+              <input
+                ref={planSlipInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handlePlanSlipSelected}
+                className="hidden"
+              />
+
+              {planPaySlip ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span className="text-xs font-bold text-slate-900 truncate">
+                      {planPaySlip.name}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlanPaySlip(null)}
+                    className="p-1 rounded text-red-600 hover:bg-red-100"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => planSlipInputRef.current?.click()}
+                  className="w-full border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-2xl p-4 bg-slate-50 hover:bg-amber-50/30 transition flex flex-col items-center cursor-pointer"
+                >
+                  <Upload className="w-4 h-4 text-amber-600 mb-1" />
+                  <p className="text-xs font-bold text-slate-800">Attach bank transfer receipt</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG or PDF up to 5MB</p>
+                </button>
+              )}
+            </div>
 
             <Textarea
-              label="Transaction Reference / Notes (optional)"
-              placeholder="e.g. Bank transaction reference or date of transfer"
+              label="Transaction Notes (Optional)"
+              placeholder="e.g. Bank reference or transaction date"
               value={planPayNotes}
               onChange={(e) => setPlanPayNotes(e.target.value)}
               rows={2}
@@ -1879,1182 +1720,6 @@ export default function PaymentsPage() {
           </div>
         )}
       </Modal>
-
-    </div>
-  );
-}
-
-/* =========================================================
-   PROPERTY CARD
-   ========================================================= */
-
-function PropertyAccountCard({
-  account,
-  onOpenPayment,
-  onPayPlanItem,
-}: {
-  account: PropertyAccount;
-
-  onOpenPayment: (
-    account: PropertyAccount,
-    mode?: SettlementMode,
-  ) => void;
-
-  onPayPlanItem: (
-    plan: PaymentPlan,
-    item: NonNullable<
-      PaymentPlan['items']
-    >[number],
-  ) => void;
-}) {
-  const paidPercent =
-    account.totalPrice > 0
-      ? Math.min(
-          100,
-          Math.round(
-            (account.totalPaid /
-              account.totalPrice) *
-              100,
-          ),
-        )
-      : 0;
-
-  const plan = account.plan;
-
-  return (
-    <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden">
-
-      {/* HEADER */}
-
-      <div className="p-5 sm:p-6 border-b border-slate-100">
-
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-
-          <div className="flex gap-3">
-
-            <div className="w-12 h-12 rounded-2xl bg-slate-950 flex items-center justify-center shrink-0 shadow-sm">
-              <Building2 className="w-5 h-5 text-amber-400" />
-            </div>
-
-            <div>
-
-              <div className="flex flex-wrap items-center gap-2">
-
-                <h2 className="text-lg font-black text-slate-950">
-                  {account.apartmentTitle}
-                </h2>
-
-                <Badge
-                  variant={
-                    account.isFullyPaid
-                      ? 'success'
-                      : account.apartmentStatus ===
-                          'Sold'
-                        ? 'success'
-                        : 'warning'
-                  }
-                  size="sm"
-                  dot
-                >
-                  {account.isFullyPaid
-                    ? 'Fully Paid'
-                    : account.apartmentStatus ||
-                      'Reserved'}
-                </Badge>
-
-              </div>
-
-              <p className="text-[11px] text-slate-400 mt-1 font-mono">
-                {account.reservationId}
-              </p>
-
-            </div>
-
-          </div>
-
-          {!account.isFullyPaid && (
-            !account.reservationFeePaid ? (
-              account.reservationFeePending ? (
-                <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold shadow-sm">
-                  <Clock3 className="w-3.5 h-3.5 text-amber-700 animate-pulse" />
-                  Fee Approval Pending
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenPayment(
-                      account,
-                      'ReservationFee',
-                    )
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 text-xs font-extrabold shadow-md shadow-amber-500/20 transition cursor-pointer"
-                >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  Pay Reservation Fee (10%)
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )
-            ) : (
-              !plan && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenPayment(
-                      account,
-                      'Full',
-                    )
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-white px-4 py-2.5 text-xs font-extrabold transition cursor-pointer"
-                >
-                  Manage Balance
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              )
-            )
-          )}
-
-        </div>
-
-        {/* AMOUNTS */}
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
-
-          <AccountAmount
-            label="Apartment Price"
-            value={account.totalPrice}
-            icon={
-              <Building2 className="w-4 h-4" />
-            }
-          />
-
-          <AccountAmount
-            label="Verified Payments"
-            value={account.totalPaid}
-            icon={
-              <CheckCircle2 className="w-4 h-4" />
-            }
-            green
-          />
-
-          <AccountAmount
-            label="Remaining Balance"
-            value={
-              account.remainingBalance
-            }
-            icon={
-              <WalletCards className="w-4 h-4" />
-            }
-            amber
-          />
-
-        </div>
-
-        {/* PROGRESS */}
-
-        <div className="mt-5">
-
-          <div className="flex items-center justify-between text-[11px] mb-2">
-
-            <span className="font-bold text-slate-500">
-              Payment Progress
-            </span>
-
-            <span className="font-black text-slate-900">
-              {paidPercent}%
-            </span>
-
-          </div>
-
-          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-
-            <div
-              className="h-full bg-amber-400 rounded-full transition-all duration-500"
-              style={{
-                width: `${paidPercent}%`,
-              }}
-            />
-
-          </div>
-
-        </div>
-
-        {/* RESERVATION FEE STATUS */}
-
-        {account.reservationFeePaid ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 text-[11px] font-bold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Reservation Fee Paid & Approved (10%): {formatCurrency(account.reservationFee)}</span>
-            </div>
-          </div>
-        ) : account.reservationFeePending ? (
-          <div className="mt-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Clock3 className="w-4 h-4 text-amber-700" />
-              </div>
-              <div>
-                <p className="text-xs font-extrabold text-amber-950">
-                  Reservation Fee (10%) Awaiting Staff Approval • {formatCurrency(account.reservationFee)}
-                </p>
-                <p className="text-[11px] text-amber-800/90 mt-0.5">
-                  Payment slip uploaded and under review. Once approved, your reservation will be confirmed and balance settlement options (Full, Installment, Part Payment) will unlock automatically.
-                </p>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 text-[11px] font-bold self-start sm:self-center whitespace-nowrap">
-              <Clock3 className="w-3.5 h-3.5 text-amber-600 animate-spin" />
-              Pending Approval
-            </span>
-          </div>
-        ) : (
-          <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center flex-shrink-0 shadow-sm shadow-amber-500/20">
-                <BadgePercent className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-extrabold text-slate-900">
-                    Required: Pay 10% Reservation Fee
-                  </p>
-                  <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-md bg-amber-200 text-amber-900">
-                    Hold Deposit
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">
-                  Pay the 10% reservation fee of <strong className="text-slate-900 font-bold">{formatCurrency(account.reservationFee)}</strong> to confirm your reservation hold.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onOpenPayment(account, 'ReservationFee')}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs shadow-md shadow-amber-500/20 transition cursor-pointer whitespace-nowrap"
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              Pay Reservation Fee
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-      </div>
-
-      {/* PLAN OR BALANCE SETTLEMENT */}
-
-      {plan ? (
-        <PlanSection
-          plan={plan}
-          account={account}
-          onPay={onPayPlanItem}
-        />
-      ) : account.reservationFeePaid && !account.isFullyPaid ? (
-        <div className="p-5 sm:p-6 bg-slate-50/70">
-
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-
-            <div>
-              <p className="text-sm font-extrabold text-slate-900">
-                Choose how to settle
-                your remaining balance ({formatCurrency(account.remainingBalance)})
-              </p>
-
-              <p className="text-xs text-slate-500 mt-1">
-                Full payment can be
-                submitted immediately.
-                Installment and part
-                payment plans require
-                finance approval.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-
-              <SmallAction
-                icon={
-                  <CreditCard className="w-3.5 h-3.5" />
-                }
-                text="Full Payment"
-                onClick={() =>
-                  onOpenPayment(
-                    account,
-                    'Full',
-                  )
-                }
-              />
-
-              <SmallAction
-                icon={
-                  <CalendarDays className="w-3.5 h-3.5" />
-                }
-                text="Installment Plan"
-                onClick={() =>
-                  onOpenPayment(
-                    account,
-                    'Installment',
-                  )
-                }
-              />
-
-              <SmallAction
-                icon={
-                  <Layers3 className="w-3.5 h-3.5" />
-                }
-                text="Part Payment"
-                onClick={() =>
-                  onOpenPayment(
-                    account,
-                    'PartPayment',
-                  )
-                }
-              />
-
-            </div>
-
-          </div>
-
-        </div>
-      ) : !account.reservationFeePaid ? (
-        <div className="p-4 sm:p-5 bg-slate-50/80 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>Balance settlement options (Full, Installment, Part Payment) will automatically unlock once the 10% reservation fee is approved by staff.</span>
-          </div>
-        </div>
-      ) : null}
-
-    </div>
-  );
-}
-
-/* =========================================================
-   PLAN
-   ========================================================= */
-
-function PlanSection({
-  plan,
-  account,
-  onPay,
-}: {
-  plan: PaymentPlan;
-  account: PropertyAccount;
-
-  onPay: (
-    plan: PaymentPlan,
-    item: NonNullable<
-      PaymentPlan['items']
-    >[number],
-  ) => void;
-}) {
-  const items = plan.items || [];
-
-  const paidItems =
-    items.filter(
-      (item) =>
-        item.status === 'Paid',
-    ).length;
-
-  return (
-    <div className="p-5 sm:p-6 bg-slate-50/70">
-
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-5">
-
-        <div>
-
-          <div className="flex flex-wrap items-center gap-2">
-
-            <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
-              <CalendarDays className="w-4 h-4 text-amber-600" />
-            </div>
-
-            <div>
-              <p className="font-extrabold text-sm text-slate-950">
-                {formatPlanType(
-                  String(plan.planType),
-                )}
-              </p>
-
-              <p className="text-[11px] text-slate-400">
-                {plan.numberOfPayments}{' '}
-                scheduled payments
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-
-        <span
-          className={`inline-flex self-start items-center px-3 py-1.5 rounded-full border text-[10px] font-extrabold ${getStatusClasses(
-            plan.status,
-          )}`}
-        >
-          {plan.status}
-        </span>
-
-      </div>
-
-      {/* PENDING */}
-
-      {plan.status === 'Pending' && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-
-          <div className="flex gap-3">
-
-            <Clock3 className="w-5 h-5 text-amber-600 shrink-0" />
-
-            <div>
-              <p className="text-xs font-extrabold text-amber-950">
-                Waiting for Finance
-                Approval
-              </p>
-
-              <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
-                Your plan request has
-                been submitted. No bank
-                slip or payment is
-                required until the plan
-                is approved.
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-      {/* REJECTED */}
-
-      {plan.status === 'Rejected' && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-
-          <div className="flex gap-3">
-
-            <XCircle className="w-5 h-5 text-red-600 shrink-0" />
-
-            <div>
-              <p className="text-xs font-extrabold text-red-900">
-                Plan Request Rejected
-              </p>
-
-              <p className="text-[11px] text-red-700 mt-1">
-                {plan.adminNotes ||
-                  'Please contact the finance team for more information.'}
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-      )}
-
-      {/* APPROVED / COMPLETED */}
-
-      {(plan.status === 'Approved' ||
-        plan.status ===
-          'Completed') && (
-        <>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-
-            <PlanMetric
-              label="Plan Balance"
-              value={formatCurrency(
-                Number(
-                  plan.remainingAmount,
-                ),
-              )}
-            />
-
-            <PlanMetric
-              label="Regular Amount"
-              value={formatCurrency(
-                Number(
-                  plan.paymentAmount,
-                ),
-              )}
-            />
-
-            <PlanMetric
-              label="Progress"
-              value={`${paidItems}/${items.length || plan.numberOfPayments}`}
-            />
-
-            <PlanMetric
-              label="Apartment"
-              value={
-                account.apartmentStatus ===
-                'Sold'
-                  ? 'SOLD'
-                  : account.apartmentStatus ||
-                    'SOLD'
-              }
-            />
-
-          </div>
-
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 mb-4 flex gap-2">
-
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-
-            <p className="text-[11px] text-emerald-800 leading-relaxed">
-              This plan is approved. The
-              apartment is locked as{' '}
-              <strong>Sold</strong> and
-              cannot be reserved by
-              another customer. Remaining
-              payments continue according
-              to this schedule.
-            </p>
-
-          </div>
-
-          {/* SCHEDULE */}
-
-          <div className="space-y-2">
-
-            <div className="flex items-center justify-between mb-3">
-
-              <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-                Payment Schedule
-              </p>
-
-              <span className="text-[10px] text-slate-400">
-                First due:{' '}
-                {plan.startDate
-                  ? formatDate(
-                      plan.startDate,
-                    )
-                  : '—'}
-              </span>
-
-            </div>
-
-            {items.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center">
-                <p className="text-xs font-bold text-slate-600">
-                  Schedule is being prepared.
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Refresh after the approved plan schedule has been generated.
-                </p>
-              </div>
-            ) : (() => {
-              const sortedItems = [...items].sort(
-                (a, b) => (a.sequenceNo || 0) - (b.sequenceNo || 0),
-              );
-
-              // Next payable item is the first one that is NOT Paid, and ONLY if its status is 'Upcoming'
-              const firstUnpaidIndex = sortedItems.findIndex(
-                (it) => it.status !== 'Paid',
-              );
-              const nextPayableItem =
-                firstUnpaidIndex !== -1 &&
-                sortedItems[firstUnpaidIndex].status === 'Upcoming'
-                  ? sortedItems[firstUnpaidIndex]
-                  : null;
-
-              return sortedItems.map((item) => {
-                const isNextPayable =
-                  nextPayableItem && nextPayableItem.id === item.id;
-
-                return (
-                  <div
-                    key={item.id}
-                    className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${
-                          item.status === 'Paid'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : item.status === 'Pending Verification'
-                              ? 'bg-amber-100 text-amber-800'
-                              : isNextPayable
-                                ? 'bg-amber-50 text-amber-900 border border-amber-300'
-                                : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {item.status === 'Paid' ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          `#${item.sequenceNo}`
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-extrabold text-slate-900">
-                            Payment #{item.sequenceNo}
-                          </p>
-                          {isNextPayable && (
-                            <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[9px] font-extrabold uppercase">
-                              Current Due
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          Due {formatDate(item.dueDate)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-3">
-                      <div className="text-right">
-                        <p className="text-xs font-black text-slate-950">
-                          {formatCurrency(Number(item.amount))}
-                        </p>
-
-                        <span
-                          className={`inline-flex mt-1 px-2 py-0.5 rounded-full border text-[9px] font-bold ${getStatusClasses(
-                            item.status,
-                          )}`}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-
-                      {isNextPayable && (
-                        <button
-                          type="button"
-                          onClick={() => onPay(plan, item)}
-                          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-sm shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          Pay Now
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-
-          </div>
-
-        </>
-      )}
-
-    </div>
-  );
-}
-
-/* =========================================================
-   PAYMENT LIST
-   ========================================================= */
-
-function PaymentList({
-  payments,
-  emptyTitle,
-  emptyDescription,
-  onReceipt,
-}: {
-  payments: Payment[];
-  emptyTitle: string;
-  emptyDescription: string;
-
-  onReceipt: (
-    payment: Payment,
-  ) => void;
-}) {
-  if (payments.length === 0) {
-    return (
-      <EmptyState
-        icon={<ReceiptText className="w-12 h-12 text-navy-300" />}
-        title={emptyTitle}
-        description={emptyDescription}
-      />
-    );
-  }
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm">
-
-      <div className="hidden md:grid grid-cols-[1.2fr_1.5fr_1fr_1fr_0.8fr] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
-
-        <span>Payment</span>
-        <span>Property</span>
-        <span>Amount</span>
-        <span>Status</span>
-        <span />
-
-      </div>
-
-      <div className="divide-y divide-slate-100">
-
-        {payments.map((payment) => (
-          <div
-            key={payment.id}
-            className="grid grid-cols-1 md:grid-cols-[1.2fr_1.5fr_1fr_1fr_0.8fr] gap-3 md:gap-4 px-5 py-4 items-center hover:bg-slate-50/70 transition"
-          >
-
-            <div>
-              <p className="font-mono text-[11px] font-bold text-slate-900">
-                {payment.id}
-              </p>
-
-              <p className="text-[10px] text-slate-400 mt-1">
-                {formatDate(
-                  payment.uploadedAt,
-                )}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs font-extrabold text-slate-900">
-                {payment.apartmentTitle}
-              </p>
-
-              <p className="text-[10px] text-slate-400 mt-1">
-                {payment.type}
-              </p>
-            </div>
-
-            <p className="text-sm font-black text-slate-950">
-              {formatCurrency(
-                Number(payment.amount),
-              )}
-            </p>
-
-            <div>
-              <Badge
-                variant={statusToVariant(
-                  payment.status,
-                )}
-                size="sm"
-                dot
-              >
-                {payment.status}
-              </Badge>
-            </div>
-
-            <div className="md:text-right">
-
-              <button
-                type="button"
-                onClick={() =>
-                  onReceipt(payment)
-                }
-                className="inline-flex items-center gap-1.5 text-[10px] font-extrabold text-slate-600 hover:text-amber-700 transition"
-              >
-                <FileText className="w-3.5 h-3.5" />
-
-                Details
-              </button>
-
-            </div>
-
-          </div>
-        ))}
-
-      </div>
-
-    </div>
-  );
-}
-
-/* =========================================================
-   SMALL COMPONENTS
-   ========================================================= */
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-  description,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  description: string;
-  accent?: 'green' | 'amber';
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
-
-      <div
-        className={`w-9 h-9 rounded-xl flex items-center justify-center mb-4 ${
-          accent === 'green'
-            ? 'bg-emerald-50 text-emerald-600'
-            : accent === 'amber'
-              ? 'bg-amber-50 text-amber-600'
-              : 'bg-slate-100 text-slate-600'
-        }`}
-      >
-        {icon}
-      </div>
-
-      <p className="text-[10px] sm:text-[11px] uppercase tracking-wider font-extrabold text-slate-400">
-        {label}
-      </p>
-
-      <p className="text-base sm:text-xl font-black text-slate-950 mt-1 truncate">
-        {value}
-      </p>
-
-      <p className="text-[10px] text-slate-400 mt-1">
-        {description}
-      </p>
-
-    </div>
-  );
-}
-
-function AccountAmount({
-  label,
-  value,
-  icon,
-  green,
-  amber,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  green?: boolean;
-  amber?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border p-3 ${
-        green
-          ? 'bg-emerald-50/60 border-emerald-100'
-          : amber
-            ? 'bg-amber-50/70 border-amber-200'
-            : 'bg-slate-50 border-slate-100'
-      }`}
-    >
-
-      <div
-        className={`flex items-center gap-1.5 text-[10px] font-bold ${
-          green
-            ? 'text-emerald-700'
-            : amber
-              ? 'text-amber-800'
-              : 'text-slate-400'
-        }`}
-      >
-        {icon}
-
-        {label}
-      </div>
-
-      <p className="text-sm sm:text-base font-black text-slate-950 mt-1.5">
-        {formatCurrency(value)}
-      </p>
-
-    </div>
-  );
-}
-
-function MiniAmount({
-  label,
-  value,
-  green,
-  amber,
-}: {
-  label: string;
-  value: number;
-  green?: boolean;
-  amber?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-xl p-2.5 border ${
-        green
-          ? 'bg-emerald-50 border-emerald-100'
-          : amber
-            ? 'bg-amber-50 border-amber-200'
-            : 'bg-white border-slate-200'
-      }`}
-    >
-
-      <p className="text-[9px] uppercase font-bold text-slate-400">
-        {label}
-      </p>
-
-      <p className="text-[11px] sm:text-xs font-black text-slate-950 mt-1">
-        {formatCurrency(value)}
-      </p>
-
-    </div>
-  );
-}
-
-function SettlementOption({
-  active,
-  icon,
-  title,
-  description,
-  onClick,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-left rounded-2xl border p-3.5 transition ${
-        active
-          ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-100'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-      }`}
-    >
-
-      <div
-        className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-          active
-            ? 'bg-amber-400 text-slate-950'
-            : 'bg-slate-100 text-slate-500'
-        }`}
-      >
-        {icon}
-      </div>
-
-      <p className="text-xs font-extrabold text-slate-950">
-        {title}
-      </p>
-
-      <p className="text-[10px] leading-relaxed text-slate-400 mt-1">
-        {description}
-      </p>
-
-    </button>
-  );
-}
-
-function BankDetails() {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-
-      <div className="flex items-center gap-2 mb-3">
-
-        <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
-          <Landmark className="w-4 h-4 text-amber-600" />
-        </div>
-
-        <div>
-          <p className="text-xs font-extrabold text-slate-900">
-            Bank Transfer Details
-          </p>
-
-          <p className="text-[10px] text-slate-400">
-            Transfer before uploading
-            your receipt
-          </p>
-        </div>
-
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-[11px]">
-
-        <BankRow
-          label="Bank"
-          value="Commercial Bank PLC"
-        />
-
-        <BankRow
-          label="Branch"
-          value="Colombo City Centre"
-        />
-
-        <BankRow
-          label="Account Name"
-          value="Skyline Living Residences (Pvt) Ltd"
-        />
-
-        <BankRow
-          label="Account No."
-          value="1000 8945 2311"
-        />
-
-      </div>
-
-    </div>
-  );
-}
-
-function BankRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex justify-between sm:block border-b sm:border-0 border-slate-200 pb-1">
-
-      <span className="text-slate-400">
-        {label}
-      </span>
-
-      <p className="font-bold text-slate-800 sm:mt-0.5">
-        {value}
-      </p>
-
-    </div>
-  );
-}
-
-function ReceiptUpload({
-  file,
-  fileInputRef,
-  onFileSelected,
-  onRemove,
-}: {
-  file: File | null;
-
-  fileInputRef:
-    React.RefObject<HTMLInputElement | null>;
-
-  onFileSelected: (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => void;
-
-  onRemove: () => void;
-}) {
-  return (
-    <div>
-
-      <label className="block text-sm font-semibold text-slate-800 mb-1.5">
-        Bank Deposit Slip / Transfer
-        Receipt *
-      </label>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,.pdf"
-        onChange={onFileSelected}
-        className="hidden"
-      />
-
-      {file ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 flex items-center justify-between gap-3">
-
-          <div className="flex items-center gap-3 min-w-0">
-
-            <div className="w-10 h-10 rounded-xl bg-white border border-emerald-200 flex items-center justify-center shrink-0">
-              <FileText className="w-5 h-5 text-emerald-600" />
-            </div>
-
-            <div className="min-w-0">
-
-              <p className="text-xs font-extrabold text-slate-900 truncate">
-                {file.name}
-              </p>
-
-              <p className="text-[10px] text-emerald-700 mt-0.5">
-                Receipt ready to upload
-              </p>
-
-            </div>
-
-          </div>
-
-          <button
-            type="button"
-            onClick={onRemove}
-            className="w-8 h-8 rounded-full bg-white border border-emerald-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
-
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() =>
-            fileInputRef.current?.click()
-          }
-          className="w-full border-2 border-dashed border-slate-300 hover:border-amber-400 rounded-2xl p-6 bg-slate-50 hover:bg-amber-50/40 transition flex flex-col items-center"
-        >
-
-          <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-            <Upload className="w-5 h-5 text-amber-600" />
-          </div>
-
-          <p className="text-xs font-extrabold text-slate-800 mt-3">
-            Upload payment receipt
-          </p>
-
-          <p className="text-[10px] text-slate-400 mt-1">
-            PNG, JPG or PDF • Maximum 5MB
-          </p>
-
-        </button>
-      )}
-
-    </div>
-  );
-}
-
-function PlanMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl bg-white border border-slate-200 p-3">
-
-      <p className="text-[9px] uppercase tracking-wider font-bold text-slate-400">
-        {label}
-      </p>
-
-      <p className="text-xs font-black text-slate-900 mt-1">
-        {value}
-      </p>
-
-    </div>
-  );
-}
-
-function SmallAction({
-  icon,
-  text,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  text: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50 text-[10px] font-extrabold text-slate-700 transition"
-    >
-      {icon}
-      {text}
-    </button>
-  );
-}
-
-function InfoBox({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-
-      <p className="text-[9px] uppercase tracking-wider font-bold text-slate-400">
-        {label}
-      </p>
-
-      <p className="text-xs font-bold text-slate-800 mt-1">
-        {value}
-      </p>
 
     </div>
   );

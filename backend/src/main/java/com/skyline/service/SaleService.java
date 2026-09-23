@@ -1,25 +1,34 @@
 package com.skyline.service;
 
+import com.skyline.dto.apartment.ApartmentResponse;
+import com.skyline.dto.payment.PaymentPlanItemResponse;
+import com.skyline.dto.payment.PaymentPlanResponse;
+import com.skyline.dto.payment.PaymentResponse;
+import com.skyline.dto.reservation.ReservationResponse;
+import com.skyline.dto.sale.SaleDetailsResponse;
 import com.skyline.dto.sale.SaleRequest;
 import com.skyline.dto.sale.SaleResponse;
+import com.skyline.dto.user.UserDto;
 import com.skyline.entity.*;
 import com.skyline.enums.NotificationType;
+import com.skyline.enums.PaymentStatus;
 import com.skyline.enums.ReservationStatus;
 import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ConflictException;
 import com.skyline.exception.ResourceNotFoundException;
-import com.skyline.repository.ApartmentRepository;
-import com.skyline.repository.OwnershipRecordRepository;
-import com.skyline.repository.ReservationRepository;
-import com.skyline.repository.SaleRepository;
+import com.skyline.repository.*;
 import com.skyline.security.UserPrincipal;
 import com.skyline.util.IdParser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +38,9 @@ public class SaleService {
     private final OwnershipRecordRepository ownershipRecordRepository;
     private final ApartmentRepository apartmentRepository;
     private final ReservationRepository reservationRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentPlanRepository paymentPlanRepository;
+    private final PaymentPlanItemRepository paymentPlanItemRepository;
     private final UserService userService;
     private final NotificationService notificationService;
 
@@ -36,12 +48,18 @@ public class SaleService {
                        OwnershipRecordRepository ownershipRecordRepository,
                        ApartmentRepository apartmentRepository,
                        ReservationRepository reservationRepository,
+                       PaymentRepository paymentRepository,
+                       PaymentPlanRepository paymentPlanRepository,
+                       PaymentPlanItemRepository paymentPlanItemRepository,
                        UserService userService,
                        NotificationService notificationService) {
         this.saleRepository = saleRepository;
         this.ownershipRecordRepository = ownershipRecordRepository;
         this.apartmentRepository = apartmentRepository;
         this.reservationRepository = reservationRepository;
+        this.paymentRepository = paymentRepository;
+        this.paymentPlanRepository = paymentPlanRepository;
+        this.paymentPlanItemRepository = paymentPlanItemRepository;
         this.userService = userService;
         this.notificationService = notificationService;
     }
@@ -57,6 +75,109 @@ public class SaleService {
         return saleRepository.findById(id)
                 .map(SaleResponse::fromEntity)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with id: " + id));
+    }
+
+    public SaleDetailsResponse getSaleDetails(Long id) {
+        Sale sale = saleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale not found with id: " + id));
+
+        SaleResponse saleResponse = SaleResponse.fromEntity(sale);
+
+        // Customer details
+        User customer = sale.getCustomer();
+        UserDto customerDto = customer != null ? UserDto.fromEntity(customer) : null;
+
+        // Apartment details
+        Apartment apartment = sale.getApartment();
+        ApartmentResponse apartmentResponse = apartment != null ? ApartmentResponse.fromEntity(apartment) : null;
+
+        // Reservation details
+        Reservation reservation = sale.getReservation();
+        ReservationResponse reservationResponse = reservation != null ? ReservationResponse.fromEntity(reservation) : null;
+
+        // Payments: Fetch by Apartment ID and Reservation ID to capture all transactions
+        Map<Long, Payment> paymentMap = new LinkedHashMap<>();
+        if (apartment != null && apartment.getId() != null) {
+            List<Payment> aptPayments = paymentRepository.findByApartmentId(apartment.getId());
+            for (Payment p : aptPayments) {
+                paymentMap.put(p.getId(), p);
+            }
+        }
+        if (reservation != null && reservation.getId() != null) {
+            List<Payment> rsvPayments = paymentRepository.findByReservationId(reservation.getId());
+            for (Payment p : rsvPayments) {
+                paymentMap.put(p.getId(), p);
+            }
+        }
+
+        List<Payment> allPayments = new ArrayList<>(paymentMap.values());
+        allPayments.sort((a, b) -> {
+            if (a.getUploadedAt() != null && b.getUploadedAt() != null) {
+                return b.getUploadedAt().compareTo(a.getUploadedAt());
+            }
+            return Long.compare(b.getId() != null ? b.getId() : 0, a.getId() != null ? a.getId() : 0);
+        });
+
+        List<PaymentResponse> paymentResponses = allPayments.stream()
+                .map(PaymentResponse::fromEntity)
+                .collect(Collectors.toList());
+
+        // Financial Summary Calculations
+        BigDecimal verifiedTotal = allPayments.stream()
+                .filter(p -> p.getStatus() == PaymentStatus.VERIFIED && p.getAmount() != null)
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal price = sale.getFinalPrice() != null ? sale.getFinalPrice() :
+                (apartment != null && apartment.getPrice() != null ? apartment.getPrice() : BigDecimal.ZERO);
+
+        BigDecimal remainingBalance = price.subtract(verifiedTotal);
+        if (remainingBalance.compareTo(BigDecimal.ZERO) < 0) {
+            remainingBalance = BigDecimal.ZERO;
+        }
+
+        SaleDetailsResponse.PaymentSummaryDto paymentSummary = SaleDetailsResponse.PaymentSummaryDto.builder()
+                .apartmentPrice(price)
+                .totalVerifiedPayments(verifiedTotal)
+                .remainingBalance(remainingBalance)
+                .paymentCount(allPayments.size())
+                .build();
+
+        // Payment Plan Details (if applicable)
+        PaymentPlan paymentPlan = null;
+        if (reservation != null && reservation.getId() != null) {
+            List<PaymentPlan> plans = paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId());
+            if (!plans.isEmpty()) {
+                paymentPlan = plans.get(0);
+            }
+        }
+        if (paymentPlan == null && apartment != null && apartment.getId() != null) {
+            List<PaymentPlan> aptPlans = paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(apartment.getId());
+            if (!aptPlans.isEmpty()) {
+                paymentPlan = aptPlans.get(0);
+            }
+        }
+
+        PaymentPlanResponse paymentPlanResponse = null;
+        if (paymentPlan != null) {
+            paymentPlanResponse = PaymentPlanResponse.fromEntity(paymentPlan);
+            List<PaymentPlanItemResponse> items = paymentPlanItemRepository
+                    .findByPaymentPlanIdOrderBySequenceNoAsc(paymentPlan.getId())
+                    .stream()
+                    .map(PaymentPlanItemResponse::fromEntity)
+                    .collect(Collectors.toList());
+            paymentPlanResponse.setItems(items);
+        }
+
+        return SaleDetailsResponse.builder()
+                .sale(saleResponse)
+                .customer(customerDto)
+                .apartment(apartmentResponse)
+                .reservation(reservationResponse)
+                .paymentSummary(paymentSummary)
+                .payments(paymentResponses)
+                .paymentPlan(paymentPlanResponse)
+                .build();
     }
 
     @Transactional

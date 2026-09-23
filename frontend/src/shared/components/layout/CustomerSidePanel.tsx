@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Building2, Scale, CreditCard, BookmarkCheck, CalendarCheck,
-  MessageSquare, Bell, Star, User, ChevronRight, Sparkles, X,
+  MessageSquare, Bell, Star, ChevronRight, Sparkles, X,
   Compass, LayoutDashboard, Heart, ArrowRight, Shield
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';

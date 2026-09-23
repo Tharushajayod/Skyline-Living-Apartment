@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Bell, CheckCheck, Calendar, CreditCard, MessageSquare, 
-  FileCheck, Info, ArrowRight, Clock 
+import {
+  Bell, CheckCheck, Calendar, CreditCard, MessageSquare,
+  FileCheck, Info, ArrowRight, Clock
 } from 'lucide-react';
 import type { NotificationType } from '@/shared/types';
 import { useAuth } from '@/shared/contexts/AuthContext';
@@ -80,26 +80,15 @@ export default function NotificationsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-20">
-      
+
       {/* Header Banner */}
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
-              Skyline Client Concierge
-            </span>
-            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-              {notifications.length} Total Alerts
-            </span>
-          </div>
+
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Notifications & System Updates
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            {unreadCount > 0 
-              ? `You have ${unreadCount} new actionable update${unreadCount > 1 ? 's' : ''} regarding your properties.` 
-              : "You're all caught up with your residence viewings and payments."}
-          </p>
+
         </div>
 
         {unreadCount > 0 && (
@@ -157,11 +146,10 @@ export default function NotificationsPage() {
               <div
                 key={notif.id}
                 onClick={() => markSingleAsRead(notif.id)}
-                className={`bg-white rounded-2xl border p-5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                  !notif.read
-                    ? 'border-amber-300 bg-amber-50/20 shadow-sm'
-                    : 'border-slate-200/80 hover:border-slate-300'
-                }`}
+                className={`bg-white rounded-2xl border p-5 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${!notif.read
+                  ? 'border-amber-300 bg-amber-50/20 shadow-sm'
+                  : 'border-slate-200/80 hover:border-slate-300'
+                  }`}
               >
                 <div className="flex items-start gap-4 min-w-0">
                   <div className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 mt-0.5 ${bg}`}>

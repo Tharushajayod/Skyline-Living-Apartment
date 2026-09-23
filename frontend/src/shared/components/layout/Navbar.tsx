@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Building2, Heart, Bell, User, LogOut, Menu, X,
-  LayoutDashboard, ChevronDown, Sparkles, Shield,
+  LayoutDashboard, ChevronDown, Shield,
   CalendarCheck, FileText, MessageSquare, CreditCard
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';
@@ -60,8 +60,8 @@ export default function Navbar() {
                   key={link.path}
                   to={link.path}
                   className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${isActive(link.path)
-                      ? 'text-amber-900 bg-amber-50 border border-amber-300/70 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    ? 'text-amber-900 bg-amber-50 border border-amber-300/70 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                     }`}
                 >
                   {link.label}
@@ -79,19 +79,19 @@ export default function Navbar() {
                 <Link
                   to="/reservations"
                   className={`hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${isActive('/reservations')
-                      ? 'text-amber-900 bg-amber-50'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'text-amber-900 bg-amber-50'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                 >
                   <FileText className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Holds</span>
+                  <span>Reservations</span>
                 </Link>
 
                 <Link
                   to="/appointments"
                   className={`hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${isActive('/appointments')
-                      ? 'text-amber-900 bg-amber-50'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'text-amber-900 bg-amber-50'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                 >
                   <CalendarCheck className="w-3.5 h-3.5 text-amber-600" />
@@ -101,8 +101,8 @@ export default function Navbar() {
                 <Link
                   to="/payments"
                   className={`hidden lg:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition ${isActive('/payments')
-                      ? 'text-amber-900 bg-amber-50 border border-amber-300'
-                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'text-amber-900 bg-amber-50 border border-amber-300'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                 >
                   <CreditCard className="w-3.5 h-3.5 text-amber-600" />
@@ -113,8 +113,8 @@ export default function Navbar() {
                 <Link
                   to="/dashboard"
                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${isActive('/dashboard')
-                      ? 'bg-amber-500 text-slate-950 font-extrabold shadow-amber-500/25 ring-2 ring-amber-300'
-                      : 'bg-slate-900 hover:bg-slate-800 text-white'
+                    ? 'bg-amber-500 text-slate-950 font-extrabold shadow-amber-500/25 ring-2 ring-amber-300'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white'
                     }`}
                 >
                   <LayoutDashboard className={`w-3.5 h-3.5 ${isActive('/dashboard') ? 'text-slate-950' : 'text-amber-400'}`} />

@@ -40,6 +40,12 @@ public class AppointmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @GetMapping("/{id}/history")
+    public ResponseEntity<List<com.skyline.dto.appointment.AppointmentRescheduleHistoryResponse>> getAppointmentHistory(@PathVariable String id) {
+        Long numericId = IdParser.parseId(id);
+        return ResponseEntity.ok(appointmentService.getAppointmentHistory(numericId));
+    }
+
     @PatchMapping("/{id}/status")
     public ResponseEntity<AppointmentResponse> updateStatus(
             @PathVariable String id,
@@ -47,6 +53,44 @@ public class AppointmentController {
             @RequestBody AppointmentStatusUpdate update) {
         Long numericId = IdParser.parseId(id);
         AppointmentResponse updated = appointmentService.updateStatus(numericId, update, userPrincipal);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/{id}/reschedule-proposal")
+    public ResponseEntity<AppointmentResponse> proposeReschedule(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @Valid @RequestBody com.skyline.dto.appointment.RescheduleProposalRequest request) {
+        Long numericId = IdParser.parseId(id);
+        AppointmentResponse updated = appointmentService.proposeReschedule(numericId, request, userPrincipal);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/{id}/reschedule-accept")
+    public ResponseEntity<AppointmentResponse> acceptReschedule(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long numericId = IdParser.parseId(id);
+        AppointmentResponse updated = appointmentService.acceptReschedule(numericId, userPrincipal);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/{id}/reschedule-reject")
+    public ResponseEntity<AppointmentResponse> rejectReschedule(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @RequestParam(required = false) String reason) {
+        Long numericId = IdParser.parseId(id);
+        AppointmentResponse updated = appointmentService.rejectReschedule(numericId, reason, userPrincipal);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/{id}/complete")
+    public ResponseEntity<AppointmentResponse> completeAppointment(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long numericId = IdParser.parseId(id);
+        AppointmentResponse updated = appointmentService.completeAppointment(numericId, userPrincipal);
         return ResponseEntity.ok(updated);
     }
 }

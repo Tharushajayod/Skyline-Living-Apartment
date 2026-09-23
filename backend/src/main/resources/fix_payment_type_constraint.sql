@@ -2,7 +2,7 @@
 -- SkylineLiving Migration: Update payments.type CHECK constraint
 --
 -- Drops the restrictive check constraint on payments.type (which only allowed
--- FULL_PAYMENT, INSTALLMENT, DOWN_PAYMENT, RESERVATION_FEE) and replaces it
+-- FULL_PAYMENT, INSTALLMENT, RESERVATION_FEE) and replaces it
 -- with an updated constraint that also allows INSTALLMENT_PAYMENT and PART_PAYMENT.
 -- =============================================================================
 
@@ -24,7 +24,7 @@ BEGIN TRY
 
     PRINT 'Adding updated constraint CK_payments_type...';
     ALTER TABLE payments ADD CONSTRAINT CK_payments_type 
-        CHECK (type IN ('FULL_PAYMENT', 'INSTALLMENT', 'DOWN_PAYMENT', 'RESERVATION_FEE', 'INSTALLMENT_PAYMENT', 'PART_PAYMENT'));
+        CHECK (type IN ('FULL_PAYMENT', 'INSTALLMENT', 'RESERVATION_FEE', 'INSTALLMENT_PAYMENT', 'PART_PAYMENT'));
 
     COMMIT TRANSACTION;
     PRINT 'payments.type check constraint updated successfully.';

@@ -1,18 +1,35 @@
 import { apiClient } from './api';
+import { fastCache } from './cache';
 import type { Inquiry, InquiryStatus, InquiryReply } from '@/shared/types';
 import { inquiries as mockInquiries } from '@/shared/mockData';
 
 const USE_MOCK = false;
 
 export const inquiryService = {
+  getCachedAll(): Inquiry[] | null {
+    return fastCache.get<Inquiry[]>('inquiries_all');
+  },
+
+  getCachedByCustomer(email: string): Inquiry[] | null {
+    return fastCache.get<Inquiry[]>(`inquiries_cust_${email}`);
+  },
+
   async getAll(): Promise<Inquiry[]> {
     if (USE_MOCK) return [...mockInquiries];
-    return apiClient.get<Inquiry[]>('/inquiries');
+    const data = await apiClient.get<Inquiry[]>('/inquiries');
+    if (Array.isArray(data)) {
+      fastCache.set('inquiries_all', data);
+    }
+    return data;
   },
 
   async getByCustomer(email: string): Promise<Inquiry[]> {
     if (USE_MOCK) return mockInquiries.filter(i => i.customerEmail === email);
-    return apiClient.get<Inquiry[]>(`/inquiries?customer=${encodeURIComponent(email)}`);
+    const data = await apiClient.get<Inquiry[]>(`/inquiries?customer=${encodeURIComponent(email)}`);
+    if (Array.isArray(data)) {
+      fastCache.set(`inquiries_cust_${email}`, data);
+    }
+    return data;
   },
 
   async create(inquiry: Omit<Inquiry, 'id' | 'createdAt' | 'status' | 'replies'>): Promise<Inquiry> {
@@ -27,7 +44,10 @@ export const inquiryService = {
       mockInquiries.push(newInq);
       return newInq;
     }
-    return apiClient.post<Inquiry>('/inquiries', inquiry);
+    const res = await apiClient.post<Inquiry>('/inquiries', inquiry);
+    fastCache.invalidate('inquiries');
+    fastCache.invalidate('dashboard');
+    return res;
   },
 
   async updateStatus(id: string, status: InquiryStatus): Promise<Inquiry> {
@@ -39,7 +59,10 @@ export const inquiryService = {
       }
       throw new Error('Inquiry not found');
     }
-    return apiClient.patch<Inquiry>(`/inquiries/${id}/status`, { status });
+    const res = await apiClient.patch<Inquiry>(`/inquiries/${id}/status`, { status });
+    fastCache.invalidate('inquiries');
+    fastCache.invalidate('dashboard');
+    return res;
   },
 
   async addReply(id: string, reply: Omit<InquiryReply, 'id' | 'createdAt'>): Promise<Inquiry> {
@@ -56,6 +79,9 @@ export const inquiryService = {
       }
       throw new Error('Inquiry not found');
     }
-    return apiClient.post<Inquiry>(`/inquiries/${id}/replies`, reply);
+    const res = await apiClient.post<Inquiry>(`/inquiries/${id}/replies`, reply);
+    fastCache.invalidate('inquiries');
+    fastCache.invalidate('dashboard');
+    return res;
   },
 };

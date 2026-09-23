@@ -30,6 +30,11 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.getAllReviews(userPrincipal));
     }
 
+    @GetMapping("/api/reviews/public")
+    public ResponseEntity<List<ReviewResponse>> getPublicReviews() {
+        return ResponseEntity.ok(reviewService.getPublicApprovedReviews());
+    }
+
     @GetMapping("/api/apartments/{apartmentId}/reviews")
     public ResponseEntity<List<ReviewResponse>> getApartmentReviews(@PathVariable String apartmentId) {
         Long numericId = IdParser.parseId(apartmentId);

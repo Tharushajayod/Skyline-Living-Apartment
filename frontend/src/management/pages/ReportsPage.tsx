@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
-  BarChart3, Download, TrendingUp, Building2, Clock, Star, 
-  Shield, DollarSign, Calendar, MapPin, PieChart, Sparkles, Filter 
+  Download, TrendingUp, Building2, Star, 
+  Shield, DollarSign, MapPin 
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useToast } from '@/shared/components/ui/Toast';
 import EmptyState from '@/shared/components/ui/EmptyState';
-import Button from '@/shared/components/ui/Button';
 import BarChart, { DonutChart, LineChart } from '@/shared/components/ui/Charts';
 import { Select } from '@/shared/components/ui/Form';
 import { dashboardService } from '@/shared/services/managementService';
@@ -37,6 +36,14 @@ export default function ReportsPage() {
         console.error('Reports fetch error:', err);
         if (mounted) setLoading(false);
       });
+
+    apartmentService.getAll({ includeSold: true })
+      .then((apts) => {
+        if (mounted && Array.isArray(apts)) {
+          setLiveApartments(apts);
+        }
+      })
+      .catch(() => {});
 
     return () => { mounted = false; };
   }, []);

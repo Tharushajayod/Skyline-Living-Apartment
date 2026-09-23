@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import Button from './Button';
 

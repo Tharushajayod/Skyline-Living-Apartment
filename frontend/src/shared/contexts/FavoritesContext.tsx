@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { apiClient } from '@/shared/services/api';
+import { useAuth } from '@/shared/contexts/AuthContext';
 
 interface FavoritesContextValue {
   favorites: string[];
@@ -16,12 +17,15 @@ export function useFavorites() {
   return ctx;
 }
 
+const GUEST_FAV_KEY = 'guest_favorites';
+
 export function FavoritesProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [favorites, setFavorites] = useState<string[]>([]);
 
+  // Load favorites when auth state changes (login, logout, or user switch)
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
+    if (user) {
       apiClient.get<string[]>('/favorites')
         .then((ids) => {
           if (Array.isArray(ids)) {
@@ -29,30 +33,62 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
           }
         })
         .catch(() => {});
+    } else {
+      // Guest mode: load from localStorage
+      try {
+        const stored = localStorage.getItem(GUEST_FAV_KEY);
+        setFavorites(stored ? JSON.parse(stored) : []);
+      } catch {
+        setFavorites([]);
+      }
     }
-  }, []);
+  }, [user]);
+
+  const isFavorite = useCallback((id: string) => {
+    if (!id) return false;
+    const cleanId = id.trim();
+    const numericPart = cleanId.replace(/\D+/g, '');
+    return favorites.some(f => {
+      if (f === cleanId) return true;
+      if (numericPart && f.replace(/\D+/g, '') === numericPart) return true;
+      return false;
+    });
+  }, [favorites]);
 
   const toggleFavorite = (id: string) => {
-    const isFav = favorites.includes(id);
-    const token = localStorage.getItem('auth_token');
+    if (!id) return;
+    const cleanId = id.trim();
+    const isFav = isFavorite(cleanId);
 
     // Optimistic UI update
-    setFavorites(prev => isFav ? prev.filter(f => f !== id) : [...prev, id]);
+    setFavorites(prev => {
+      const next = isFav
+        ? prev.filter(f => f !== cleanId && f.replace(/\D+/g, '') !== cleanId.replace(/\D+/g, ''))
+        : [...prev, cleanId];
 
-    if (token) {
+      if (!user) {
+        try {
+          localStorage.setItem(GUEST_FAV_KEY, JSON.stringify(next));
+        } catch {
+          // ignore storage error
+        }
+      }
+      return next;
+    });
+
+    if (user) {
       if (isFav) {
-        apiClient.delete(`/favorites/${id}`).catch(() => {
-          setFavorites(prev => [...prev, id]);
+        apiClient.delete(`/favorites/${cleanId}`).catch(() => {
+          setFavorites(prev => [...prev, cleanId]);
         });
       } else {
-        apiClient.post(`/favorites/${id}`, {}).catch(() => {
-          setFavorites(prev => prev.filter(f => f !== id));
+        apiClient.post(`/favorites/${cleanId}`, {}).catch(() => {
+          setFavorites(prev => prev.filter(f => f !== cleanId));
         });
       }
     }
   };
 
-  const isFavorite = (id: string) => favorites.includes(id);
   const count = favorites.length;
 
   return (

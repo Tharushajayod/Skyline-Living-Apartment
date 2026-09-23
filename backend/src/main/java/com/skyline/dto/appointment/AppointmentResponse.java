@@ -24,6 +24,13 @@ public class AppointmentResponse {
     private String date;
     private String timeSlot;
     private AppointmentStatus status;
+    private com.skyline.enums.RescheduleStatus rescheduleStatus;
+    private String proposedDate;
+    private String proposedTimeSlot;
+    private String rescheduleReason;
+    private String rescheduleRequestedBy;
+    private com.skyline.enums.UserRole rescheduleRequestedByRole;
+    private String rescheduleRequestedAt;
     private String notes;
     private String createdAt;
 
@@ -39,6 +46,13 @@ public class AppointmentResponse {
                 .date(a.getDate() != null ? a.getDate().toString() : "")
                 .timeSlot(a.getTimeSlot())
                 .status(a.getStatus())
+                .rescheduleStatus(a.getRescheduleStatus() != null ? a.getRescheduleStatus() : com.skyline.enums.RescheduleStatus.NONE)
+                .proposedDate(a.getProposedDate() != null ? a.getProposedDate().toString() : null)
+                .proposedTimeSlot(a.getProposedTimeSlot())
+                .rescheduleReason(a.getRescheduleReason())
+                .rescheduleRequestedBy(a.getRescheduleRequestedBy())
+                .rescheduleRequestedByRole(a.getRescheduleRequestedByRole())
+                .rescheduleRequestedAt(a.getRescheduleRequestedAt() != null ? a.getRescheduleRequestedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null)
                 .notes(a.getNotes() != null ? a.getNotes() : "")
                 .createdAt(a.getCreatedAt() != null ? a.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : "")
                 .build();

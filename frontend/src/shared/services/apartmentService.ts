@@ -3,6 +3,10 @@ import { fastCache } from './cache';
 import type { Apartment } from '@/shared/types';
 
 export const apartmentService = {
+  getCachedAll(key = 'apartments_all'): Apartment[] | null {
+    return fastCache.get<Apartment[]>(key);
+  },
+
   getCached(key = 'apartments_all'): Apartment[] | null {
     return fastCache.get<Apartment[]>(key);
   },
@@ -15,6 +19,7 @@ export const apartmentService = {
     maxPrice?: number;
     district?: string;
     bedrooms?: number;
+    includeSold?: boolean;
   }): Promise<Apartment[]> {
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
@@ -24,6 +29,7 @@ export const apartmentService = {
     if (params?.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
     if (params?.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
     if (params?.bedrooms !== undefined && params.bedrooms > 0) query.append('bedrooms', String(params.bedrooms));
+    if (params?.includeSold) query.append('includeSold', 'true');
     const qs = query.toString();
     const data = await apiClient.get<Apartment[]>(`/apartments${qs ? `?${qs}` : ''}`);
     if (Array.isArray(data) && !qs) {

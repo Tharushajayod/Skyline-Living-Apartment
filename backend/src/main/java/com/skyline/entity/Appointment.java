@@ -49,6 +49,25 @@ public class Appointment {
     @Builder.Default
     private AppointmentStatus status = AppointmentStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private com.skyline.enums.RescheduleStatus rescheduleStatus = com.skyline.enums.RescheduleStatus.NONE;
+
+    private LocalDate proposedDate;
+
+    private String proposedTimeSlot;
+
+    @Column(length = 1000)
+    private String rescheduleReason;
+
+    private String rescheduleRequestedBy;
+
+    @Enumerated(EnumType.STRING)
+    private com.skyline.enums.UserRole rescheduleRequestedByRole;
+
+    private LocalDateTime rescheduleRequestedAt;
+
     @Column(length = 2000)
     private String notes;
 

@@ -22,4 +22,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     long countByStatus(AppointmentStatus status);
 
     boolean existsByApartmentIdAndCustomerIdAndStatusIn(Long apartmentId, Long customerId, Collection<AppointmentStatus> statuses);
+
+    boolean existsByApartmentIdAndDateAndTimeSlotAndStatusIn(Long apartmentId, java.time.LocalDate date, String timeSlot, Collection<AppointmentStatus> statuses);
+
+    java.util.Optional<Appointment> findFirstByApartmentIdAndCustomerIdAndStatusOrderByDateDesc(Long apartmentId, Long customerId, AppointmentStatus status);
 }

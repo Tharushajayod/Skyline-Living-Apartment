@@ -50,6 +50,8 @@ export type AppointmentStatus =
   | 'No-show'
   | 'Cancelled';
 
+export type RescheduleStatus = 'None' | 'Pending Customer' | 'Pending Admin';
+
 export interface Appointment {
   id: string;
   apartmentId: string;
@@ -60,7 +62,27 @@ export interface Appointment {
   date: string;
   timeSlot: string;
   status: AppointmentStatus;
+  rescheduleStatus?: RescheduleStatus;
+  proposedDate?: string;
+  proposedTimeSlot?: string;
+  rescheduleReason?: string;
+  rescheduleRequestedBy?: string;
+  rescheduleRequestedByRole?: string;
+  rescheduleRequestedAt?: string;
   notes: string;
+  createdAt: string;
+}
+
+export interface AppointmentRescheduleHistory {
+  id: string;
+  appointmentId: string;
+  oldDate: string;
+  oldTimeSlot: string;
+  newDate: string;
+  newTimeSlot: string;
+  reason: string;
+  changedBy: string;
+  changedByRole: UserRole;
   createdAt: string;
 }
 
@@ -73,6 +95,7 @@ export type ReservationStatus =
 export interface Reservation {
   id: string;
   apartmentId: string;
+  appointmentId?: string;
   apartmentTitle: string;
   customerName: string;
   customerEmail: string;
@@ -80,11 +103,46 @@ export interface Reservation {
   status: ReservationStatus;
   expiresAt: string;
   createdAt: string;
+  hasPaymentCommitment?: boolean;
+  paymentCommitmentReason?: string;
+}
+
+export type RefundStatus = 'Pending' | 'Approved' | 'Processed';
+export type RefundType = 'Cancellation' | 'Expiration';
+
+export interface ReservationRefund {
+  id: string;
+  reservationId: string;
+  apartmentId: string;
+  apartmentTitle: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  paymentId?: string;
+  originalFee: number;
+  refundAmount: number;
+  companyRetainedAmount: number;
+  refundStatus: RefundStatus;
+  refundType: RefundType;
+  reason: string;
+  processedBy: string;
+  processedAt?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ReservationDetails {
+  reservation: Reservation;
+  customer: User | null;
+  apartment: Apartment | null;
+  appointment: Appointment | null;
+  payment: Payment | null;
+  allPayments: Payment[];
+  refund: ReservationRefund | null;
 }
 
 export type PaymentType =
   | 'Reservation Fee'
-  | 'Down Payment'
   | 'Installment'
   | 'Full Payment'
   | 'Installment Payment'
@@ -237,6 +295,23 @@ export interface Sale {
   reservationId: string;
   saleDate: string;
   staffName: string;
+}
+
+export interface PaymentSummary {
+  apartmentPrice: number;
+  totalVerifiedPayments: number;
+  remainingBalance: number;
+  paymentCount: number;
+}
+
+export interface SaleDetails {
+  sale: Sale;
+  customer: User | null;
+  apartment: Apartment | null;
+  reservation: Reservation | null;
+  paymentSummary: PaymentSummary;
+  payments: Payment[];
+  paymentPlan: PaymentPlan | null;
 }
 
 export interface User {

@@ -36,6 +36,12 @@ public class SaleController {
         return ResponseEntity.ok(saleService.getSaleById(numericId));
     }
 
+    @GetMapping("/{id}/details")
+    public ResponseEntity<com.skyline.dto.sale.SaleDetailsResponse> getSaleDetails(@PathVariable String id) {
+        Long numericId = IdParser.parseId(id);
+        return ResponseEntity.ok(saleService.getSaleDetails(numericId));
+    }
+
     @PostMapping
     public ResponseEntity<SaleResponse> recordSale(
             @AuthenticationPrincipal UserPrincipal userPrincipal,

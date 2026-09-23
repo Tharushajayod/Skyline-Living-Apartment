@@ -101,8 +101,6 @@ public class Apartment {
     private Double area;
     private Integer floorNumber;
     private String location;
-    private String facilities;
-    private String imageUrl;
 
     public void addImage(ApartmentImage image) {
         images.add(image);

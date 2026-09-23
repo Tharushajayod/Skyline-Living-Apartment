@@ -4,8 +4,7 @@ import {
   LayoutDashboard, Building2, CalendarCheck, BookmarkCheck,
   CreditCard, MessageSquare, Star, TrendingUp, Users, BarChart3,
   ChevronLeft, ChevronRight, LogOut, Globe, Bell, KeyRound,
-  ShieldCheck, Check, Eye, EyeOff, X, ExternalLink, Clock,
-  User as UserIcon, CheckCircle2, AlertCircle, RefreshCw
+  Clock, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useToast } from '@/shared/components/ui/Toast';
@@ -51,8 +50,6 @@ export default function ManagementLayout() {
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
-  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
-  const [showNewPwd, setShowNewPwd] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
 
   const notifRef = useRef<HTMLDivElement>(null);
@@ -614,7 +611,7 @@ export default function ManagementLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-6 sm:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 w-full max-w-[1720px] mx-auto p-4 sm:p-6 lg:p-8 transition-all duration-300 ease-in-out">
           <Outlet />
         </main>
       </div>
@@ -639,19 +636,19 @@ export default function ManagementLayout() {
         <form onSubmit={handleChangePassword} className="space-y-4">
           <Input
             label="Current Password"
-            type={showCurrentPwd ? 'text' : 'password'}
+            type="password"
             value={currentPwd}
             onChange={(e) => setCurrentPwd(e.target.value)}
           />
           <Input
             label="New Password"
-            type={showNewPwd ? 'text' : 'password'}
+            type="password"
             value={newPwd}
             onChange={(e) => setNewPwd(e.target.value)}
           />
           <Input
             label="Confirm New Password"
-            type={showNewPwd ? 'text' : 'password'}
+            type="password"
             value={confirmPwd}
             onChange={(e) => setConfirmPwd(e.target.value)}
           />

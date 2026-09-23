@@ -12,4 +12,5 @@ public class AppointmentStatusUpdate {
     private AppointmentStatus status;
     private String date;
     private String timeSlot;
+    private String reason;
 }

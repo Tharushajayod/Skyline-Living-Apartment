@@ -124,7 +124,9 @@ export function LineChart({ data, height = 200, formatValue }: LineChartProps) {
         <path d={areaD} fill="url(#lineGradient)" />
         <path d={pathD} fill="none" stroke="#0d9488" strokeWidth="0.5" strokeLinecap="round" strokeLinejoin="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="0.8" fill="#0d9488" className="opacity-0 hover:opacity-100" />
+          <circle key={i} cx={p.x} cy={p.y} r="0.8" fill="#0d9488" className="opacity-0 hover:opacity-100">
+            <title>{formatValue ? formatValue(p.value) : `${p.label}: ${p.value}`}</title>
+          </circle>
         ))}
       </svg>
       <div className="flex justify-between mt-2 px-1">
@@ -132,7 +134,6 @@ export function LineChart({ data, height = 200, formatValue }: LineChartProps) {
           <span key={i} className="text-xs text-navy-400">{d.label}</span>
         ))}
       </div>
-      {formatValue && <div className="hidden">{formatValue(0)}</div>}
     </div>
   );
 }

@@ -42,6 +42,15 @@ class SaleServiceTest {
     private ReservationRepository reservationRepository;
 
     @Mock
+    private com.skyline.repository.PaymentRepository paymentRepository;
+
+    @Mock
+    private com.skyline.repository.PaymentPlanRepository paymentPlanRepository;
+
+    @Mock
+    private com.skyline.repository.PaymentPlanItemRepository paymentPlanItemRepository;
+
+    @Mock
     private UserService userService;
 
     @Mock
@@ -51,7 +60,17 @@ class SaleServiceTest {
 
     @BeforeEach
     void setUp() {
-        saleService = new SaleService(saleRepository, ownershipRecordRepository, apartmentRepository, reservationRepository, userService, notificationService);
+        saleService = new SaleService(
+                saleRepository,
+                ownershipRecordRepository,
+                apartmentRepository,
+                reservationRepository,
+                paymentRepository,
+                paymentPlanRepository,
+                paymentPlanItemRepository,
+                userService,
+                notificationService
+        );
     }
 
     @Test

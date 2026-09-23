@@ -20,4 +20,6 @@ public class ReservationRequest {
     private String customerName;
 
     private String customerEmail;
+
+    private String appointmentId;
 }

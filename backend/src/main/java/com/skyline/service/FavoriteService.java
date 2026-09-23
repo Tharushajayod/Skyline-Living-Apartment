@@ -30,12 +30,14 @@ public class FavoriteService {
 
     public List<String> getUserFavoriteIds(Long userId) {
         return favoriteRepository.findByUserId(userId).stream()
+                .filter(f -> f.getApartment() != null)
                 .map(f -> IdParser.formatId("APT", f.getApartment().getId()))
                 .collect(Collectors.toList());
     }
 
     public List<ApartmentResponse> getUserFavoriteApartments(Long userId) {
         return favoriteRepository.findByUserId(userId).stream()
+                .filter(f -> f.getApartment() != null)
                 .map(f -> ApartmentResponse.fromEntity(f.getApartment()))
                 .collect(Collectors.toList());
     }

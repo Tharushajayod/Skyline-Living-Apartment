@@ -192,14 +192,12 @@ export default function ManageInquiriesPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/75 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
-                  <th className="px-6 py-4">Inquiry Subject & Property</th>
-                  <th className="px-6 py-4">Customer</th>
-                  <th className="px-6 py-4">Category</th>
-                  <th className="px-6 py-4">Priority</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Submitted</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
+                  <th className="px-5 py-3.5">Inquiry & Residence</th>
+                  <th className="px-5 py-3.5">Client & Date</th>
+                  <th className="px-5 py-3.5">Category & Priority</th>
+                  <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -209,66 +207,63 @@ export default function ManageInquiriesPage() {
                     className="hover:bg-slate-50/60 transition-colors cursor-pointer group" 
                     onClick={() => setDetailTarget(i)}
                   >
-                    
-                    {/* Subject & Property */}
-                    <td className="px-6 py-4">
+                    {/* 1. Subject & Property */}
+                    <td className="px-5 py-3.5">
                       <div className="min-w-0">
-                        <p className="font-bold text-slate-900 text-sm group-hover:text-amber-600 transition truncate max-w-xs sm:max-w-sm">
+                        <p className="font-extrabold text-slate-900 text-sm group-hover:text-amber-700 transition truncate max-w-xs sm:max-w-md">
                           {i.subject}
                         </p>
                         {i.apartmentTitle && (
                           <p className="text-xs text-amber-700 font-semibold flex items-center gap-1 mt-0.5 truncate">
-                            <Building2 className="w-3.5 h-3.5 shrink-0" />
+                            <Building2 className="w-3.5 h-3.5 shrink-0 text-amber-600" />
                             {i.apartmentTitle}
                           </p>
                         )}
                       </div>
                     </td>
 
-                    {/* Customer */}
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-slate-800 text-sm">{i.customerName}</p>
+                    {/* 2. Customer & Date */}
+                    <td className="px-5 py-3.5">
+                      <p className="font-extrabold text-slate-900 text-sm">{i.customerName}</p>
+                      <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                        {timeAgo(i.createdAt)}
+                      </p>
                     </td>
 
-                    {/* Category */}
-                    <td className="px-6 py-4">
-                      <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                        {i.category}
-                      </span>
+                    {/* 3. Category & Priority */}
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                          {i.category}
+                        </span>
+                        <Badge variant={statusToVariant(i.priority)} size="sm">
+                          {i.priority}
+                        </Badge>
+                      </div>
                     </td>
 
-                    {/* Priority */}
-                    <td className="px-6 py-4">
-                      <Badge variant={statusToVariant(i.priority)} size="sm" dot>
-                        {i.priority}
-                      </Badge>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-6 py-4">
+                    {/* 4. Status */}
+                    <td className="px-5 py-3.5">
                       <Badge variant={statusToVariant(i.status)} size="sm" dot>
                         {i.status}
                       </Badge>
                     </td>
 
-                    {/* Time */}
-                    <td className="px-6 py-4 text-xs font-medium text-slate-500">
-                      {timeAgo(i.createdAt)}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-6 py-4 text-right">
+                    {/* 5. Actions */}
+                    <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {i.replies && i.replies.length > 0 && (
-                          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
+                          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60 flex items-center gap-1">
+                            <MessageCircle className="w-3 h-3" />
                             {i.replies.length}
                           </span>
                         )}
                         <button 
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setDetailTarget(i); }} 
-                          className="p-1.5 text-slate-400 group-hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" 
-                          title="View Inquiry Conversation"
+                          className="p-2 text-slate-400 group-hover:text-amber-600 hover:bg-amber-50 rounded-xl transition cursor-pointer border border-transparent hover:border-amber-200" 
+                          title="View and Reply to Inquiry"
                         >
                           <Eye className="w-4 h-4" />
                         </button>

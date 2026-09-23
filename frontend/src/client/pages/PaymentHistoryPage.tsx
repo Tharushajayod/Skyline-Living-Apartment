@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, CheckCircle2, Clock, XCircle, FileText } from 'lucide-react';
 import type { Payment } from '@/shared/types';
+import { paymentService } from '@/shared/services/paymentService';
 import { payments as mockPayments } from '@/shared/mockData';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useToast } from '@/shared/components/ui/Toast';
@@ -20,11 +21,23 @@ export default function PaymentHistoryPage() {
   const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setPayments(mockPayments.filter(p => p.customerName === user?.name));
-      setLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
+    let isMounted = true;
+    paymentService.getAll()
+      .then(data => {
+        if (!isMounted) return;
+        if (Array.isArray(data) && data.length > 0) {
+          setPayments(data);
+        } else {
+          setPayments(mockPayments.filter(p => p.customerName === user?.name));
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setPayments(mockPayments.filter(p => p.customerName === user?.name));
+        setLoading(false);
+      });
+    return () => { isMounted = false; };
   }, [user]);
 
   const filtered = payments.filter(p =>
@@ -57,7 +70,6 @@ export default function PaymentHistoryPage() {
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} placeholder="All Types" options={[
             { value: 'Reservation Fee', label: 'Reservation Fee' },
-            { value: 'Down Payment', label: 'Down Payment' },
             { value: 'Installment', label: 'Installment' },
             { value: 'Full Payment', label: 'Full Payment' },
           ]} className="flex-1" />

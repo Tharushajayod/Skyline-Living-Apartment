@@ -10,6 +10,11 @@ export const reviewService = {
     return apiClient.get<Review[]>('/reviews');
   },
 
+  async getPublic(): Promise<Review[]> {
+    if (USE_MOCK) return mockReviews.filter(r => r.status === 'Published');
+    return apiClient.get<Review[]>('/reviews/public');
+  },
+
   async getByApartment(apartmentId: string): Promise<Review[]> {
     if (USE_MOCK) return mockReviews.filter(r => r.apartmentId === apartmentId && r.status === 'Published');
     return apiClient.get<Review[]>(`/apartments/${apartmentId}/reviews`);

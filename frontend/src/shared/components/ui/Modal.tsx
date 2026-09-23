@@ -6,7 +6,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
   footer?: ReactNode;
 }
 
@@ -15,6 +15,8 @@ const sizes = {
   md: 'max-w-lg',
   lg: 'max-w-2xl',
   xl: 'max-w-4xl',
+  '2xl': 'max-w-5xl',
+  '3xl': 'max-w-6xl',
 };
 
 export default function Modal({ open, onClose, title, children, size = 'md', footer }: ModalProps) {

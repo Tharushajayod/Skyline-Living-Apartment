@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -59,30 +58,20 @@ public class ApartmentResponse {
             imageDtos = apt.getImages().stream()
                     .map(ApartmentImageDto::fromEntity)
                     .collect(Collectors.toList());
-        } else if (apt.getImageUrl() != null && !apt.getImageUrl().trim().isEmpty()) {
-            imageDtos.add(ApartmentImageDto.builder()
-                    .id("img-1")
-                    .url(apt.getImageUrl())
-                    .caption("Exterior")
-                    .build());
         }
 
         List<String> facList = new ArrayList<>();
         if (apt.getFacilitiesList() != null && !apt.getFacilitiesList().isEmpty()) {
             facList = new ArrayList<>(apt.getFacilitiesList());
-        } else if (apt.getFacilities() != null && !apt.getFacilities().trim().isEmpty()) {
-            facList = Arrays.stream(apt.getFacilities().split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toList());
         }
 
         Integer effectiveFloor = apt.getFloor() != null ? apt.getFloor() : apt.getFloorNumber();
         Double effectiveSize = apt.getSize() != null ? apt.getSize() : apt.getArea();
         String effectiveAddress = apt.getAddress() != null ? apt.getAddress() : (apt.getLocation() != null ? apt.getLocation() : "");
-        String effectiveCity = apt.getCity() != null ? apt.getCity() : (apt.getLocation() != null ? apt.getLocation() : "");
+        String effectiveCity = apt.getCity() != null ? apt.getCity() : "";
         String effectiveDistrict = apt.getDistrict() != null ? apt.getDistrict() : effectiveCity;
-        String firstImg = !imageDtos.isEmpty() ? imageDtos.get(0).getUrl() : (apt.getImageUrl() != null ? apt.getImageUrl() : "");
+        
+        String firstImg = !imageDtos.isEmpty() ? imageDtos.get(0).getUrl() : "";
 
         return ApartmentResponse.builder()
                 .id(IdParser.formatId("APT", apt.getId()))

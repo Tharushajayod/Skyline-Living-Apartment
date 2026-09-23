@@ -28,11 +28,17 @@ class ApartmentServiceTest {
     @Mock
     private ApartmentRepository apartmentRepository;
 
+    @Mock
+    private com.skyline.repository.SaleRepository saleRepository;
+
+    @Mock
+    private com.skyline.repository.OwnershipRecordRepository ownershipRecordRepository;
+
     private ApartmentService apartmentService;
 
     @BeforeEach
     void setUp() {
-        apartmentService = new ApartmentService(apartmentRepository);
+        apartmentService = new ApartmentService(apartmentRepository, saleRepository, ownershipRecordRepository);
     }
 
     @Test
@@ -86,5 +92,32 @@ class ApartmentServiceTest {
         assertFalse(results.isEmpty());
         assertEquals(1, results.size());
         assertEquals("Marina Loft", results.get(0).getTitle());
+    }
+
+    @Test
+    void testUpdateSoldApartmentFails() {
+        Apartment soldApt = Apartment.builder()
+                .id(99L)
+                .title("Sold Penthouse")
+                .status(ApartmentStatus.SOLD)
+                .build();
+        when(apartmentRepository.findById(99L)).thenReturn(Optional.of(soldApt));
+
+        ApartmentRequest updateReq = ApartmentRequest.builder().title("New Title").build();
+        assertThrows(com.skyline.exception.ConflictException.class, () -> apartmentService.updateApartment(99L, updateReq));
+        verify(apartmentRepository, never()).save(any());
+    }
+
+    @Test
+    void testDeleteSoldApartmentFails() {
+        Apartment soldApt = Apartment.builder()
+                .id(99L)
+                .title("Sold Penthouse")
+                .status(ApartmentStatus.SOLD)
+                .build();
+        when(apartmentRepository.findById(99L)).thenReturn(Optional.of(soldApt));
+
+        assertThrows(com.skyline.exception.ConflictException.class, () -> apartmentService.deleteApartment(99L));
+        verify(apartmentRepository, never()).delete(any(Apartment.class));
     }
 }

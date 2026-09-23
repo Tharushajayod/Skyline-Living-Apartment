@@ -512,21 +512,6 @@ export const payments: Payment[] = [
   },
   {
     id: 'PAY-002',
-    reservationId: 'RSV-001',
-    apartmentTitle: 'Marina View Residence',
-    customerName: 'Emily Tan',
-    type: 'Down Payment',
-    amount: 165000,
-    status: 'Pending',
-    proofUrl: '',
-    receiptUrl: '',
-    uploadedAt: '2026-09-13T09:00:00Z',
-    verifiedAt: null,
-    verifiedBy: null,
-    notes: 'Awaiting verification.',
-  },
-  {
-    id: 'PAY-003',
     reservationId: 'RSV-004',
     apartmentTitle: 'Coastal Luxury Villa Apartment',
     customerName: 'Michael Lee',
@@ -541,7 +526,7 @@ export const payments: Payment[] = [
     notes: 'Verified promptly.',
   },
   {
-    id: 'PAY-004',
+    id: 'PAY-003',
     reservationId: 'RSV-002',
     apartmentTitle: 'Riverside Loft Apartment',
     customerName: 'John Davies',
@@ -556,7 +541,7 @@ export const payments: Payment[] = [
     notes: 'Uploaded recently.',
   },
   {
-    id: 'PAY-005',
+    id: 'PAY-004',
     reservationId: 'RSV-005',
     apartmentTitle: 'Hillside Modern Studio',
     customerName: 'Robert Ng',
@@ -571,7 +556,7 @@ export const payments: Payment[] = [
     notes: 'Proof image was unclear. Please resubmit.',
   },
   {
-    id: 'PAY-006',
+    id: 'PAY-005',
     reservationId: 'RSV-001',
     apartmentTitle: 'Marina View Residence',
     customerName: 'Emily Tan',

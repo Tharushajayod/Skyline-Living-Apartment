@@ -16,6 +16,8 @@ public interface PaymentPlanRepository
 
     List<PaymentPlan> findByReservationIdOrderByCreatedAtDesc(Long reservationId);
 
+    List<PaymentPlan> findByApartmentIdOrderByCreatedAtDesc(Long apartmentId);
+
     List<PaymentPlan> findByStatusOrderByCreatedAtDesc(
             PaymentPlanStatus status
     );

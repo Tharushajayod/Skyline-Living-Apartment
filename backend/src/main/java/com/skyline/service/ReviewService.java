@@ -33,10 +33,20 @@ public class ReviewService {
         this.userService = userService;
     }
 
+    public List<ReviewResponse> getPublicApprovedReviews() {
+        return reviewRepository.findByStatus(ReviewStatus.PUBLISHED).stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .map(ReviewResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
     public List<ReviewResponse> getAllReviews(UserPrincipal principal) {
-        boolean isStaffOrAdmin = principal != null && (
-                principal.getUser().getRole() == UserRole.STAFF ||
-                principal.getUser().getRole() == UserRole.ADMIN);
+        if (principal == null) {
+            return getPublicApprovedReviews();
+        }
+
+        boolean isStaffOrAdmin = principal.getUser().getRole() == UserRole.STAFF ||
+                principal.getUser().getRole() == UserRole.ADMIN;
 
         if (isStaffOrAdmin) {
             return reviewRepository.findAll().stream()
@@ -45,13 +55,10 @@ public class ReviewService {
                     .collect(Collectors.toList());
         }
 
-        if (principal != null) {
-            return reviewRepository.findByCustomerId(principal.getId()).stream()
-                    .map(ReviewResponse::fromEntity)
-                    .collect(Collectors.toList());
-        }
-
-        return List.of();
+        return reviewRepository.findByCustomerId(principal.getId()).stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .map(ReviewResponse::fromEntity)
+                .collect(Collectors.toList());
     }
 
     public List<ReviewResponse> getPublishedReviewsByApartment(Long apartmentId) {

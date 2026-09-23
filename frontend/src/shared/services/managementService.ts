@@ -1,16 +1,28 @@
 import { apiClient } from './api';
 import { fastCache } from './cache';
-import type { Sale, User } from '@/shared/types';
+import type { Sale, SaleDetails, User } from '@/shared/types';
 
 export const salesService = {
   getCached(): Sale[] | null {
     return fastCache.get<Sale[]>('sales_all');
   },
 
+  getCachedDetails(id: string): SaleDetails | null {
+    return fastCache.get<SaleDetails>(`sale_details_${id}`);
+  },
+
   async getAll(): Promise<Sale[]> {
     const data = await apiClient.get<Sale[]>('/sales');
     if (Array.isArray(data)) {
       fastCache.set('sales_all', data);
+    }
+    return data;
+  },
+
+  async getDetails(id: string): Promise<SaleDetails> {
+    const data = await apiClient.get<SaleDetails>(`/sales/${id}/details`);
+    if (data) {
+      fastCache.set(`sale_details_${id}`, data);
     }
     return data;
   },
