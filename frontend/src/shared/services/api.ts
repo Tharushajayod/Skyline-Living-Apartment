@@ -33,13 +33,37 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   return response.json();
 }
 
+const inFlightRequests = new Map<string, Promise<any>>();
+
 export const apiClient = {
-  get: <T>(endpoint: string) => request<T>(endpoint),
-  post: <T>(endpoint: string, body: unknown) => request<T>(endpoint, { method: 'POST', body }),
-  put: <T>(endpoint: string, body: unknown) => request<T>(endpoint, { method: 'PUT', body }),
-  patch: <T>(endpoint: string, body: unknown) => request<T>(endpoint, { method: 'PATCH', body }),
-  delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
+  get: <T>(endpoint: string): Promise<T> => {
+    if (inFlightRequests.has(endpoint)) {
+      return inFlightRequests.get(endpoint) as Promise<T>;
+    }
+    const promise = request<T>(endpoint).finally(() => {
+      inFlightRequests.delete(endpoint);
+    });
+    inFlightRequests.set(endpoint, promise);
+    return promise;
+  },
+  post: <T>(endpoint: string, body: unknown) => {
+    inFlightRequests.clear();
+    return request<T>(endpoint, { method: 'POST', body });
+  },
+  put: <T>(endpoint: string, body: unknown) => {
+    inFlightRequests.clear();
+    return request<T>(endpoint, { method: 'PUT', body });
+  },
+  patch: <T>(endpoint: string, body: unknown) => {
+    inFlightRequests.clear();
+    return request<T>(endpoint, { method: 'PATCH', body });
+  },
+  delete: <T>(endpoint: string) => {
+    inFlightRequests.clear();
+    return request<T>(endpoint, { method: 'DELETE' });
+  },
   upload: <T>(endpoint: string, formData: FormData) => {
+    inFlightRequests.clear();
     const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
     return fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',

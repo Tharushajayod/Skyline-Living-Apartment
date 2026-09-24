@@ -292,8 +292,8 @@ export default function Navbar() {
 
         {/* Mobile Navigation Drawer */}
         {mobileOpen && (
-          <div className="md:hidden py-4 border-t border-slate-100 animate-in fade-in duration-200">
-            <nav className="flex flex-col gap-1.5">
+          <div className="md:hidden py-4 border-t border-slate-100 max-h-[calc(100vh-5rem)] overflow-y-auto animate-in fade-in duration-200">
+            <nav className="flex flex-col gap-1.5 pb-4">
               {mainNavLinks.map((link) => (
                 <Link
                   key={link.path}
@@ -341,6 +341,34 @@ export default function Navbar() {
                     <CalendarCheck className="w-4 h-4 text-amber-600" />
                     <span>Appointments</span>
                   </Link>
+                  <Link
+                    to="/inquiries"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl"
+                  >
+                    <MessageSquare className="w-4 h-4 text-amber-600" />
+                    <span>Inquiries</span>
+                  </Link>
+                  <Link
+                    to="/profile"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl"
+                  >
+                    <User className="w-4 h-4 text-slate-400" />
+                    <span>Profile Settings</span>
+                  </Link>
+
+                  {isStaffOrAdmin && (
+                    <Link
+                      to="/management"
+                      onClick={() => setMobileOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-amber-900 bg-amber-100/60 rounded-xl"
+                    >
+                      <Shield className="w-4 h-4 text-amber-700" />
+                      <span>Management Console</span>
+                    </Link>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => { handleLogout(); setMobileOpen(false); }}

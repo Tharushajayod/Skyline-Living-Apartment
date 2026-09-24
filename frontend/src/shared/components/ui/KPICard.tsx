@@ -36,21 +36,21 @@ export default function KPICard({ label, value, change, icon, accent = 'primary'
   };
 
   const content = (
-    <div className="bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-shadow duration-300 p-6 h-full group">
-      <div className="flex items-start justify-between mb-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${accents[accent]}`}>
+    <div className="bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-shadow duration-300 p-4 sm:p-6 h-full group">
+      <div className="flex items-start justify-between mb-3 sm:mb-4">
+        <div className={`w-10 sm:w-12 h-10 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${accents[accent]}`}>
           {renderIcon()}
         </div>
         {change !== undefined && (
-          <div className={`flex items-center gap-0.5 text-sm font-medium ${change >= 0 ? 'text-success-600' : 'text-error-600'}`}>
-            {change >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+          <div className={`flex items-center gap-0.5 text-xs sm:text-sm font-medium ${change >= 0 ? 'text-success-600' : 'text-error-600'}`}>
+            {change >= 0 ? <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <ArrowDownRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             {Math.abs(change)}%
           </div>
         )}
       </div>
       <div>
-        <p className="text-3xl font-serif font-bold text-navy-900 mb-1">{value}</p>
-        <p className="text-sm text-navy-400">{label}</p>
+        <p className="text-2xl sm:text-3xl font-serif font-bold text-navy-900 mb-1 truncate" title={String(value)}>{value}</p>
+        <p className="text-xs sm:text-sm text-navy-400 truncate">{label}</p>
       </div>
     </div>
   );

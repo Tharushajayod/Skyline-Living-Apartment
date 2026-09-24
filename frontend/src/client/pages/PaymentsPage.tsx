@@ -699,7 +699,7 @@ export default function PaymentsPage() {
         {/* ======================================================== */}
         {/* 2. FINANCIAL OVERVIEW KPI ROW (Compact Summary Cards) */}
         {/* ======================================================== */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           
           {/* KPI 1: Total Paid */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex items-center gap-3.5">

@@ -15,8 +15,9 @@ import { formatCurrency, formatDate } from '@/shared/utils/format';
 export default function PaymentHistoryPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = paymentService.getCachedAll();
+  const [payments, setPayments] = useState<Payment[]>(() => (Array.isArray(cached) ? cached : []));
+  const [loading, setLoading] = useState(!cached || cached.length === 0);
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -86,7 +87,7 @@ export default function PaymentHistoryPage() {
           <EmptyState variant="inbox" title="No payments found" description="No transactions match your current filters." />
         ) : (
           <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="text-left text-navy-400 border-b border-navy-100">
                   <th className="pb-3 pr-4 font-medium">Payment ID</th>

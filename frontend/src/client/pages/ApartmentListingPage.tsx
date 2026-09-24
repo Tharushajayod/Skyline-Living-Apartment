@@ -81,9 +81,16 @@ function RevealOnScroll({
 
 export default function ApartmentListingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [loading, setLoading] = useState(true);
+  const cached = apartmentService.getCachedAll();
+  const initialApartments = useMemo(() => {
+    if (Array.isArray(cached) && cached.length > 0) {
+      return cached.filter((a) => (a.status || '').toLowerCase() !== 'sold');
+    }
+    return [];
+  }, []);
+  const [loading, setLoading] = useState(initialApartments.length === 0);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [allApartments, setAllApartments] = useState<Apartment[]>([]);
+  const [allApartments, setAllApartments] = useState<Apartment[]>(initialApartments);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -97,9 +104,9 @@ export default function ApartmentListingPage() {
   const bedrooms = searchParams.get('bedrooms') ?? 'all';
   const sort = (searchParams.get('sort') as SortKey) ?? 'newest';
 
-  const loadApartments = async () => {
+  const loadApartments = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setFetchError(null);
       const data = await apartmentService.getAll();
       // Enforce: sold apartments must never appear in normal public listings
@@ -117,7 +124,7 @@ export default function ApartmentListingPage() {
 
   // Load apartments
   useEffect(() => {
-    loadApartments();
+    loadApartments(initialApartments.length === 0);
   }, []);
 
   // District options

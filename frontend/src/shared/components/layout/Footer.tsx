@@ -4,8 +4,8 @@ import { Building2, Mail, Phone, MapPin, Facebook, Instagram, Twitter, Linkedin 
 
 export default function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-400 pt-16 pb-12 w-full">
-      <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-10">
+    <footer className="bg-slate-900 text-slate-400 pt-12 sm:pt-16 pb-10 sm:pb-12 w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-10">
         
         <div>
           <div className="flex items-center gap-2 text-white font-bold text-xl mb-4">
@@ -71,7 +71,7 @@ export default function Footer() {
 
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 mt-12 pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-10 sm:mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3 sm:gap-4 text-center sm:text-left">
         <p>© 2026 Skyline Living. All rights reserved.</p>
         <p>Ultra-Luxury Real Estate Web Application</p>
       </div>

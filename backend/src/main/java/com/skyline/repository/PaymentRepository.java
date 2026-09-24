@@ -63,4 +63,32 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("apartmentId") Long apartmentId,
             @Param("status") PaymentStatus status
     );
+
+    List<Payment> findByReservationIdInOrApartmentIdIn(
+            java.util.Collection<Long> reservationIds,
+            java.util.Collection<Long> apartmentIds
+    );
+
+    @Query("""
+        SELECT DISTINCT p FROM Payment p
+        LEFT JOIN FETCH p.reservation
+        LEFT JOIN FETCH p.customer
+        LEFT JOIN FETCH p.apartment
+        LEFT JOIN FETCH p.paymentPlan
+        LEFT JOIN FETCH p.paymentPlanItem
+        ORDER BY p.uploadedAt DESC
+    """)
+    List<Payment> findAllWithDetails();
+
+    @Query("""
+        SELECT DISTINCT p FROM Payment p
+        LEFT JOIN FETCH p.reservation
+        LEFT JOIN FETCH p.customer
+        LEFT JOIN FETCH p.apartment
+        LEFT JOIN FETCH p.paymentPlan
+        LEFT JOIN FETCH p.paymentPlanItem
+        WHERE p.customer.id = :customerId
+        ORDER BY p.uploadedAt DESC
+    """)
+    List<Payment> findByCustomerIdWithDetails(@Param("customerId") Long customerId);
 }

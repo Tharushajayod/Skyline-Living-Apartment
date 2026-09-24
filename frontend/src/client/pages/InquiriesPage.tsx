@@ -408,7 +408,7 @@ export default function InquiriesPage() {
                   <label className="block text-xs font-bold text-slate-700 mb-2">
                     Inquiry Category
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {INQUIRY_CATEGORIES.map((cat) => (
                       <button
                         key={cat.value}
@@ -506,16 +506,16 @@ export default function InquiriesPage() {
                 </div>
 
                 {/* Form Footer Action */}
-                <div className="pt-2 flex items-center justify-between">
+                <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span>Direct encrypted transmission to Skyline sales desk</span>
                   </div>
 
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-bold text-xs transition cursor-pointer disabled:opacity-50 shadow-2xs"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-bold text-xs transition cursor-pointer disabled:opacity-50 shadow-2xs"
                   >
                     {submitting ? (
                       <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />

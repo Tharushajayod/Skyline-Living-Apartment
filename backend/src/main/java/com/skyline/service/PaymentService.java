@@ -85,6 +85,7 @@ public class PaymentService {
     // GET PAYMENTS
     // =========================================================
 
+    @Transactional(readOnly = true)
     public List<PaymentResponse> getPayments(
             UserPrincipal principal,
             String customerParam
@@ -109,25 +110,8 @@ public class PaymentService {
                         .collect(Collectors.toList());
             }
 
-            return paymentRepository.findAll()
+            return paymentRepository.findAllWithDetails()
                     .stream()
-                    .sorted((a, b) -> {
-                        if (a.getUploadedAt() == null &&
-                                b.getUploadedAt() == null) {
-                            return 0;
-                        }
-
-                        if (a.getUploadedAt() == null) {
-                            return 1;
-                        }
-
-                        if (b.getUploadedAt() == null) {
-                            return -1;
-                        }
-
-                        return b.getUploadedAt()
-                                .compareTo(a.getUploadedAt());
-                    })
                     .map(PaymentResponse::fromEntity)
                     .collect(Collectors.toList());
         }
@@ -145,7 +129,7 @@ public class PaymentService {
         if (customerId != null) {
 
             return paymentRepository
-                    .findByCustomerIdOrderByUploadedAtDesc(
+                    .findByCustomerIdWithDetails(
                             customerId
                     )
                     .stream()

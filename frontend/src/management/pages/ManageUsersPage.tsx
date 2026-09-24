@@ -112,7 +112,7 @@ export default function ManageUsersPage() {
     <div className="space-y-6 pb-12 w-full">
       
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
@@ -195,7 +195,7 @@ export default function ManageUsersPage() {
           </div>
         ) : (
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[680px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
                   <th className="px-5 py-3.5">User Profile & Contact</th>

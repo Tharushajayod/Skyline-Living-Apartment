@@ -17,4 +17,10 @@ public interface ApartmentRepository extends JpaRepository<Apartment, Long>, Jpa
     Optional<Apartment> findByApartmentNumber(String apartmentNumber);
 
     long countByStatus(ApartmentStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(a.price), 0) FROM Apartment a WHERE a.status = :status")
+    java.math.BigDecimal sumPriceByStatus(@org.springframework.data.repository.query.Param("status") ApartmentStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT a FROM Apartment a LEFT JOIN FETCH a.images ORDER BY a.id ASC")
+    List<Apartment> findAllWithImages();
 }

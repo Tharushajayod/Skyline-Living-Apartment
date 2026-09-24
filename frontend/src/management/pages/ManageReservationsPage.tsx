@@ -25,8 +25,9 @@ const filterTabs: { id: FilterTab; label: string }[] = [
 
 export default function ManageReservationsPage() {
   const { toast } = useToast();
-  const [list, setList] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = reservationService.getCachedAll();
+  const [list, setList] = useState<Reservation[]>(() => (Array.isArray(cached) ? cached : []));
+  const [loading, setLoading] = useState(!cached || cached.length === 0);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('All');
 
@@ -37,9 +38,9 @@ export default function ManageReservationsPage() {
     mode: 'cancellation' | 'expiration';
   } | null>(null);
 
-  const fetchReservations = async () => {
+  const fetchReservations = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const data = await reservationService.getAll();
       setList(data);
     } catch (err: any) {
@@ -51,7 +52,7 @@ export default function ManageReservationsPage() {
   };
 
   useEffect(() => {
-    fetchReservations();
+    fetchReservations(!cached || cached.length === 0);
   }, []);
 
   const stats = useMemo(() => ({
@@ -114,7 +115,7 @@ export default function ManageReservationsPage() {
   return (
     <div className="space-y-6 pb-12 w-full">
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
@@ -216,7 +217,7 @@ export default function ManageReservationsPage() {
           </div>
         ) : (
           <div className="w-full overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[760px]">
               <thead>
                 <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
                   <th className="px-4 py-3.5 whitespace-nowrap">Reservation</th>

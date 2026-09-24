@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Building2, CalendarCheck, BookmarkCheck,
   CreditCard, MessageSquare, Star, TrendingUp, Users, BarChart3,
   ChevronLeft, ChevronRight, LogOut, Globe, Bell, KeyRound,
-  Clock, RefreshCw
+  Clock, RefreshCw, Menu, X
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useToast } from '@/shared/components/ui/Toast';
@@ -36,8 +36,14 @@ export default function ManagementLayout() {
   const { toast } = useToast();
 
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // Close mobile drawer on route navigation
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Customer Activity Alerts State & Pagination (5 by 5)
   const [activityAlerts, setActivityAlerts] = useState<AdminActivityAlert[]>([]);
@@ -278,35 +284,52 @@ export default function ManagementLayout() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
+
+      {/* Mobile Drawer Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-40 lg:hidden animate-in fade-in duration-200"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
       
       {/* 1. LEFT SIDEBAR */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-40 bg-white border-r border-slate-200/80 transition-all duration-300 ease-in-out flex flex-col justify-between ${
-          collapsed ? 'w-20' : 'w-64'
-        }`}
+        className={`fixed top-0 left-0 bottom-0 z-50 bg-white border-r border-slate-200/80 transition-all duration-300 ease-in-out flex flex-col justify-between ${
+          mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+        } ${collapsed ? 'lg:w-20' : 'lg:w-64'} w-72 max-w-[85vw]`}
       >
         <div>
           <div className="h-20 flex items-center px-5 justify-between border-b border-slate-100 relative">
-            <Link to="/management" className="flex items-center gap-3 overflow-hidden">
+            <Link to="/management" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 overflow-hidden">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/25 shrink-0">
                 <Building2 className="w-5 h-5" />
               </div>
-              {!collapsed && (
-                <div className="transition-opacity duration-200 truncate">
-                  <p className="font-extrabold text-slate-900 text-sm tracking-tight leading-tight">
-                    Skyline<span className="text-amber-500">Living</span>
-                  </p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Management
-                  </p>
-                </div>
-              )}
+              <div className={`transition-opacity duration-200 truncate ${collapsed ? 'lg:hidden' : 'block'}`}>
+                <p className="font-extrabold text-slate-900 text-sm tracking-tight leading-tight">
+                  Skyline<span className="text-amber-500">Living</span>
+                </p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Management
+                </p>
+              </div>
             </Link>
 
+            {/* Close button on mobile */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="lg:hidden p-2 text-slate-400 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              title="Close Navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Desktop collapse toggle */}
             <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="absolute -right-3.5 top-7 w-7 h-7 bg-white border border-slate-200/90 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-amber-400 transition cursor-pointer z-50"
+              className="hidden lg:flex absolute -right-3.5 top-7 w-7 h-7 bg-white border border-slate-200/90 shadow-sm rounded-full items-center justify-center text-slate-500 hover:text-slate-900 hover:border-amber-400 transition cursor-pointer z-50"
             >
               {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
@@ -324,16 +347,17 @@ export default function ManagementLayout() {
                 <Link
                   key={item.path}
                   to={item.path}
+                  onClick={() => setMobileMenuOpen(false)}
                   title={collapsed ? item.label : undefined}
                   className={`relative flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold transition-all duration-200 group ${
                     isActive
                       ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25 font-extrabold'
                       : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80'
-                  } ${collapsed ? 'justify-center px-0' : ''}`}
+                  } ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}
                 >
                   <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-slate-950' : 'text-slate-400 group-hover:text-slate-800'}`} />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                  {isActive && !collapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                  <span className={`truncate ${collapsed ? 'lg:hidden' : 'block'}`}>{item.label}</span>
+                  {isActive && <span className={`ml-auto w-1.5 h-1.5 rounded-full bg-slate-950 ${collapsed ? 'lg:hidden' : 'block'}`} />}
                 </Link>
               );
             })}
@@ -343,41 +367,52 @@ export default function ManagementLayout() {
         <div className="p-3 border-t border-slate-100 space-y-1">
           <Link
             to="/"
+            onClick={() => setMobileMenuOpen(false)}
             className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition ${
-              collapsed ? 'justify-center px-0' : ''
+              collapsed ? 'lg:justify-center lg:px-0' : ''
             }`}
           >
             <Globe className="w-4 h-4 shrink-0 text-slate-400" />
-            {!collapsed && <span>Back to Site</span>}
+            <span className={collapsed ? 'lg:hidden' : 'block'}>Back to Site</span>
           </Link>
 
           <button
             type="button"
             onClick={handleLogout}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer ${
-              collapsed ? 'justify-center px-0' : ''
+              collapsed ? 'lg:justify-center lg:px-0' : ''
             }`}
           >
             <LogOut className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>Sign Out</span>}
+            <span className={collapsed ? 'lg:hidden' : 'block'}>Sign Out</span>
           </button>
         </div>
       </aside>
 
       {/* 2. MAIN CONTAINER */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${collapsed ? 'ml-20' : 'ml-64'}`}>
-        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200/80 h-20 px-6 sm:px-8 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs text-slate-400 font-medium">Welcome back,</p>
-            <h2 className="text-base font-extrabold text-slate-900 tracking-tight leading-tight flex items-center gap-2">
-              {user?.name || 'Administrator'}
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 uppercase tracking-wider">
-                {user?.role || 'Admin'}
-              </span>
-            </h2>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ml-0 ${collapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
+        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200/80 h-16 sm:h-20 px-4 sm:px-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden w-10 h-10 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer shrink-0"
+              title="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <p className="text-[11px] sm:text-xs text-slate-400 font-medium">Welcome back,</p>
+              <h2 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight leading-tight flex items-center gap-2">
+                <span className="truncate max-w-[130px] sm:max-w-xs">{user?.name || 'Administrator'}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 uppercase tracking-wider shrink-0">
+                  {user?.role || 'Admin'}
+                </span>
+              </h2>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             
             {/* CLEAN LUXURY NOTIFICATION POPOVER */}
             <div className="relative" ref={notifRef}>
@@ -398,7 +433,7 @@ export default function ManagementLayout() {
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 mt-3 w-80 sm:w-[450px] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] border border-slate-200/90 py-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-sm sm:max-w-[450px] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] border border-slate-200/90 py-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   
                   {/* Clean & Spacious Popover Header */}
                   <div className="px-5 pb-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
@@ -567,7 +602,7 @@ export default function ManagementLayout() {
               </button>
 
               {profileOpen && (
-                <div className="absolute right-0 mt-3 w-64 bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.15)] border border-slate-200/90 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="absolute right-0 mt-3 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.15)] border border-slate-200/90 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   <div className="px-4 py-3 bg-slate-50 rounded-2xl mb-1.5 border border-slate-100">
                     <p className="text-xs font-extrabold text-slate-900 truncate">{user?.name || 'Admin User'}</p>
                     <p className="text-[11px] text-slate-400 truncate">{user?.email || 'admin@skylineliving.com'}</p>
@@ -611,7 +646,7 @@ export default function ManagementLayout() {
           </div>
         </header>
 
-        <main className="flex-1 w-full max-w-[1720px] mx-auto p-4 sm:p-6 lg:p-8 transition-all duration-300 ease-in-out">
+        <main className="flex-1 w-full max-w-[1720px] mx-auto p-3 sm:p-6 lg:p-8 transition-all duration-300 ease-in-out">
           <Outlet />
         </main>
       </div>

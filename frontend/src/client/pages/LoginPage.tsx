@@ -129,7 +129,7 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center px-4 sm:px-10 lg:px-16 py-12">
         <div className="w-full max-w-md">
           
-          <div className="luxury-glass rounded-3xl p-8 sm:p-10 shadow-xl relative overflow-hidden">
+          <div className="luxury-glass rounded-3xl p-5 sm:p-8 lg:p-10 shadow-xl relative overflow-hidden">
             
             <div className="mb-6">
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">

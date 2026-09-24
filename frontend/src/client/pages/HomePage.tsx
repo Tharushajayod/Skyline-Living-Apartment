@@ -380,7 +380,7 @@ export default function HomePage() {
             <p className="text-slate-600 text-sm font-medium">No apartments currently available in the database.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {apartments.map((apt, index) => (
               <RevealOnScroll key={apt.id || apt._id} delay={index * 80}>
                 <div className="bg-white border border-slate-200/80 rounded-3xl overflow-hidden shadow-[0_4px_20px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-300 flex flex-col group h-full">

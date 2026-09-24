@@ -70,11 +70,11 @@ export default function CustomerSidePanel({ isOpen, onClose }: CustomerSidePanel
       />
 
       {/* Side Panel Drawer */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
         <div className="w-screen max-w-md bg-white/95 backdrop-blur-2xl border-l border-slate-200 shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-300">
           
           {/* Header */}
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20">
                 <Compass className="w-5 h-5" />
@@ -99,7 +99,7 @@ export default function CustomerSidePanel({ isOpen, onClose }: CustomerSidePanel
           </div>
 
           {/* Navigation Body */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
             
             {/* User Greeting Card */}
             {isAuthenticated && user ? (

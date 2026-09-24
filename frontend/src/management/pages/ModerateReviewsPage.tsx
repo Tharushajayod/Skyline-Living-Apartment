@@ -104,7 +104,7 @@ export default function ModerateReviewsPage() {
     <div className="space-y-6 pb-12">
       
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
@@ -198,7 +198,7 @@ export default function ModerateReviewsPage() {
           {filtered.map((r) => (
             <div 
               key={r.id} 
-              className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] hover:shadow-md transition-all flex flex-col justify-between group"
+              className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] hover:shadow-md transition-all flex flex-col justify-between group"
             >
               <div>
                 {/* Card Top: Property Title, User & Status */}

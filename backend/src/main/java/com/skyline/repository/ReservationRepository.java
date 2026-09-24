@@ -27,4 +27,33 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     long countByStatus(ReservationStatus status);
 
     long countByStatusIn(Collection<ReservationStatus> statuses);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT r FROM Reservation r
+        LEFT JOIN FETCH r.apartment
+        LEFT JOIN FETCH r.customer
+        LEFT JOIN FETCH r.appointment
+        ORDER BY r.createdAt DESC
+    """)
+    List<Reservation> findAllWithDetails();
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT r FROM Reservation r
+        LEFT JOIN FETCH r.apartment
+        LEFT JOIN FETCH r.customer
+        LEFT JOIN FETCH r.appointment
+        WHERE r.customer.id = :customerId
+        ORDER BY r.createdAt DESC
+    """)
+    List<Reservation> findByCustomerIdWithDetails(@org.springframework.data.repository.query.Param("customerId") Long customerId);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT r FROM Reservation r
+        LEFT JOIN FETCH r.apartment
+        LEFT JOIN FETCH r.customer
+        LEFT JOIN FETCH r.appointment
+        WHERE LOWER(r.customerEmail) = LOWER(:email)
+        ORDER BY r.createdAt DESC
+    """)
+    List<Reservation> findByCustomerEmailWithDetails(@org.springframework.data.repository.query.Param("email") String email);
 }

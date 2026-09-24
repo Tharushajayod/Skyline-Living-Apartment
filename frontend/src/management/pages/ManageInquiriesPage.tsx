@@ -38,8 +38,9 @@ const priorityOptions: { value: string; label: string }[] = [
 export default function ManageInquiriesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [list, setList] = useState<Inquiry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = inquiryService.getCachedAll();
+  const [list, setList] = useState<Inquiry[]>(() => (Array.isArray(cached) ? cached : []));
+  const [loading, setLoading] = useState(!cached || cached.length === 0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -48,9 +49,9 @@ export default function ManageInquiriesPage() {
   const [reply, setReply] = useState('');
   const [submittingReply, setSubmittingReply] = useState(false);
 
-  const fetchInquiries = async () => {
+  const fetchInquiries = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const data = await inquiryService.getAll();
       setList(Array.isArray(data) ? data : []);
     } catch (err: any) {
@@ -62,7 +63,7 @@ export default function ManageInquiriesPage() {
   };
 
   useEffect(() => {
-    fetchInquiries();
+    fetchInquiries(!cached || cached.length === 0);
   }, []);
 
   const counts = useMemo(() => ({
@@ -123,7 +124,7 @@ export default function ManageInquiriesPage() {
     <div className="space-y-6 pb-12">
       
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
@@ -190,7 +191,7 @@ export default function ManageInquiriesPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
                   <th className="px-5 py-3.5">Inquiry & Residence</th>

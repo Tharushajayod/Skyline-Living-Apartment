@@ -67,52 +67,56 @@ public class ReservationService {
 
     public boolean hasFinancialCommitment(Reservation reservation) {
         if (reservation == null) return false;
-
-        // 1. Check if there is an active/approved/pending/completed payment plan
-        boolean hasActivePlan = paymentPlanRepository.existsByReservationIdAndStatusIn(
-                reservation.getId(),
-                List.of(PaymentPlanStatus.APPROVED, PaymentPlanStatus.PENDING, PaymentPlanStatus.COMPLETED)
-        );
-        if (hasActivePlan) {
-            return true;
+        if (reservation.getId() != null) {
+            boolean hasPlan = paymentPlanRepository.existsByReservationIdAndStatusIn(
+                    reservation.getId(),
+                    List.of(PaymentPlanStatus.APPROVED, PaymentPlanStatus.PENDING, PaymentPlanStatus.COMPLETED)
+            );
+            if (hasPlan) return true;
         }
 
-        // Also check by apartment ID if reservation ID is missing in older plan records
-        if (reservation.getApartment() != null) {
-            List<PaymentPlan> aptPlans = paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(reservation.getApartment().getId());
-            boolean hasAptPlan = aptPlans.stream().anyMatch(p ->
+        List<PaymentPlan> plans = new ArrayList<>();
+        if (reservation.getId() != null) {
+            plans.addAll(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId()));
+        }
+        if (reservation.getApartment() != null && reservation.getApartment().getId() != null) {
+            plans.addAll(paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(reservation.getApartment().getId()));
+        }
+
+        List<Payment> payments = new ArrayList<>();
+        if (reservation.getId() != null) {
+            payments.addAll(paymentRepository.findByReservationId(reservation.getId()));
+        }
+        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
+            payments.addAll(paymentRepository.findByApartmentId(reservation.getApartment().getId()));
+        }
+
+        return hasFinancialCommitment(reservation, plans, payments);
+    }
+
+    public boolean hasFinancialCommitment(Reservation reservation,
+                                          List<PaymentPlan> relatedPlans,
+                                          List<Payment> relatedPayments) {
+        if (reservation == null) return false;
+
+        if (relatedPlans != null) {
+            boolean hasPlan = relatedPlans.stream().anyMatch(p ->
                     p.getStatus() == PaymentPlanStatus.APPROVED ||
                     p.getStatus() == PaymentPlanStatus.PENDING ||
                     p.getStatus() == PaymentPlanStatus.COMPLETED
             );
-            if (hasAptPlan) {
-                return true;
-            }
+            if (hasPlan) return true;
         }
 
-        // 2. Check payments linked to reservation (or apartment)
-        List<Payment> payments = paymentRepository.findByReservationId(reservation.getId());
-        if (payments.isEmpty() && reservation.getApartment() != null) {
-            payments = paymentRepository.findByApartmentId(reservation.getApartment().getId());
-        }
-
-        for (Payment p : payments) {
-            // Verified Full Payment, Part Payment, or Installment Payment
-            if (p.getStatus() == PaymentStatus.VERIFIED) {
-                if (p.getType() == PaymentType.FULL_PAYMENT ||
-                    p.getType() == PaymentType.PART_PAYMENT ||
-                    p.getType() == PaymentType.INSTALLMENT ||
-                    p.getType() == PaymentType.INSTALLMENT_PAYMENT) {
-                    return true;
-                }
-            }
-            // In-progress / Pending payment for full, part, or installment
-            if (p.getStatus() == PaymentStatus.PENDING) {
-                if (p.getType() == PaymentType.FULL_PAYMENT ||
-                    p.getType() == PaymentType.PART_PAYMENT ||
-                    p.getType() == PaymentType.INSTALLMENT ||
-                    p.getType() == PaymentType.INSTALLMENT_PAYMENT) {
-                    return true;
+        if (relatedPayments != null) {
+            for (Payment p : relatedPayments) {
+                if (p.getStatus() == PaymentStatus.VERIFIED || p.getStatus() == PaymentStatus.PENDING) {
+                    if (p.getType() == PaymentType.FULL_PAYMENT ||
+                        p.getType() == PaymentType.PART_PAYMENT ||
+                        p.getType() == PaymentType.INSTALLMENT ||
+                        p.getType() == PaymentType.INSTALLMENT_PAYMENT) {
+                        return true;
+                    }
                 }
             }
         }
@@ -122,11 +126,32 @@ public class ReservationService {
 
     public String getFinancialCommitmentReason(Reservation reservation) {
         if (reservation == null) return null;
-
-        List<Payment> payments = paymentRepository.findByReservationId(reservation.getId());
-        if (payments.isEmpty() && reservation.getApartment() != null) {
-            payments = paymentRepository.findByApartmentId(reservation.getApartment().getId());
+        List<PaymentPlan> plans = new ArrayList<>();
+        if (reservation.getId() != null) {
+            plans.addAll(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId()));
         }
+        if (reservation.getApartment() != null && reservation.getApartment().getId() != null) {
+            plans.addAll(paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(reservation.getApartment().getId()));
+        }
+
+        List<Payment> payments = new ArrayList<>();
+        if (reservation.getId() != null) {
+            payments.addAll(paymentRepository.findByReservationId(reservation.getId()));
+        }
+        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
+            payments.addAll(paymentRepository.findByApartmentId(reservation.getApartment().getId()));
+        }
+
+        return getFinancialCommitmentReason(reservation, plans, payments);
+    }
+
+    public String getFinancialCommitmentReason(Reservation reservation,
+                                              List<PaymentPlan> relatedPlans,
+                                              List<Payment> relatedPayments) {
+        if (reservation == null) return null;
+
+        List<Payment> payments = relatedPayments != null ? relatedPayments : List.of();
+        List<PaymentPlan> plans = relatedPlans != null ? relatedPlans : List.of();
 
         // 1. Check for verified full payment
         boolean hasFullPayment = payments.stream().anyMatch(p ->
@@ -137,16 +162,9 @@ public class ReservationService {
         }
 
         // 2. Check for active payment plan
-        boolean hasActivePlan = paymentPlanRepository.existsByReservationIdAndStatusIn(
-                reservation.getId(),
-                List.of(PaymentPlanStatus.APPROVED, PaymentPlanStatus.COMPLETED)
+        boolean hasActivePlan = plans.stream().anyMatch(p ->
+                p.getStatus() == PaymentPlanStatus.APPROVED || p.getStatus() == PaymentPlanStatus.COMPLETED
         );
-        if (!hasActivePlan && reservation.getApartment() != null) {
-            List<PaymentPlan> aptPlans = paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(reservation.getApartment().getId());
-            hasActivePlan = aptPlans.stream().anyMatch(p ->
-                    p.getStatus() == PaymentPlanStatus.APPROVED || p.getStatus() == PaymentPlanStatus.COMPLETED
-            );
-        }
         if (hasActivePlan) {
             return "Active Installment Plan";
         }
@@ -168,14 +186,7 @@ public class ReservationService {
         }
 
         // 5. Check for pending payment plan / pending major payment
-        boolean hasPendingPlan = paymentPlanRepository.existsByReservationIdAndStatusIn(
-                reservation.getId(),
-                List.of(PaymentPlanStatus.PENDING)
-        );
-        if (!hasPendingPlan && reservation.getApartment() != null) {
-            List<PaymentPlan> aptPlans = paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(reservation.getApartment().getId());
-            hasPendingPlan = aptPlans.stream().anyMatch(p -> p.getStatus() == PaymentPlanStatus.PENDING);
-        }
+        boolean hasPendingPlan = plans.stream().anyMatch(p -> p.getStatus() == PaymentPlanStatus.PENDING);
         if (hasPendingPlan) {
             return "Payment Plan Review Pending";
         }
@@ -202,35 +213,78 @@ public class ReservationService {
         return ReservationResponse.fromEntity(r, hasCommitment, reason);
     }
 
+    @Transactional(readOnly = true)
+    public List<ReservationResponse> toResponseWithCommitmentList(List<Reservation> reservations) {
+        if (reservations == null || reservations.isEmpty()) return List.of();
+
+        Set<Long> resIds = reservations.stream().map(Reservation::getId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> aptIds = reservations.stream()
+                .map(r -> r.getApartment() != null ? r.getApartment().getId() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<PaymentPlan> allPlans = paymentPlanRepository.findByReservationIdInOrApartmentIdIn(resIds, aptIds);
+        List<Payment> allPayments = paymentRepository.findByReservationIdInOrApartmentIdIn(resIds, aptIds);
+
+        Map<Long, List<PaymentPlan>> plansByResId = allPlans.stream()
+                .filter(p -> p.getReservation() != null && p.getReservation().getId() != null)
+                .collect(Collectors.groupingBy(p -> p.getReservation().getId()));
+
+        Map<Long, List<PaymentPlan>> plansByAptId = allPlans.stream()
+                .filter(p -> p.getApartment() != null && p.getApartment().getId() != null)
+                .collect(Collectors.groupingBy(p -> p.getApartment().getId()));
+
+        Map<Long, List<Payment>> paymentsByResId = allPayments.stream()
+                .filter(p -> p.getReservation() != null && p.getReservation().getId() != null)
+                .collect(Collectors.groupingBy(p -> p.getReservation().getId()));
+
+        Map<Long, List<Payment>> paymentsByAptId = allPayments.stream()
+                .filter(p -> p.getApartment() != null && p.getApartment().getId() != null)
+                .collect(Collectors.groupingBy(p -> p.getApartment().getId()));
+
+        return reservations.stream().map(r -> {
+            Long rId = r.getId();
+            Long aId = r.getApartment() != null ? r.getApartment().getId() : null;
+
+            List<PaymentPlan> relatedPlans = new ArrayList<>();
+            if (rId != null && plansByResId.containsKey(rId)) relatedPlans.addAll(plansByResId.get(rId));
+            if (aId != null && plansByAptId.containsKey(aId)) relatedPlans.addAll(plansByAptId.get(aId));
+
+            List<Payment> relatedPayments = new ArrayList<>();
+            if (rId != null && paymentsByResId.containsKey(rId)) relatedPayments.addAll(paymentsByResId.get(rId));
+            if (aId != null && paymentsByAptId.containsKey(aId)) relatedPayments.addAll(paymentsByAptId.get(aId));
+
+            boolean hasCommitment = hasFinancialCommitment(r, relatedPlans, relatedPayments);
+            String reason = hasCommitment ? getFinancialCommitmentReason(r, relatedPlans, relatedPayments) : null;
+            return ReservationResponse.fromEntity(r, hasCommitment, reason);
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<ReservationResponse> getReservations(UserPrincipal principal, String customerParam) {
         boolean isStaffOrAdmin = principal != null && (
                 principal.getUser().getRole() == UserRole.STAFF ||
                 principal.getUser().getRole() == UserRole.ADMIN);
 
+        List<Reservation> reservations;
         if (isStaffOrAdmin) {
             if (customerParam != null && !customerParam.trim().isEmpty()) {
-                return reservationRepository.findByCustomerEmailOrderByCreatedAtDesc(customerParam.trim()).stream()
-                        .map(this::toResponseWithCommitment)
-                        .collect(Collectors.toList());
+                reservations = reservationRepository.findByCustomerEmailWithDetails(customerParam.trim());
+            } else {
+                reservations = reservationRepository.findAllWithDetails();
             }
-            return reservationRepository.findAll().stream()
-                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                    .map(this::toResponseWithCommitment)
-                    .collect(Collectors.toList());
+        } else {
+            Long customerId = principal != null ? principal.getId() : null;
+            if (customerId == null && customerParam != null) {
+                reservations = reservationRepository.findByCustomerEmailWithDetails(customerParam.trim());
+            } else if (customerId != null) {
+                reservations = reservationRepository.findByCustomerIdWithDetails(customerId);
+            } else {
+                return List.of();
+            }
         }
 
-        Long customerId = principal != null ? principal.getId() : null;
-        if (customerId == null && customerParam != null) {
-            return reservationRepository.findByCustomerEmailOrderByCreatedAtDesc(customerParam.trim()).stream()
-                    .map(this::toResponseWithCommitment)
-                    .collect(Collectors.toList());
-        }
-        if (customerId != null) {
-            return reservationRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
-                    .map(this::toResponseWithCommitment)
-                    .collect(Collectors.toList());
-        }
-        return List.of();
+        return toResponseWithCommitmentList(reservations);
     }
 
     public ReservationResponse getReservationById(Long id) {

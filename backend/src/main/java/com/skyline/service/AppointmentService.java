@@ -53,6 +53,7 @@ public class AppointmentService {
         this.notificationService = notificationService;
     }
 
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getAppointments(UserPrincipal principal, String customerParam) {
         boolean isStaffOrAdmin = principal != null && (
                 principal.getUser().getRole() == UserRole.STAFF ||
@@ -64,8 +65,7 @@ public class AppointmentService {
                         .map(AppointmentResponse::fromEntity)
                         .collect(Collectors.toList());
             }
-            return appointmentRepository.findAll().stream()
-                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+            return appointmentRepository.findAllWithDetails().stream()
                     .map(AppointmentResponse::fromEntity)
                     .collect(Collectors.toList());
         }
@@ -78,7 +78,7 @@ public class AppointmentService {
                     .collect(Collectors.toList());
         }
         if (customerId != null) {
-            return appointmentRepository.findByCustomerIdOrderByDateDesc(customerId).stream()
+            return appointmentRepository.findByCustomerIdWithDetails(customerId).stream()
                     .map(AppointmentResponse::fromEntity)
                     .collect(Collectors.toList());
         }

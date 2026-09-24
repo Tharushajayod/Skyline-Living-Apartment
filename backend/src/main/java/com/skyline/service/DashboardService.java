@@ -11,6 +11,7 @@ import com.skyline.entity.Sale;
 import com.skyline.enums.*;
 import com.skyline.repository.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -46,6 +47,7 @@ public class DashboardService {
         this.saleRepository = saleRepository;
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public DashboardStatsResponse getStats() {
         long totalApts = apartmentRepository.count();
         long availableApts = apartmentRepository.countByStatus(ApartmentStatus.AVAILABLE);
@@ -65,10 +67,7 @@ public class DashboardService {
         long salesCount = saleRepository.count();
         BigDecimal totalRevenue = saleRepository.sumTotalSalesRevenue();
         if (totalRevenue == null || totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
-            totalRevenue = apartmentRepository.findAll().stream()
-                    .filter(a -> a.getStatus() == ApartmentStatus.SOLD)
-                    .map(Apartment::getPrice)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            totalRevenue = apartmentRepository.sumPriceByStatus(ApartmentStatus.SOLD);
         }
 
         BigDecimal realizedRevenue = paymentRepository.sumAmountByStatus(PaymentStatus.VERIFIED);
@@ -117,6 +116,7 @@ public class DashboardService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
     public ReportDataResponse getReports() {
         // 1. Status distribution
         long activeReserved = reservationRepository.countByStatusIn(List.of(ReservationStatus.CONFIRMED, ReservationStatus.PENDING));
@@ -178,10 +178,10 @@ public class DashboardService {
 
         BigDecimal totalRevenue = saleRepository.sumTotalSalesRevenue();
         if (totalRevenue == null || totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
-            totalRevenue = apartmentRepository.findAll().stream()
-                    .filter(a -> a.getStatus() == ApartmentStatus.SOLD)
-                    .map(Apartment::getPrice)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            totalRevenue = apartmentRepository.sumPriceByStatus(ApartmentStatus.SOLD);
+            if (totalRevenue == null) {
+                totalRevenue = BigDecimal.ZERO;
+            }
         }
 
         BigDecimal totalPaid = paymentRepository.sumAmountByStatus(PaymentStatus.VERIFIED);

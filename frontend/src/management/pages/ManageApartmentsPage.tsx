@@ -52,8 +52,9 @@ export default function ManageApartmentsPage() {
   const isAdmin = user?.role === 'admin' || user?.role === 'ADMIN';
   const { toast } = useToast();
 
-  const [list, setList] = useState<Apartment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = apartmentService.getCachedAll();
+  const [list, setList] = useState<Apartment[]>(() => (Array.isArray(cached) ? cached : []));
+  const [loading, setLoading] = useState(!cached || cached.length === 0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -68,9 +69,9 @@ export default function ManageApartmentsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const floorPlanInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchApartments = async () => {
+  const fetchApartments = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const data = await apartmentService.getAll({ includeSold: true });
       setList(data);
     } catch (err: any) {
@@ -82,7 +83,7 @@ export default function ManageApartmentsPage() {
   };
 
   useEffect(() => {
-    fetchApartments();
+    fetchApartments(!cached || cached.length === 0);
   }, []);
 
   const filtered = useMemo(() => {
@@ -262,7 +263,7 @@ export default function ManageApartmentsPage() {
       {/* Header Banner with High-Contrast Amber Add Button */}
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-serif font-bold text-navy-900">Manage Apartments</h1>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-navy-900">Manage Apartments</h1>
           <p className="text-navy-400 mt-1">{filtered.length} of {list.length} properties</p>
         </div>
         <button
@@ -296,7 +297,7 @@ export default function ManageApartmentsPage() {
           <EmptyState variant="search" title="No apartments found" description="Try adjusting your search or filters." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
                   <th className="px-5 py-3.5">Apartment & Residence</th>

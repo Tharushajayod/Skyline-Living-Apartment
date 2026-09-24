@@ -103,7 +103,7 @@ export default function ManagementDashboardPage() {
     <div className="space-y-8 pb-16">
 
       {/* Top Header Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -336,7 +336,7 @@ function ModernKPICard({
   return (
     <Link
       to={to}
-      className={`group bg-white rounded-3xl border p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-200 flex flex-col justify-between ${highlight ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200/90 hover:border-amber-300'
+      className={`group bg-white rounded-3xl border p-5 sm:p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] hover:shadow-md transition-all duration-200 flex flex-col justify-between ${highlight ? 'border-amber-300 bg-amber-50/20' : 'border-slate-200/90 hover:border-amber-300'
         }`}
     >
       <div className="flex items-start justify-between gap-3 mb-4">
@@ -380,7 +380,7 @@ function ModernActivityCard({
   emptyText: string;
 }) {
   return (
-    <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 flex flex-col justify-between">
+    <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-6 flex flex-col justify-between">
       <div>
         <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2.5">

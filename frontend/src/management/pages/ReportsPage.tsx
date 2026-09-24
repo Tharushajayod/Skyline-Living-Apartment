@@ -151,7 +151,7 @@ export default function ReportsPage() {
     <div className="space-y-6 pb-16 w-full relative">
       
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
@@ -171,8 +171,8 @@ export default function ReportsPage() {
         </div>
 
         {/* Filter Controls & Action Button */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="w-44">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0 w-full sm:w-auto">
+          <div className="w-full sm:w-44">
             <Select 
               value={range} 
               onChange={(e) => setRange(e.target.value)} 
@@ -187,7 +187,7 @@ export default function ReportsPage() {
           <button
             type="button"
             onClick={handleExport}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-extrabold text-xs shadow-md shadow-amber-500/20 transition cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-extrabold text-xs shadow-md shadow-amber-500/20 transition cursor-pointer"
           >
             <Download className="w-4 h-4" />
             <span>Export Report</span>
@@ -199,7 +199,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
         {/* Realized Cash Inflow */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-700">
               <TrendingUp className="w-5 h-5" />

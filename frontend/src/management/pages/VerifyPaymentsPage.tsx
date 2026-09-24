@@ -373,7 +373,9 @@ export default function VerifyPaymentsPage() {
           .toLowerCase();
 
       const matchesStatus =
+        !planStatusFilter ||
         planStatusFilter === 'All' ||
+        planStatusFilter.toLowerCase() === 'all' ||
         String(plan.status || '').toLowerCase() === planStatusFilter.toLowerCase();
 
       const matchesSearch =
@@ -639,7 +641,7 @@ export default function VerifyPaymentsPage() {
           HEADER
       ====================================================== */}
 
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-8">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
 
           <div>
@@ -688,7 +690,7 @@ export default function VerifyPaymentsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
 
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)]">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)]">
 
           <div className="flex items-center justify-between mb-3">
 
@@ -718,7 +720,7 @@ export default function VerifyPaymentsPage() {
 
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)]">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)]">
 
           <div className="flex items-center justify-between mb-3">
 
@@ -747,7 +749,7 @@ export default function VerifyPaymentsPage() {
 
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)]">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)]">
 
           <div className="flex items-center justify-between mb-3">
 
@@ -956,7 +958,7 @@ export default function VerifyPaymentsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs uppercase tracking-wider text-slate-500 font-bold">
                       <th className="px-5 py-3.5">Slip Reference</th>
@@ -1107,7 +1109,7 @@ export default function VerifyPaymentsPage() {
             ) : (
               <div className="overflow-x-auto">
 
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[780px]">
 
                   <thead>
 

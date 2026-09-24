@@ -26,4 +26,21 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     boolean existsByApartmentIdAndDateAndTimeSlotAndStatusIn(Long apartmentId, java.time.LocalDate date, String timeSlot, Collection<AppointmentStatus> statuses);
 
     java.util.Optional<Appointment> findFirstByApartmentIdAndCustomerIdAndStatusOrderByDateDesc(Long apartmentId, Long customerId, AppointmentStatus status);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT a FROM Appointment a
+        LEFT JOIN FETCH a.apartment
+        LEFT JOIN FETCH a.customer
+        ORDER BY a.date DESC, a.createdAt DESC
+    """)
+    List<Appointment> findAllWithDetails();
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT DISTINCT a FROM Appointment a
+        LEFT JOIN FETCH a.apartment
+        LEFT JOIN FETCH a.customer
+        WHERE a.customer.id = :customerId
+        ORDER BY a.date DESC, a.createdAt DESC
+    """)
+    List<Appointment> findByCustomerIdWithDetails(@org.springframework.data.repository.query.Param("customerId") Long customerId);
 }

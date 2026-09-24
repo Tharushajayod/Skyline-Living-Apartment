@@ -32,4 +32,13 @@ public interface PaymentPlanRepository
             Long reservationId,
             List<PaymentPlanStatus> statuses
     );
+
+    List<PaymentPlan> findByReservationIdInOrApartmentIdIn(
+            java.util.Collection<Long> reservationIds,
+            java.util.Collection<Long> apartmentIds
+    );
+
+    List<PaymentPlan> findByReservationIdIn(
+            java.util.Collection<Long> reservationIds
+    );
 }
