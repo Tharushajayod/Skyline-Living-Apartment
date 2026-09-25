@@ -193,6 +193,15 @@ export default function Navbar() {
                           </Link>
 
                           <Link
+                            to="/my-apartments"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-amber-900 hover:bg-amber-50 transition"
+                          >
+                            <Building2 className="w-4 h-4 text-amber-600" />
+                            <span>My Purchased Apartments</span>
+                          </Link>
+
+                          <Link
                             to="/reservations"
                             onClick={() => setUserMenuOpen(false)}
                             className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:text-amber-900 hover:bg-amber-50 transition"
@@ -316,6 +325,14 @@ export default function Navbar() {
                   >
                     <LayoutDashboard className="w-4 h-4 text-amber-600" />
                     <span>Dashboard</span>
+                  </Link>
+                  <Link
+                    to="/my-apartments"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 rounded-xl"
+                  >
+                    <Building2 className="w-4 h-4 text-amber-600" />
+                    <span>My Purchased Apartments</span>
                   </Link>
                   <Link
                     to="/reservations"

@@ -179,7 +179,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 pb-20">
-      
+
       {/* Hidden File Input for Avatar */}
       <input
         type="file"
@@ -205,11 +205,11 @@ export default function ProfilePage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         {/* Account Info Card */}
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.04)] p-6 sm:p-8 mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            
+
             {/* Avatar Profile Picture */}
             <div className="relative shrink-0">
               <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-extrabold text-2xl shadow-md shadow-amber-500/20 border-2 border-white">
@@ -221,7 +221,7 @@ export default function ProfilePage() {
                   getInitials(form.name)
                 )}
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-white rounded-full border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:text-amber-600 hover:scale-110 transition"
@@ -252,13 +252,7 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-sm font-bold text-slate-900">{formatDate(user.createdAt)}</p>
               </div>
-              <div className="text-left sm:text-right">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mb-1 justify-start sm:justify-end">
-                  <BadgeCheck className="w-3.5 h-3.5 text-amber-600" />
-                  Client ID
-                </div>
-                <p className="text-sm font-bold text-slate-900">{user.id || 'USR-005'}</p>
-              </div>
+
             </div>
 
           </div>
@@ -266,7 +260,7 @@ export default function ProfilePage() {
 
         {/* 2-Column Forms Layout */}
         <div className="grid lg:grid-cols-2 gap-8">
-          
+
           {/* Edit Profile Form */}
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.04)] p-6 sm:p-7 flex flex-col justify-between">
             <div>
@@ -289,7 +283,7 @@ export default function ProfilePage() {
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 />
                 <Input
-                  label="Email Address (Locked)"
+                  label="Email Address"
                   name="email"
                   type="email"
                   icon={<Mail className="w-4 h-4 text-slate-400" />}
@@ -310,10 +304,10 @@ export default function ProfilePage() {
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-100">
-              <Button 
-                variant="primary" 
-                loading={saving} 
-                icon={!saving ? <Save className="w-4 h-4" /> : undefined} 
+              <Button
+                variant="primary"
+                loading={saving}
+                icon={!saving ? <Save className="w-4 h-4" /> : undefined}
                 onClick={handleSaveProfile}
                 className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border-0 py-3 shadow-md shadow-amber-500/10"
               >
@@ -370,16 +364,16 @@ export default function ProfilePage() {
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-100 space-y-2">
-              <Button 
-                variant="outline" 
-                loading={savingPassword} 
+              <Button
+                variant="outline"
+                loading={savingPassword}
                 onClick={handleChangePassword}
                 className="w-full border-amber-400 text-slate-900 hover:bg-amber-50 font-bold py-3"
               >
                 Update Password
               </Button>
               <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                Passwords are encrypted directly before updating SQL Server records.
+                Passwords are encrypted.
               </p>
             </div>
           </div>

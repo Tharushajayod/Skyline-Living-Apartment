@@ -49,69 +49,9 @@ public class DataInitializer implements CommandLineRunner {
         try {
             initUsers();
             initApartments();
-            syncSalesForSoldApartments();
             log.info("Skyline Living base master data check complete.");
         } catch (Exception e) {
             log.error("Error during master data initialization: {}", e.getMessage(), e);
-        }
-    }
-
-    private void syncSalesForSoldApartments() {
-        List<Apartment> soldApts = apartmentRepository.findAll().stream()
-                .filter(a -> a.getStatus() == ApartmentStatus.SOLD)
-                .toList();
-
-        for (Apartment apt : soldApts) {
-            if (saleRepository.findByApartmentId(apt.getId()).isEmpty()) {
-                Reservation rsv = reservationRepository.findByApartmentId(apt.getId()).stream()
-                        .filter(r -> r.getStatus() == ReservationStatus.CONFIRMED)
-                        .findFirst()
-                        .orElse(null);
-
-                User customer = rsv != null ? rsv.getCustomer() : null;
-                if (customer == null) {
-                    Payment pay = paymentRepository.findAll().stream()
-                            .filter(p -> p.getApartment() != null && apt.getId().equals(p.getApartment().getId()) && p.getCustomer() != null)
-                            .findFirst()
-                            .orElse(null);
-                    if (pay != null) {
-                        customer = pay.getCustomer();
-                    }
-                }
-
-                if (customer == null) {
-                    customer = userRepository.findByEmail("tharushajayod1@gmail.com")
-                            .or(() -> userRepository.findAll().stream().filter(u -> u.getRole() == UserRole.CUSTOMER).findFirst())
-                            .orElse(null);
-                }
-
-                if (customer != null) {
-                    Sale sale = Sale.builder()
-                            .apartment(apt)
-                            .customer(customer)
-                            .customerName(customer.getName())
-                            .customerEmail(customer.getEmail())
-                            .apartmentTitle(apt.getTitle())
-                            .finalPrice(apt.getPrice())
-                            .reservation(rsv)
-                            .saleDate(LocalDate.now())
-                            .staffName("Admin User")
-                            .createdAt(LocalDateTime.now())
-                            .build();
-
-                    Sale saved = saleRepository.save(sale);
-
-                    OwnershipRecord ownership = OwnershipRecord.builder()
-                            .apartment(apt)
-                            .customer(customer)
-                            .sale(saved)
-                            .ownershipDate(LocalDate.now())
-                            .build();
-
-                    ownershipRecordRepository.save(ownership);
-                    log.info("Synchronized missing Sale and OwnershipRecord for sold apartment: {}", apt.getTitle());
-                }
-            }
         }
     }
 
@@ -252,7 +192,7 @@ public class DataInitializer implements CommandLineRunner {
                     .title("Riverside Royal Loft")
                     .buildingName("Skyline Riverfront")
                     .type(ApartmentType.THREE_BEDROOM)
-                    .status(ApartmentStatus.SOLD)
+                    .status(ApartmentStatus.AVAILABLE)
                     .price(new BigDecimal("22500000"))
                     .floor(15)
                     .size(165.0)

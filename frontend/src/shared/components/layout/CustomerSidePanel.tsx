@@ -50,6 +50,7 @@ export default function CustomerSidePanel({ isOpen, onClose }: CustomerSidePanel
       group: 'CLIENT CONCIERGE & ACCOUNTS',
       items: [
         { label: 'My Dashboard', path: '/dashboard', icon: LayoutDashboard, count: null, authOnly: true },
+        { label: 'My Purchased Residences', path: '/my-apartments', icon: Building2, count: null, authOnly: true },
         { label: 'Payments & Milestones', path: '/payments', icon: CreditCard, count: null, authOnly: true },
         { label: 'Priority Unit Holds', path: '/reservations', icon: BookmarkCheck, count: null, authOnly: true },
         { label: 'Viewing Appointments', path: '/appointments', icon: CalendarCheck, count: null, authOnly: true },

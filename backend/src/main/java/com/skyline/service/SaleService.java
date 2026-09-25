@@ -5,6 +5,7 @@ import com.skyline.dto.payment.PaymentPlanItemResponse;
 import com.skyline.dto.payment.PaymentPlanResponse;
 import com.skyline.dto.payment.PaymentResponse;
 import com.skyline.dto.reservation.ReservationResponse;
+import com.skyline.dto.sale.PurchasedApartmentResponse;
 import com.skyline.dto.sale.SaleDetailsResponse;
 import com.skyline.dto.sale.SaleRequest;
 import com.skyline.dto.sale.SaleResponse;
@@ -269,5 +270,32 @@ public class SaleService {
         );
 
         return SaleResponse.fromEntity(savedSale);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PurchasedApartmentResponse> getPurchasedApartmentsForCustomer(UserPrincipal principal) {
+        if (principal == null || principal.getUser() == null) {
+            return List.of();
+        }
+        Long customerId = principal.getUser().getId();
+        String customerEmail = principal.getUser().getEmail();
+        List<Sale> sales = saleRepository.findByCustomerIdOrCustomerEmail(customerId, customerEmail);
+        Map<Long, OwnershipRecord> ownershipMap = ownershipRecordRepository.findByCustomerIdOrCustomerEmail(customerId, customerEmail).stream()
+                .filter(o -> o.getApartment() != null && o.getApartment().getId() != null)
+                .collect(Collectors.toMap(o -> o.getApartment().getId(), o -> o, (o1, o2) -> o1));
+
+        return sales.stream()
+                .sorted((a, b) -> {
+                    if (a.getSaleDate() == null && b.getSaleDate() == null) return 0;
+                    if (a.getSaleDate() == null) return 1;
+                    if (b.getSaleDate() == null) return -1;
+                    return b.getSaleDate().compareTo(a.getSaleDate());
+                })
+                .map(sale -> {
+                    Long aptId = sale.getApartment() != null ? sale.getApartment().getId() : null;
+                    OwnershipRecord ownershipRecord = aptId != null ? ownershipMap.get(aptId) : null;
+                    return PurchasedApartmentResponse.fromSale(sale, ownershipRecord);
+                })
+                .collect(Collectors.toList());
     }
 }

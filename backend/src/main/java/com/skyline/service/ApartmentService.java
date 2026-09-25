@@ -165,9 +165,6 @@ public class ApartmentService {
                 .longitude(request.getLongitude() != null ? request.getLongitude() : 79.8612)
                 .featured(request.getFeatured() != null ? request.getFeatured() : false)
                 .createdAt(LocalDateTime.now())
-                .area(effectiveSize)
-                .floorNumber(effectiveFloor)
-                .location(effectiveAddress)
                 .build();
 
         if (request.getImages() != null && !request.getImages().isEmpty()) {

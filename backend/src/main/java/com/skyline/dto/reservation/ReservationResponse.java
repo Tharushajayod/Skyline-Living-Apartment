@@ -30,11 +30,20 @@ public class ReservationResponse {
     private boolean hasPaymentCommitment;
     private String paymentCommitmentReason;
 
+    private boolean hasCompletedSale;
+    private String saleId;
+    private boolean isFullyPaid;
+
     public static ReservationResponse fromEntity(Reservation r) {
-        return fromEntity(r, false, null);
+        return fromEntity(r, false, null, false, null, false);
     }
 
     public static ReservationResponse fromEntity(Reservation r, boolean hasPaymentCommitment, String paymentCommitmentReason) {
+        return fromEntity(r, hasPaymentCommitment, paymentCommitmentReason, false, null, false);
+    }
+
+    public static ReservationResponse fromEntity(Reservation r, boolean hasPaymentCommitment, String paymentCommitmentReason,
+                                                boolean hasCompletedSale, String saleId, boolean isFullyPaid) {
         if (r == null) return null;
         return ReservationResponse.builder()
                 .id(IdParser.formatId("RSV", r.getId()))
@@ -49,6 +58,9 @@ public class ReservationResponse {
                 .createdAt(r.getCreatedAt() != null ? r.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : "")
                 .hasPaymentCommitment(hasPaymentCommitment)
                 .paymentCommitmentReason(paymentCommitmentReason)
+                .hasCompletedSale(hasCompletedSale)
+                .saleId(saleId)
+                .isFullyPaid(isFullyPaid)
                 .build();
     }
 }

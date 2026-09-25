@@ -210,7 +210,31 @@ public class ReservationService {
         if (r == null) return null;
         boolean hasCommitment = hasFinancialCommitment(r);
         String reason = hasCommitment ? getFinancialCommitmentReason(r) : null;
-        return ReservationResponse.fromEntity(r, hasCommitment, reason);
+
+        Long aId = r.getApartment() != null ? r.getApartment().getId() : null;
+        Sale sale = aId != null ? saleRepository.findByApartmentId(aId).orElse(null) : null;
+        boolean isAptSold = r.getApartment() != null && r.getApartment().getStatus() == ApartmentStatus.SOLD;
+        boolean hasCompletedSale = sale != null || isAptSold;
+
+        List<Payment> payments = new ArrayList<>();
+        if (r.getId() != null) payments.addAll(paymentRepository.findByReservationId(r.getId()));
+        if (aId != null) payments.addAll(paymentRepository.findByApartmentId(aId));
+
+        BigDecimal totalVerified = payments.stream()
+                .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
+                .map(Payment::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal aptPrice = (r.getApartment() != null && r.getApartment().getPrice() != null)
+                ? r.getApartment().getPrice() : BigDecimal.ZERO;
+        boolean isFullPayment = (aptPrice.compareTo(BigDecimal.ZERO) > 0 && totalVerified.compareTo(aptPrice) >= 0)
+                || payments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.VERIFIED && p.getType() == PaymentType.FULL_PAYMENT);
+
+        boolean isFullyPaid = isFullPayment || hasCompletedSale;
+        String saleId = sale != null ? IdParser.formatId("SAL", sale.getId()) : null;
+
+        return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid);
     }
 
     @Transactional(readOnly = true)
@@ -225,6 +249,7 @@ public class ReservationService {
 
         List<PaymentPlan> allPlans = paymentPlanRepository.findByReservationIdInOrApartmentIdIn(resIds, aptIds);
         List<Payment> allPayments = paymentRepository.findByReservationIdInOrApartmentIdIn(resIds, aptIds);
+        List<Sale> allSales = aptIds.isEmpty() ? List.of() : saleRepository.findByApartmentIdIn(aptIds);
 
         Map<Long, List<PaymentPlan>> plansByResId = allPlans.stream()
                 .filter(p -> p.getReservation() != null && p.getReservation().getId() != null)
@@ -242,6 +267,10 @@ public class ReservationService {
                 .filter(p -> p.getApartment() != null && p.getApartment().getId() != null)
                 .collect(Collectors.groupingBy(p -> p.getApartment().getId()));
 
+        Map<Long, Sale> salesByAptId = allSales.stream()
+                .filter(s -> s.getApartment() != null && s.getApartment().getId() != null)
+                .collect(Collectors.toMap(s -> s.getApartment().getId(), s -> s, (s1, s2) -> s1));
+
         return reservations.stream().map(r -> {
             Long rId = r.getId();
             Long aId = r.getApartment() != null ? r.getApartment().getId() : null;
@@ -256,7 +285,26 @@ public class ReservationService {
 
             boolean hasCommitment = hasFinancialCommitment(r, relatedPlans, relatedPayments);
             String reason = hasCommitment ? getFinancialCommitmentReason(r, relatedPlans, relatedPayments) : null;
-            return ReservationResponse.fromEntity(r, hasCommitment, reason);
+
+            Sale sale = aId != null ? salesByAptId.get(aId) : null;
+            Apartment apt = r.getApartment();
+            boolean isAptSold = apt != null && apt.getStatus() == ApartmentStatus.SOLD;
+            boolean hasCompletedSale = sale != null || isAptSold;
+
+            BigDecimal totalVerified = relatedPayments.stream()
+                    .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
+                    .map(Payment::getAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal aptPrice = (apt != null && apt.getPrice() != null) ? apt.getPrice() : BigDecimal.ZERO;
+            boolean isFullPayment = (aptPrice.compareTo(BigDecimal.ZERO) > 0 && totalVerified.compareTo(aptPrice) >= 0)
+                    || relatedPayments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.VERIFIED && p.getType() == PaymentType.FULL_PAYMENT);
+
+            boolean isFullyPaid = isFullPayment || hasCompletedSale;
+            String saleId = sale != null ? IdParser.formatId("SAL", sale.getId()) : null;
+
+            return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid);
         }).collect(Collectors.toList());
     }
 

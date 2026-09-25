@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 @Table(name = "payment_plans", indexes = {
     @Index(name = "idx_pp_reservation_id", columnList = "reservation_id"),
     @Index(name = "idx_pp_customer_id", columnList = "customer_id"),
-    @Index(name = "idx_pp_customer_email", columnList = "customerEmail"),
     @Index(name = "idx_pp_status", columnList = "status"),
     @Index(name = "idx_pp_created_at", columnList = "createdAt")
 })

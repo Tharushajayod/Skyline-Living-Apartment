@@ -97,11 +97,6 @@ public class Apartment {
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // Legacy fields for backward compatibility
-    private Double area;
-    private Integer floorNumber;
-    private String location;
-
     public void addImage(ApartmentImage image) {
         images.add(image);
         image.setApartment(this);

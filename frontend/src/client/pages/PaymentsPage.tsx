@@ -52,6 +52,7 @@ import Badge, {
 
 import Button from '@/shared/components/ui/Button';
 import Modal from '@/shared/components/ui/Modal';
+import PaymentDetailsModal from '@/shared/components/PaymentDetailsModal';
 import EmptyState from '@/shared/components/ui/EmptyState';
 
 import {
@@ -1122,23 +1123,38 @@ export default function PaymentsPage() {
               filteredTransactions.map((payment) => (
                 <div
                   key={payment.id}
-                  className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs hover:border-amber-300 hover:shadow-xs transition duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  onClick={() => setReceiptTarget(payment)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setReceiptTarget(payment);
+                    }
+                  }}
+                  className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs hover:border-amber-400 hover:bg-amber-50/20 hover:shadow-xs transition duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group"
                 >
                   {/* Left Side: Icon & Info */}
                   <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-amber-100/70 border border-slate-200 group-hover:border-amber-300 flex items-center justify-center text-slate-700 group-hover:text-amber-900 shrink-0 transition">
                       <Landmark className="w-5 h-5" />
                     </div>
 
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                        <span className="font-bold text-sm text-slate-900">
+                        <span className="font-bold text-sm text-slate-900 group-hover:text-amber-950 transition">
                           {payment.apartmentTitle || 'Skyline Property'}
                         </span>
                         <span className="text-xs text-slate-300">•</span>
                         <span className="text-[11px] font-mono text-slate-400 font-medium">
                           #{payment.id}
                         </span>
+                        {payment.proofUrl && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full">
+                            <FileCheck className="w-3 h-3 text-emerald-600" />
+                            Slip Attached
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-slate-500 font-medium">
@@ -1159,8 +1175,8 @@ export default function PaymentsPage() {
                     </div>
                   </div>
 
-                  {/* Right Side: Amount & Status & Action */}
-                  <div className="flex items-center justify-between sm:justify-end gap-4 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                  {/* Right Side: Amount & Status */}
+                  <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
                     <div className="text-right">
                       <p className="text-base font-bold text-slate-900">
                         {formatCurrency(Number(payment.amount))}
@@ -1168,15 +1184,9 @@ export default function PaymentsPage() {
                       <div className="mt-0.5">{getPaymentStatusBadge(payment.status)}</div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setReceiptTarget(payment)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
-                      title="View transaction receipt details"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Record</span>
-                    </button>
+                    <div className="text-slate-300 group-hover:text-amber-600 group-hover:translate-x-0.5 transition hidden sm:flex items-center pl-1">
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
                   </div>
                 </div>
               ))
@@ -1532,70 +1542,11 @@ export default function PaymentsPage() {
       {/* ======================================================== */}
       {/* 7. TRANSACTION RECORD DETAILS MODAL                      */}
       {/* ======================================================== */}
-      <Modal
+      <PaymentDetailsModal
+        payment={receiptTarget}
         open={!!receiptTarget}
         onClose={() => setReceiptTarget(null)}
-        title="Payment Record Details"
-        size="md"
-      >
-        {receiptTarget && (
-          <div className="space-y-4 text-xs">
-            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-slate-400 text-[11px]">Payment Transaction ID</p>
-                  <p className="font-mono font-bold text-slate-900 mt-0.5">#{receiptTarget.id}</p>
-                </div>
-                {getPaymentStatusBadge(receiptTarget.status)}
-              </div>
-
-              <div className="border-t border-slate-200 mt-3 pt-3">
-                <p className="text-[11px] text-slate-400">Total Settled Amount</p>
-                <p className="text-2xl font-bold text-slate-900 mt-0.5">
-                  {formatCurrency(Number(receiptTarget.amount))}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <p className="text-[10px] uppercase font-bold text-slate-400">Payment Category</p>
-                <p className="font-bold text-slate-900 mt-0.5">{receiptTarget.type}</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <p className="text-[10px] uppercase font-bold text-slate-400">Submission Date</p>
-                <p className="font-bold text-slate-900 mt-0.5">
-                  {formatDate(receiptTarget.uploadedAt)}
-                </p>
-              </div>
-
-              {receiptTarget.verifiedAt && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                  <p className="text-[10px] uppercase font-bold text-emerald-700">Verified Date</p>
-                  <p className="font-bold text-emerald-900 mt-0.5">
-                    {formatDate(receiptTarget.verifiedAt)}
-                  </p>
-                </div>
-              )}
-
-              {receiptTarget.verifiedBy && (
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <p className="text-[10px] uppercase font-bold text-slate-400">Verified By</p>
-                  <p className="font-bold text-slate-900 mt-0.5">{receiptTarget.verifiedBy}</p>
-                </div>
-              )}
-            </div>
-
-            {receiptTarget.notes && (
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <p className="text-[10px] uppercase font-bold text-slate-400">Notes & Reference</p>
-                <p className="text-slate-700 mt-0.5 italic">"{receiptTarget.notes}"</p>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
+      />
 
       {/* ======================================================== */}
       {/* 8. PAY SCHEDULED INSTALLMENT MODAL                       */}

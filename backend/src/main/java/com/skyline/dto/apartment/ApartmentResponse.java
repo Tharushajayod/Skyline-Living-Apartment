@@ -65,9 +65,9 @@ public class ApartmentResponse {
             facList = new ArrayList<>(apt.getFacilitiesList());
         }
 
-        Integer effectiveFloor = apt.getFloor() != null ? apt.getFloor() : apt.getFloorNumber();
-        Double effectiveSize = apt.getSize() != null ? apt.getSize() : apt.getArea();
-        String effectiveAddress = apt.getAddress() != null ? apt.getAddress() : (apt.getLocation() != null ? apt.getLocation() : "");
+        Integer effectiveFloor = apt.getFloor();
+        Double effectiveSize = apt.getSize();
+        String effectiveAddress = apt.getAddress() != null ? apt.getAddress() : "";
         String effectiveCity = apt.getCity() != null ? apt.getCity() : "";
         String effectiveDistrict = apt.getDistrict() != null ? apt.getDistrict() : effectiveCity;
         

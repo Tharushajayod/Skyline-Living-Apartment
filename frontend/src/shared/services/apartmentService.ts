@@ -1,6 +1,6 @@
 import { apiClient } from './api';
 import { fastCache } from './cache';
-import type { Apartment } from '@/shared/types';
+import type { Apartment, PurchasedApartment } from '@/shared/types';
 
 export const apartmentService = {
   getCachedAll(key = 'apartments_all'): Apartment[] | null {
@@ -64,5 +64,9 @@ export const apartmentService = {
     await apiClient.delete<void>(`/apartments/${id}`);
     fastCache.invalidate('apartments');
     fastCache.invalidate('dashboard');
+  },
+
+  async getMyPurchased(): Promise<PurchasedApartment[]> {
+    return apiClient.get<PurchasedApartment[]>('/sales/my-apartments');
   },
 };

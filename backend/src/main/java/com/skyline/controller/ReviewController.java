@@ -41,6 +41,20 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.getPublishedReviewsByApartment(numericId));
     }
 
+    @GetMapping("/api/reviews/eligible-apartments")
+    public ResponseEntity<List<com.skyline.dto.review.EligibleApartmentResponse>> getEligibleApartments(
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(reviewService.getEligibleApartmentsForReview(userPrincipal));
+    }
+
+    @GetMapping("/api/apartments/{apartmentId}/review-eligibility")
+    public ResponseEntity<com.skyline.dto.review.ReviewEligibilityResponse> checkReviewEligibility(
+            @PathVariable String apartmentId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long numericId = IdParser.parseId(apartmentId);
+        return ResponseEntity.ok(reviewService.checkReviewEligibility(numericId, userPrincipal));
+    }
+
     @PostMapping("/api/reviews")
     public ResponseEntity<ReviewResponse> createReview(
             @AuthenticationPrincipal UserPrincipal userPrincipal,

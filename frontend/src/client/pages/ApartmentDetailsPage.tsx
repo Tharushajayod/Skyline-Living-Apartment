@@ -6,7 +6,7 @@ import {
   MessageSquare, Send, CheckCircle2, Lock, ArrowLeft, Eye, Clock,
   Sparkles, ShieldCheck, DollarSign, Award, ArrowRight
 } from 'lucide-react';
-import type { Apartment, Review } from '@/shared/types';
+import type { Apartment, Review, ReviewEligibility } from '@/shared/types';
 import { apartmentService } from '@/shared/services/apartmentService';
 import { reviewService } from '@/shared/services/reviewService';
 import { appointmentService } from '@/shared/services/appointmentService';
@@ -71,6 +71,7 @@ export default function ApartmentDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewEligibility, setReviewEligibility] = useState<ReviewEligibility | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loginAction, setLoginAction] = useState<'viewing' | 'reservation' | 'inquiry'>('viewing');
 
@@ -108,9 +109,22 @@ export default function ApartmentDetailsPage() {
     reviewService.getByApartment(id).then((data) => {
       if (!active) return;
       setReviews(data);
-    }).catch(() => {});
+    }).catch(() => { });
+
+    if (isAuthenticated) {
+      reviewService.checkEligibility(id).then((data) => {
+        if (!active) return;
+        setReviewEligibility(data);
+      }).catch(() => {
+        if (!active) return;
+        setReviewEligibility(null);
+      });
+    } else {
+      setReviewEligibility(null);
+    }
+
     return () => { active = false; };
-  }, [id]);
+  }, [id, isAuthenticated]);
 
   const isSold = (apartment?.status || '').toLowerCase() === 'sold';
   const isReserved = (apartment?.status || '').toLowerCase() === 'reserved';
@@ -166,7 +180,7 @@ export default function ApartmentDetailsPage() {
     if (user?.email) {
       appointmentService.getByCustomer(user.email).then((data) => {
         if (Array.isArray(data)) setUserAppointments(data);
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [user?.email]);
 
@@ -302,6 +316,10 @@ export default function ApartmentDetailsPage() {
       toast('Review submitted! It will appear once verified by concierge.', 'success');
       setReviewModal(false);
       setReviewForm({ rating: 5, title: '', comment: '' });
+      setReviewEligibility((prev) => (prev ? { ...prev, hasReviewed: true } : null));
+      reviewService.getByApartment(apartment.id).then(setReviews).catch(() => {});
+    } catch (err: any) {
+      toast(err.message || 'Failed to submit review', 'error');
     } finally {
       setSubmittingReview(false);
     }
@@ -373,8 +391,8 @@ export default function ApartmentDetailsPage() {
     );
   }
 
-  const images = apartment.images && apartment.images.length > 0 
-    ? apartment.images 
+  const images = apartment.images && apartment.images.length > 0
+    ? apartment.images
     : [{ id: '1', url: (apartment as any).imageUrl || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80', caption: apartment.title }];
 
   const keyFacts = [
@@ -388,7 +406,7 @@ export default function ApartmentDetailsPage() {
 
   return (
     <div className="min-h-screen bg-[#fafbfe] text-slate-900 pb-24 relative overflow-hidden font-sans selection:bg-amber-100 selection:text-amber-900">
-      
+
       {/* Background ambient lighting */}
       <div className="absolute top-0 left-1/3 w-[700px] h-[350px] bg-gradient-to-b from-amber-100/30 via-amber-50/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
@@ -411,7 +429,7 @@ export default function ApartmentDetailsPage() {
       </div>
 
       <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-10 py-8">
-        
+
         {/* Gallery Showcase */}
         <div className="mb-8">
           <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 shadow-[0_10px_35px_rgba(15,23,42,0.06)] bg-slate-950 aspect-[16/9] sm:aspect-[21/9] max-h-[540px]">
@@ -464,9 +482,8 @@ export default function ApartmentDetailsPage() {
                   key={img.id || i}
                   type="button"
                   onClick={() => setActiveImage(i)}
-                  className={`relative shrink-0 w-24 h-16 rounded-xl overflow-hidden transition-all duration-200 border-2 cursor-pointer ${
-                    activeImage === i ? 'border-amber-500 ring-2 ring-amber-400/30 scale-102' : 'border-transparent opacity-60 hover:opacity-100'
-                  }`}
+                  className={`relative shrink-0 w-24 h-16 rounded-xl overflow-hidden transition-all duration-200 border-2 cursor-pointer ${activeImage === i ? 'border-amber-500 ring-2 ring-amber-400/30 scale-102' : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
                 >
                   <img src={img.url} alt={img.caption} className="w-full h-full object-cover" />
                 </button>
@@ -500,10 +517,10 @@ export default function ApartmentDetailsPage() {
 
         {/* Layout Grid (Main Info + Actions) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
+
           {/* Main Info Column */}
           <div className="lg:col-span-8 space-y-6">
-            
+
             {/* Title Header Card */}
             <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,0.03)]">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-5">
@@ -536,11 +553,11 @@ export default function ApartmentDetailsPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1.5 tracking-tight">
                     {apartment.title}
                   </h1>
-                  
+
                   <p className="text-slate-600 text-xs sm:text-sm flex items-center gap-1.5 font-medium">
                     <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     <span>{apartment.address}, {apartment.district}, {apartment.city}</span>
@@ -636,7 +653,7 @@ export default function ApartmentDetailsPage() {
                             </p>
                           </div>
                         )}
-                        
+
                         <div className="grid grid-cols-3 gap-3">
                           {[
                             { label: 'Total Area', value: `${apartment.size} m²` },
@@ -656,21 +673,48 @@ export default function ApartmentDetailsPage() {
                     label: `Verified Reviews (${reviews.length})`,
                     content: (
                       <div className="space-y-5">
-                        {isAuthenticated && (
-                          <div className="flex items-center justify-between p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl">
-                            <div>
-                              <p className="font-bold text-slate-900 text-xs sm:text-sm">Resident Feedback</p>
-                              <p className="text-xs text-slate-600">Provide an authentic evaluation of this tower and unit</p>
+                        {isAuthenticated ? (
+                          reviewEligibility?.eligible ? (
+                            reviewEligibility.hasReviewed ? (
+                              <div className="flex items-center justify-between p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
+                                <div className="flex items-center gap-2.5">
+                                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                                  <div>
+                                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Review Submitted</p>
+                                    <p className="text-xs text-slate-600">You have already submitted a review for this residence.</p>
+                                  </div>
+                                </div>
+                                <span className="text-[11px] font-bold text-emerald-800 bg-white px-3 py-1.5 rounded-xl border border-emerald-200 shadow-2xs">
+                                  Verified {reviewEligibility.relationshipType === 'PURCHASED' ? 'Owner' : 'Resident'}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-bold text-slate-900 text-xs sm:text-sm">Resident Feedback</p>
+                                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                                      {reviewEligibility.relationshipLabel || (reviewEligibility.relationshipType === 'PURCHASED' ? 'Purchased' : 'Reserved')}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 mt-0.5">Provide an authentic evaluation of this tower and unit</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setReviewModal(true)}
+                                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-sm transition cursor-pointer"
+                                >
+                                  Write Review
+                                </button>
+                              </div>
+                            )
+                          ) : (
+                            <div className="flex items-center gap-2.5 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs text-slate-500">
+                              <ShieldCheck className="w-4 h-4 text-slate-400 shrink-0" />
+                              <span>Verified reviews can be submitted by residents who have reserved or purchased this apartment.</span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setReviewModal(true)}
-                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-sm transition cursor-pointer"
-                            >
-                              Write Review
-                            </button>
-                          </div>
-                        )}
+                          )
+                        ) : null}
 
                         {reviews.length === 0 ? (
                           <EmptyState
@@ -706,7 +750,7 @@ export default function ApartmentDetailsPage() {
 
           {/* Right Column: Sticky Action Booking Panel & Specifications */}
           <div className="lg:col-span-4 space-y-6">
-            
+
             {/* Primary Action Card */}
             <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-[0_4px_20px_rgba(15,23,42,0.03)] sticky top-24">
               <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-0.5">
@@ -768,26 +812,21 @@ export default function ApartmentDetailsPage() {
               ) : (
                 <div className="space-y-3">
                   {/* Workflow Status Callout */}
-                  {hasCompletedTour ? (
-                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Viewing Tour Completed! 48-Hour Reservation Hold unlocked.</span>
+                  {hasCompletedTour ? null : hasScheduledTour ? (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Tour Booked ({formatDate(relevantAppointment!.date)})</span>
                     </div>
-                  ) : hasScheduledTour ? (
-                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 font-medium">
-                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Tour Booked ({formatDate(relevantAppointment!.date)})</span>
-                      </div>
-                      <Link to="/appointments" className="text-[11px] font-bold text-amber-700 underline shrink-0">
-                        View Visit
-                      </Link>
-                    </div>
+                    <Link to="/appointments" className="text-[11px] font-bold text-amber-700 underline shrink-0">
+                      View Visit
+                    </Link>
+                  </div>
                   ) : (
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-1.5">
-                      <CalendarCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>Viewing tour required before reserving this residence.</span>
-                    </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-1.5">
+                    <CalendarCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Viewing tour required before reserving this residence.</span>
+                  </div>
                   )}
 
                   <button
@@ -802,11 +841,10 @@ export default function ApartmentDetailsPage() {
                   <button
                     type="button"
                     onClick={handleRequestReservation}
-                    className={`w-full py-3 px-4 rounded-xl border font-bold text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2 transition duration-200 cursor-pointer ${
-                      hasCompletedTour
+                    className={`w-full py-3 px-4 rounded-xl border font-bold text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2 transition duration-200 cursor-pointer ${hasCompletedTour
                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-600/15'
                         : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400'
-                    }`}
+                      }`}
                   >
                     <FileText className={`w-4 h-4 ${hasCompletedTour ? 'text-white' : 'text-amber-600'}`} />
                     <span>Place 48-Hour Reservation Hold</span>
@@ -1048,9 +1086,8 @@ export default function ApartmentDetailsPage() {
                   className="p-1 cursor-pointer"
                 >
                   <Star
-                    className={`w-6 h-6 ${
-                      star <= reviewForm.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'
-                    }`}
+                    className={`w-6 h-6 ${star <= reviewForm.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'
+                      }`}
                   />
                 </button>
               ))}

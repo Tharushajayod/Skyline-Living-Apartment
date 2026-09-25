@@ -4,7 +4,7 @@ import {
   CalendarCheck, FileText, Wallet, Heart, ArrowRight, Bell,
   Clock, MapPin, Plus, ChevronRight, TrendingUp, Calendar,
   Star, MessageSquareQuote, CheckCircle2, ShieldCheck, KeyRound,
-  ExternalLink, Sparkles, AlertCircle, CheckCheck, Compass
+  ExternalLink, Sparkles, AlertCircle, CheckCheck, Compass, Building2
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useFavorites } from '@/shared/contexts/FavoritesContext';
@@ -23,7 +23,7 @@ import EmptyState from '@/shared/components/ui/EmptyState';
 export default function CustomerDashboardPage() {
   const { user } = useAuth();
   const { count: favCount } = useFavorites();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, refresh: refreshNotifications } = useNotifications();
 
   // Instant SWR state hydration from local cache
   const cachedAppts = user?.email ? appointmentService.getCachedByCustomer(user.email) : null;
@@ -89,8 +89,10 @@ export default function CustomerDashboardPage() {
       })
       .catch(() => { });
 
+    refreshNotifications();
+
     return () => { active = false; };
-  }, [user?.email]);
+  }, [user?.email, refreshNotifications]);
 
   // Contextual greeting based on user's local time
   const greeting = useMemo(() => {
@@ -175,11 +177,11 @@ export default function CustomerDashboardPage() {
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
 
               <Link
-                to="/apartments"
+                to="/my-apartments"
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition cursor-pointer shadow-2xs"
               >
-                <Plus className="w-3.5 h-3.5 text-amber-400" />
-                <span>Browse Residences</span>
+                <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>My Apartments</span>
               </Link>
             </div>
 

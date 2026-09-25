@@ -17,6 +17,7 @@ const ComparePage = lazy(() => import('@/client/pages/ComparePage'));
 const LoginPage = lazy(() => import('@/client/pages/LoginPage'));
 const RegisterPage = lazy(() => import('@/client/pages/RegisterPage'));
 const CustomerDashboardPage = lazy(() => import('@/client/pages/CustomerDashboardPage'));
+const MyApartmentsPage = lazy(() => import('@/client/pages/MyApartmentsPage'));
 const ProfilePage = lazy(() => import('@/client/pages/ProfilePage'));
 const AppointmentsPage = lazy(() => import('@/client/pages/AppointmentsPage'));
 const ReservationsPage = lazy(() => import('@/client/pages/ReservationsPage'));
@@ -57,6 +58,7 @@ function App() {
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
                     <Route path="/dashboard" element={<ProtectedRoute><CustomerDashboardPage /></ProtectedRoute>} />
+                    <Route path="/my-apartments" element={<ProtectedRoute><MyApartmentsPage /></ProtectedRoute>} />
                     <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                     <Route path="/appointments" element={<ProtectedRoute><AppointmentsPage /></ProtectedRoute>} />
                     <Route path="/reservations" element={<ProtectedRoute><ReservationsPage /></ProtectedRoute>} />

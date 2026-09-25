@@ -10,6 +10,7 @@ import Button from '@/shared/components/ui/Button';
 import { Select } from '@/shared/components/ui/Form';
 import EmptyState from '@/shared/components/ui/EmptyState';
 import KPICard from '@/shared/components/ui/KPICard';
+import PaymentDetailsModal from '@/shared/components/PaymentDetailsModal';
 import { formatCurrency, formatDate } from '@/shared/utils/format';
 
 export default function PaymentHistoryPage() {
@@ -20,6 +21,7 @@ export default function PaymentHistoryPage() {
   const [loading, setLoading] = useState(!cached || cached.length === 0);
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -96,23 +98,21 @@ export default function PaymentHistoryPage() {
                   <th className="pb-3 pr-4 font-medium">Apartment</th>
                   <th className="pb-3 pr-4 font-medium">Date</th>
                   <th className="pb-3 pr-4 font-medium">Status</th>
-                  <th className="pb-3 font-medium text-right">Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-navy-50">
                 {filtered.map(pay => (
-                  <tr key={pay.id} className="hover:bg-navy-50/30 transition-colors">
-                    <td className="py-3.5 pr-4 font-mono text-xs text-navy-500">{pay.id}</td>
+                  <tr
+                    key={pay.id}
+                    onClick={() => setSelectedPayment(pay)}
+                    className="hover:bg-amber-50/40 cursor-pointer transition-colors"
+                  >
+                    <td className="py-3.5 pr-4 font-mono text-xs text-navy-500 font-semibold">{pay.id}</td>
                     <td className="py-3.5 pr-4 font-medium text-navy-800">{pay.type}</td>
                     <td className="py-3.5 pr-4 font-serif font-bold text-navy-900">{formatCurrency(pay.amount)}</td>
                     <td className="py-3.5 pr-4 text-navy-600">{pay.apartmentTitle}</td>
                     <td className="py-3.5 pr-4 text-navy-400">{formatDate(pay.uploadedAt)}</td>
                     <td className="py-3.5 pr-4"><Badge variant={statusToVariant(pay.status)} dot size="sm">{pay.status}</Badge></td>
-                    <td className="py-3.5 text-right">
-                      {pay.status === 'Verified' ? (
-                        <Button size="sm" variant="ghost" onClick={() => handleDownload(pay)} icon={<Download className="w-3.5 h-3.5" />}>Download</Button>
-                      ) : <span className="text-xs text-navy-300">N/A</span>}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -120,6 +120,12 @@ export default function PaymentHistoryPage() {
           </div>
         )}
       </div>
+
+      <PaymentDetailsModal
+        payment={selectedPayment}
+        open={!!selectedPayment}
+        onClose={() => setSelectedPayment(null)}
+      />
     </div>
   );
 }

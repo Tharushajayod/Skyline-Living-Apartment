@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import type { Review } from '@/shared/types';
+import type { Review, EligibleApartment, ReviewEligibility } from '@/shared/types';
 import { reviews as mockReviews } from '@/shared/mockData';
 
 const USE_MOCK = false;
@@ -44,5 +44,13 @@ export const reviewService = {
       throw new Error('Review not found');
     }
     return apiClient.patch<Review>(`/reviews/${id}/moderate`, { status });
+  },
+
+  async getEligibleApartments(): Promise<EligibleApartment[]> {
+    return apiClient.get<EligibleApartment[]>('/reviews/eligible-apartments');
+  },
+
+  async checkEligibility(apartmentId: string): Promise<ReviewEligibility> {
+    return apiClient.get<ReviewEligibility>(`/apartments/${apartmentId}/review-eligibility`);
   },
 };

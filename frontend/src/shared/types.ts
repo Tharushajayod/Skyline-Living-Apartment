@@ -105,6 +105,34 @@ export interface Reservation {
   createdAt: string;
   hasPaymentCommitment?: boolean;
   paymentCommitmentReason?: string;
+  hasCompletedSale?: boolean;
+  saleId?: string;
+  isFullyPaid?: boolean;
+}
+
+export interface PurchasedApartment {
+  saleId: string;
+  apartmentId: string;
+  apartmentNumber: string;
+  title: string;
+  buildingName?: string;
+  address: string;
+  city: string;
+  district: string;
+  type: string;
+  floor: number | null;
+  size: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  imageUrl: string;
+  images: string[];
+  purchasePrice: number;
+  purchaseDate: string;
+  status: string;
+  ownershipStatus: string;
+  ownershipDate?: string;
+  reservationId?: string;
+  staffName?: string;
 }
 
 export type RefundStatus = 'Pending' | 'Approved' | 'Processed';
@@ -267,6 +295,41 @@ export interface Review {
   comment: string;
   status: 'Published' | 'Pending' | 'Hidden';
   createdAt: string;
+}
+
+export interface EligibleApartment {
+  id: string;
+  numericId: number;
+  apartmentNumber: string;
+  title: string;
+  buildingName?: string;
+  type?: string;
+  price?: number;
+  floor?: number | null;
+  size?: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  imageUrl?: string;
+  address?: string;
+  city?: string;
+  relationshipType: 'PURCHASED' | 'RESERVED';
+  relationshipLabel: 'Purchased' | 'Reserved';
+  hasReviewed: boolean;
+  existingReviewId?: string;
+  existingReviewStatus?: string;
+  existingReviewRating?: number;
+  existingReviewTitle?: string;
+  existingReviewComment?: string;
+}
+
+export interface ReviewEligibility {
+  eligible: boolean;
+  reason?: string;
+  relationshipType?: 'PURCHASED' | 'RESERVED' | 'STAFF' | null;
+  relationshipLabel?: string | null;
+  hasReviewed: boolean;
+  existingReviewId?: string | null;
+  existingReviewStatus?: string | null;
 }
 
 export type NotificationType =

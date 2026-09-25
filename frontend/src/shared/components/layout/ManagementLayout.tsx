@@ -292,12 +292,11 @@ export default function ManagementLayout() {
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
-      
+
       {/* 1. LEFT SIDEBAR */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-50 bg-white border-r border-slate-200/80 transition-all duration-300 ease-in-out flex flex-col justify-between ${
-          mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
-        } ${collapsed ? 'lg:w-20' : 'lg:w-64'} w-72 max-w-[85vw]`}
+        className={`fixed top-0 left-0 bottom-0 z-50 bg-white border-r border-slate-200/80 transition-all duration-300 ease-in-out flex flex-col justify-between ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+          } ${collapsed ? 'lg:w-20' : 'lg:w-64'} w-72 max-w-[85vw]`}
       >
         <div>
           <div className="h-20 flex items-center px-5 justify-between border-b border-slate-100 relative">
@@ -349,11 +348,10 @@ export default function ManagementLayout() {
                   to={item.path}
                   onClick={() => setMobileMenuOpen(false)}
                   title={collapsed ? item.label : undefined}
-                  className={`relative flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold transition-all duration-200 group ${
-                    isActive
+                  className={`relative flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold transition-all duration-200 group ${isActive
                       ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25 font-extrabold'
                       : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80'
-                  } ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}
+                    } ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}
                 >
                   <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-slate-950' : 'text-slate-400 group-hover:text-slate-800'}`} />
                   <span className={`truncate ${collapsed ? 'lg:hidden' : 'block'}`}>{item.label}</span>
@@ -368,9 +366,8 @@ export default function ManagementLayout() {
           <Link
             to="/"
             onClick={() => setMobileMenuOpen(false)}
-            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition ${
-              collapsed ? 'lg:justify-center lg:px-0' : ''
-            }`}
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition ${collapsed ? 'lg:justify-center lg:px-0' : ''
+              }`}
           >
             <Globe className="w-4 h-4 shrink-0 text-slate-400" />
             <span className={collapsed ? 'lg:hidden' : 'block'}>Back to Site</span>
@@ -379,9 +376,8 @@ export default function ManagementLayout() {
           <button
             type="button"
             onClick={handleLogout}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer ${
-              collapsed ? 'lg:justify-center lg:px-0' : ''
-            }`}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer ${collapsed ? 'lg:justify-center lg:px-0' : ''
+              }`}
           >
             <LogOut className="w-4 h-4 shrink-0" />
             <span className={collapsed ? 'lg:hidden' : 'block'}>Sign Out</span>
@@ -413,17 +409,16 @@ export default function ManagementLayout() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            
+
             {/* CLEAN LUXURY NOTIFICATION POPOVER */}
             <div className="relative" ref={notifRef}>
               <button
                 type="button"
                 onClick={() => setNotifOpen(!notifOpen)}
-                className={`w-10 h-10 rounded-xl border flex items-center justify-center transition relative cursor-pointer ${
-                  notifOpen 
-                    ? 'bg-amber-50 border-amber-300 text-amber-900' 
+                className={`w-10 h-10 rounded-xl border flex items-center justify-center transition relative cursor-pointer ${notifOpen
+                    ? 'bg-amber-50 border-amber-300 text-amber-900'
                     : 'bg-slate-50 border-slate-200/80 text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                }`}
+                  }`}
                 title="Customer Activities & Alerts"
               >
                 <Bell className="w-4 h-4" />
@@ -434,15 +429,13 @@ export default function ManagementLayout() {
 
               {notifOpen && (
                 <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-sm sm:max-w-[450px] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18)] border border-slate-200/90 py-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  
+
                   {/* Clean & Spacious Popover Header */}
                   <div className="px-5 pb-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
-                    
+
                     {/* Left: Title + Total Counter */}
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider truncate">
-                        Customer Activities
-                      </h4>
+
                       <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
                         {activityAlerts.length} Total
                       </span>
@@ -497,9 +490,8 @@ export default function ManagementLayout() {
                             key={n.id}
                             to={n.link}
                             onClick={() => setNotifOpen(false)}
-                            className={`px-5 py-3.5 flex items-start gap-3.5 hover:bg-slate-50/80 transition-colors group relative ${
-                              n.unread ? 'bg-amber-50/25' : ''
-                            }`}
+                            className={`px-5 py-3.5 flex items-start gap-3.5 hover:bg-slate-50/80 transition-colors group relative ${n.unread ? 'bg-amber-50/25' : ''
+                              }`}
                           >
                             <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 mt-0.5 shadow-xs ${bgMap[n.type] || 'bg-slate-50 border-slate-200'}`}>
                               {iconMap[n.type] || <Bell className="w-4 h-4 text-slate-600" />}

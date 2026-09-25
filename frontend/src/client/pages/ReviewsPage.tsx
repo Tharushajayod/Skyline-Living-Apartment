@@ -7,10 +7,8 @@ import {
   Home, ChevronDown, CheckCircle2, SlidersHorizontal,
   ThumbsUp, ShieldCheck
 } from 'lucide-react';
-import type { Review, Apartment, Payment } from '@/shared/types';
+import type { Review, EligibleApartment } from '@/shared/types';
 import { reviewService } from '@/shared/services/reviewService';
-import { apartmentService } from '@/shared/services/apartmentService';
-import { paymentService } from '@/shared/services/paymentService';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useToast } from '@/shared/components/ui/Toast';
 import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
@@ -136,8 +134,8 @@ export default function ReviewsPage() {
 
   const [publicReviews, setPublicReviews] = useState<Review[]>([]);
   const [myReviews, setMyReviews] = useState<Review[]>([]);
-  const [apartmentList, setApartmentList] = useState<Apartment[]>([]);
-  const [customerPayments, setCustomerPayments] = useState<Payment[]>([]);
+  const [eligibleApartments, setEligibleApartments] = useState<EligibleApartment[]>([]);
+  const [loadingEligible, setLoadingEligible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -167,18 +165,28 @@ export default function ReviewsPage() {
       setPublicReviews(approvedOnly);
 
       if (isAuthenticated) {
+        setLoadingEligible(true);
         try {
-          const userReviews = await reviewService.getAll();
+          const [userReviews, eligible] = await Promise.all([
+            reviewService.getAll(),
+            reviewService.getEligibleApartments(),
+          ]);
           if (Array.isArray(userReviews)) {
             const myFiltered = user?.name
               ? userReviews.filter((r) => r.customerName?.toLowerCase() === user.name?.toLowerCase())
               : userReviews;
             setMyReviews(myFiltered.length > 0 ? myFiltered : userReviews);
           }
-        } catch {
+          if (Array.isArray(eligible)) {
+            setEligibleApartments(eligible);
+          }
+        } catch (e) {
+          console.error('Failed to load user reviews or eligible apartments:', e);
           if (user?.name) {
             setMyReviews(approvedOnly.filter((r) => r.customerName?.toLowerCase() === user.name?.toLowerCase()));
           }
+        } finally {
+          setLoadingEligible(false);
         }
       }
     } catch (err: any) {
@@ -192,37 +200,6 @@ export default function ReviewsPage() {
   useEffect(() => {
     loadData();
   }, [isAuthenticated, user]);
-
-  useEffect(() => {
-    if (isAuthenticated && user?.email) {
-      Promise.allSettled([
-        apartmentService.getAll(),
-        paymentService.getByCustomer(user.email),
-      ]).then(([aptRes, payRes]) => {
-        if (aptRes.status === 'fulfilled' && Array.isArray(aptRes.value)) {
-          setApartmentList(aptRes.value);
-        }
-        if (payRes.status === 'fulfilled' && Array.isArray(payRes.value)) {
-          setCustomerPayments(payRes.value);
-        }
-      });
-    }
-  }, [isAuthenticated, user]);
-
-  const purchasedApartments = useMemo(() => {
-    if (!customerPayments.length || !apartmentList.length) return [];
-    const paidApartmentTitles = new Set(
-      customerPayments
-        .filter((p) => p.status === 'Verified' || p.status === 'Pending' || p.status === 'Completed')
-        .map((p) => p.apartmentTitle?.trim().toLowerCase())
-    );
-    const paidApartmentIds = new Set(customerPayments.map((p) => p.apartmentId));
-
-    return apartmentList.filter(
-      (apt) =>
-        paidApartmentTitles.has(apt.title?.trim().toLowerCase()) || paidApartmentIds.has(apt.id)
-    );
-  }, [customerPayments, apartmentList]);
 
   const currentPool = useMemo(() => {
     return activeTab === 'my' ? myReviews : publicReviews;
@@ -268,22 +245,42 @@ export default function ReviewsPage() {
       });
   }, [currentPool, ratingFilter, searchQuery, sortBy]);
 
-  const handleOpenWriteReview = () => {
+  const handleOpenWriteReview = (targetApartmentId?: string) => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
-    if (purchasedApartments.length === 0) {
+    if (eligibleApartments.length === 0) {
       toast('You can write reviews for residences you have reserved or purchased.', 'warning');
       return;
     }
-    setForm((prev) => ({ ...prev, apartmentId: purchasedApartments[0].id }));
+
+    if (targetApartmentId) {
+      const target = eligibleApartments.find((a) => a.apartmentId === targetApartmentId);
+      if (target?.hasReviewed) {
+        toast('You have already submitted a review for this residence.', 'info');
+        return;
+      }
+      setForm((prev) => ({ ...prev, apartmentId: targetApartmentId }));
+      setErrors({});
+      setShowNew(true);
+      return;
+    }
+
+    const firstAvailable = eligibleApartments.find((a) => !a.hasReviewed);
+    if (!firstAvailable) {
+      toast('You have already submitted reviews for all your eligible residences.', 'info');
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, apartmentId: firstAvailable.apartmentId }));
+    setErrors({});
     setShowNew(true);
   };
 
   const handleSubmit = async () => {
     const e: Record<string, string> = {};
-    if (!form.apartmentId) e.apartmentId = 'Please select your purchased residence';
+    if (!form.apartmentId) e.apartmentId = 'Please select your residence';
     if (!form.title.trim()) e.title = 'Review headline is required';
     if (!form.comment.trim()) e.comment = 'Detailed feedback is required';
     setErrors(e);
@@ -291,16 +288,31 @@ export default function ReviewsPage() {
 
     setSubmitting(true);
     try {
-      const apt = apartmentList.find((a) => a.id === form.apartmentId);
+      const selected = eligibleApartments.find((a) => a.apartmentId === form.apartmentId);
       const created = await reviewService.create({
         apartmentId: form.apartmentId,
-        apartmentTitle: apt?.title || '',
+        apartmentTitle: selected?.apartmentTitle || '',
         customerName: user.name || 'Resident',
         rating: form.rating,
         title: form.title.trim(),
         comment: form.comment.trim(),
       });
       setMyReviews((prev) => [created, ...prev]);
+      setEligibleApartments((prev) =>
+        prev.map((a) =>
+          a.apartmentId === form.apartmentId
+            ? {
+                ...a,
+                hasReviewed: true,
+                existingReviewId: created.id,
+                existingReviewStatus: created.status || 'PENDING_REVIEW',
+                existingReviewRating: created.rating,
+                existingReviewTitle: created.title,
+                existingReviewComment: created.comment,
+              }
+            : a
+        )
+      );
       toast('Review submitted! It will appear publicly once approved by moderation.', 'success');
       setShowNew(false);
       setForm({ apartmentId: '', rating: 5, title: '', comment: '' });
@@ -459,6 +471,168 @@ export default function ReviewsPage() {
                   {myReviews.length}
                 </span>
               </button>
+            </div>
+          )}
+
+          {/* Eligible Residences for Review Section (When on 'My Reviews' Tab) */}
+          {isAuthenticated && activeTab === 'my' && (
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 sm:p-7 shadow-2xs mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-amber-600" />
+                    <span>Eligible Residences for Review</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/60">
+                      {eligibleApartments.length}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    You can write reviews for residences you have reserved or purchased.
+                  </p>
+                </div>
+
+                {eligibleApartments.some((a) => !a.hasReviewed) && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenWriteReview()}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition cursor-pointer self-start sm:self-auto shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Write Review</span>
+                  </button>
+                )}
+              </div>
+
+              {loadingEligible ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-44 bg-slate-50 rounded-2xl border border-slate-200/80 animate-pulse" />
+                  ))}
+                </div>
+              ) : eligibleApartments.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-slate-50/70 border border-dashed border-slate-200 text-center max-w-md mx-auto">
+                  <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-2.5" />
+                  <p className="text-xs sm:text-sm font-bold text-slate-700">No Eligible Residences Found</p>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    You can write reviews for residences you have reserved or purchased. Once an apartment hold is placed or full payment is verified, it will appear here.
+                  </p>
+                  <Link
+                    to="/apartments"
+                    className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-700 underline"
+                  >
+                    Explore Residences
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {eligibleApartments.map((apt) => {
+                    const isPurchased = apt.relationshipType === 'PURCHASED';
+                    return (
+                      <div
+                        key={apt.apartmentId}
+                        className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+                      >
+                        <div>
+                          {/* Image & Status Badge */}
+                          <div className="relative h-36 bg-slate-100 overflow-hidden group">
+                            <img
+                              src={apt.imageUrl || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'}
+                              alt={apt.apartmentTitle}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                            <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg shadow-xs backdrop-blur-md ${
+                                  isPurchased
+                                    ? 'bg-emerald-600/90 text-white'
+                                    : 'bg-amber-600/90 text-white'
+                                }`}
+                              >
+                                {isPurchased ? (
+                                  <ShieldCheck className="w-3 h-3 text-white" />
+                                ) : (
+                                  <CheckCircle2 className="w-3 h-3 text-white" />
+                                )}
+                                <span>{isPurchased ? 'Purchased' : 'Reserved'}</span>
+                              </span>
+                            </div>
+
+                            {apt.hasReviewed && (
+                              <div className="absolute top-2.5 right-2.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-900/85 text-white backdrop-blur-md shadow-xs">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  <span>Reviewed</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Body Content */}
+                          <div className="p-4">
+                            <div className="flex items-baseline justify-between gap-2 mb-1">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                                {apt.buildingName || 'Skyline Tower'} {apt.unitNumber ? `• Unit ${apt.unitNumber}` : ''}
+                              </p>
+                              {apt.floor !== undefined && (
+                                <span className="text-[10px] text-slate-400 font-medium">Floor {apt.floor}</span>
+                              )}
+                            </div>
+
+                            <Link
+                              to={`/apartments/${apt.apartmentId}`}
+                              className="text-xs sm:text-sm font-bold text-slate-900 hover:text-amber-600 transition block truncate"
+                            >
+                              {apt.apartmentTitle}
+                            </Link>
+
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              {isPurchased
+                                ? 'Completed full payment sale agreement'
+                                : 'Active 48-hour reservation hold'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Footer Action */}
+                        <div className="p-4 pt-0">
+                          {apt.hasReviewed ? (
+                            <div className="w-full py-2 px-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Already Reviewed</span>
+                              </div>
+                              {apt.existingReviewRating && (
+                                <div className="flex items-center gap-0.5 text-xs font-bold text-slate-800">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                  <span>{apt.existingReviewRating}.0</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenWriteReview(apt.apartmentId)}
+                              className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Write Review</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Section Heading for Submitted Reviews when in 'My Reviews' tab */}
+          {isAuthenticated && activeTab === 'my' && (
+            <div className="pt-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+                My Submitted Reviews ({myReviews.length})
+              </h3>
             </div>
           )}
 
@@ -705,15 +879,16 @@ export default function ReviewsPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Select Your Purchased Residence *
+              Select Your Eligible Residence *
             </label>
             <Select
               value={form.apartmentId}
               onChange={(e) => setForm({ ...form, apartmentId: e.target.value })}
               placeholder="Choose from your verified properties..."
-              options={purchasedApartments.map((a) => ({
-                value: a.id,
-                label: `Verified Unit: ${a.title} (${a.buildingName || 'Tower'})`,
+              options={eligibleApartments.map((a) => ({
+                value: a.apartmentId,
+                label: `${a.apartmentTitle} (${a.relationshipLabel})${a.hasReviewed ? ' — Already Reviewed' : ''}`,
+                disabled: a.hasReviewed,
               }))}
               error={errors.apartmentId}
             />

@@ -225,6 +225,12 @@ export default function ReservationsPage() {
             <span>{rsv.paymentCommitmentReason || 'Payment Commitment'}</span>
           </span>
         )}
+        {(rsv.hasCompletedSale || rsv.isFullyPaid || aptMap.get(rsv.apartmentId)?.status === 'Sold') && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-slate-950 shadow-2xs">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Purchased / Sold
+          </span>
+        )}
       </div>
     );
   };
@@ -235,6 +241,8 @@ export default function ReservationsPage() {
     const isConfirmed = rsv.status === 'Confirmed';
     const isExpired = rsv.status === 'Expired';
     const isCancelled = rsv.status === 'Cancelled';
+    const apt = aptMap.get(rsv.apartmentId);
+    const isSoldOrPurchased = Boolean(rsv.hasCompletedSale || rsv.isFullyPaid || apt?.status === 'Sold');
 
     const steps = [
       {
@@ -248,22 +256,28 @@ export default function ReservationsPage() {
         id: 2,
         title: '48h Hold Active',
         desc: isPending ? 'Lock in progress' : 'Locked',
-        completed: isConfirmed || isPending,
-        current: isPending,
+        completed: isConfirmed || isPending || isSoldOrPurchased,
+        current: isPending && !isSoldOrPurchased,
       },
       {
         id: 3,
         title: 'Deposit / Payment',
-        desc: isConfirmed ? 'Deposit verified' : 'Awaiting confirmation',
-        completed: isConfirmed,
-        current: isConfirmed,
+        desc: isSoldOrPurchased
+          ? 'Full payment verified'
+          : isConfirmed
+            ? 'Deposit verified'
+            : 'Awaiting confirmation',
+        completed: isConfirmed || isSoldOrPurchased,
+        current: isConfirmed && !isSoldOrPurchased,
       },
       {
         id: 4,
         title: 'Sales Agreement',
-        desc: 'Deed transfer',
-        completed: false,
-        current: false,
+        desc: isSoldOrPurchased
+          ? (rsv.hasCompletedSale ? 'Deed transfer active' : 'Sale agreement active')
+          : 'Deed transfer',
+        completed: isSoldOrPurchased,
+        current: isSoldOrPurchased,
       },
     ];
 
@@ -558,8 +572,9 @@ export default function ReservationsPage() {
             <div className="space-y-5">
               {filteredReservations.map((rsv) => {
                 const apt = aptMap.get(rsv.apartmentId);
+                const isSoldOrPurchased = Boolean(rsv.hasCompletedSale || rsv.isFullyPaid || apt?.status === 'Sold');
                 const cd = countdownTo(rsv.expiresAt);
-                const showCountdown = rsv.status === 'Pending' || rsv.status === 'Confirmed';
+                const showCountdown = !isSoldOrPurchased && (rsv.status === 'Pending' || rsv.status === 'Confirmed');
                 const apartmentImg =
                   apt?.images && apt.images.length > 0
                     ? apt.images[0].url
@@ -727,7 +742,15 @@ export default function ReservationsPage() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {rsv.hasPaymentCommitment ? (
+                            {isSoldOrPurchased ? (
+                              <Link
+                                to="/my-apartments"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition cursor-pointer shadow-2xs"
+                              >
+                                <Building2 className="w-3.5 h-3.5" />
+                                <span>View in My Apartments</span>
+                              </Link>
+                            ) : rsv.hasPaymentCommitment ? (
                               <Link
                                 to="/payments"
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-bold text-xs transition cursor-pointer shadow-2xs"

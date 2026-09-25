@@ -113,7 +113,7 @@ export default function SaleDetailsModal({
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Authenticated Escrow Ledger & Title Record</span>
+            <span></span>
           </div>
           <Button variant="outline" onClick={onClose} className="border-slate-300">
             Close Record
@@ -149,7 +149,7 @@ export default function SaleDetailsModal({
           {/* Header Banner */}
           <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-navy-900 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
             <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-            
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -190,11 +190,10 @@ export default function SaleDetailsModal({
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'overview'
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${activeTab === 'overview'
                     ? 'bg-amber-500 text-slate-950 shadow-sm'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
+                  }`}
               >
                 <Building2 className="w-3.5 h-3.5" />
                 Sale & Property Overview
@@ -202,11 +201,10 @@ export default function SaleDetailsModal({
               <button
                 type="button"
                 onClick={() => setActiveTab('financials')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'financials'
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${activeTab === 'financials'
                     ? 'bg-amber-500 text-slate-950 shadow-sm'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
+                  }`}
               >
                 <DollarSign className="w-3.5 h-3.5" />
                 Financials & Payments ({payments.length})
@@ -214,11 +212,10 @@ export default function SaleDetailsModal({
               <button
                 type="button"
                 onClick={() => setActiveTab('plan')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'plan'
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${activeTab === 'plan'
                     ? 'bg-amber-500 text-slate-950 shadow-sm'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
+                  }`}
               >
                 <CreditCard className="w-3.5 h-3.5" />
                 Payment Plan {paymentPlan ? '• Active' : ''}
@@ -620,13 +617,12 @@ export default function SaleDetailsModal({
                               </td>
                               <td className="px-4 py-3">
                                 <span
-                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                    isVerified
+                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${isVerified
                                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                       : isPending
-                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                      : 'bg-rose-50 text-rose-700 border-rose-200'
-                                  }`}
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                                    }`}
                                 >
                                   {isVerified ? (
                                     <CheckCircle2 className="w-3 h-3" />
@@ -833,13 +829,12 @@ export default function SaleDetailsModal({
                                   </td>
                                   <td className="px-4 py-3 text-right">
                                     <span
-                                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                                        isPaid
+                                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${isPaid
                                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                           : isPending
-                                          ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                          : 'bg-slate-100 text-slate-600 border-slate-200'
-                                      }`}
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                                        }`}
                                     >
                                       {isPaid ? (
                                         <CheckCircle2 className="w-3 h-3" />

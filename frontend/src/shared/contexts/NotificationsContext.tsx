@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { Notification } from '@/shared/types';
 import { apiClient } from '@/shared/services/api';
 
@@ -22,7 +22,7 @@ export function useNotifications() {
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const fetchNotifications = () => {
+  const fetchNotifications = useCallback(() => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       apiClient.get<Notification[]>('/notifications')
@@ -33,11 +33,32 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {});
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchNotifications();
-  }, []);
+
+    // Auto-update notifications every 12 seconds
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 12000);
+
+    // Refresh immediately when window or tab regains focus
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [fetchNotifications]);
 
   const markAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));

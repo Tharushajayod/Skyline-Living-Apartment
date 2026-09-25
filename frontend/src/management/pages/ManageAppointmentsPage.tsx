@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import {
   Search, Check, X, CalendarClock, CheckCircle2,
-  Calendar, Building2, User, Mail, Clock
+  Calendar, Building2, User, Mail, Clock, Eye, MessageSquareQuote
 } from 'lucide-react';
 import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
 import EmptyState from '@/shared/components/ui/EmptyState';
@@ -11,6 +11,7 @@ import { appointmentService } from '@/shared/services/appointmentService';
 import { formatDate } from '@/shared/utils/format';
 import type { Appointment, AppointmentStatus } from '@/shared/types';
 import AppointmentRescheduleModal from '@/management/components/AppointmentRescheduleModal';
+import AppointmentDetailsModal from '@/management/components/AppointmentDetailsModal';
 
 const tabStatuses: (AppointmentStatus | 'All')[] = ['All', 'Pending', 'Approved', 'Completed', 'Cancelled'];
 
@@ -22,6 +23,7 @@ export default function ManageAppointmentsPage() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<AppointmentStatus | 'All'>('All');
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   const fetchAppointments = async (showLoading = true) => {
     try {
@@ -44,6 +46,7 @@ export default function ManageAppointmentsPage() {
     try {
       const updated = await appointmentService.updateStatus(id, status);
       setList(prev => prev.map(a => a.id === id ? updated : a));
+      setSelectedAppointment(prev => prev && prev.id === id ? updated : prev);
       toast(msg, 'success');
     } catch (err: any) {
       toast(err.message || 'Failed to update appointment', 'error');
@@ -280,15 +283,24 @@ export default function ManageAppointmentsPage() {
                   const hasAdminProposal = apt.rescheduleStatus === 'Pending Customer' || (apt.rescheduleStatus as any) === 'PENDING_CUSTOMER';
 
                   return (
-                    <tr key={apt.id} className={`hover:bg-slate-50/60 transition-colors ${hasCustomerProposal ? 'bg-blue-50/30' : ''}`}>
+                    <tr
+                      key={apt.id}
+                      onClick={() => setSelectedAppointment(apt)}
+                      className={`hover:bg-amber-50/40 hover:shadow-2xs transition-all duration-150 cursor-pointer group ${
+                        hasCustomerProposal ? 'bg-blue-50/30' : ''
+                      }`}
+                      title="Click row to view full appointment details & customer note"
+                    >
                       {/* Customer */}
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 font-extrabold text-xs shrink-0 shadow-2xs">
+                          <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-700 font-extrabold text-xs shrink-0 shadow-2xs group-hover:border-amber-300 transition-colors">
                             {apt.customerName?.slice(0, 2).toUpperCase() || 'CU'}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-extrabold text-slate-900 text-sm truncate">{apt.customerName}</p>
+                            <p className="font-extrabold text-slate-900 text-sm truncate group-hover:text-amber-800 transition-colors">
+                              {apt.customerName}
+                            </p>
                             <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-0.5">
                               <Mail className="w-3 h-3 shrink-0 text-slate-400" />
                               <span className="truncate">{apt.customerEmail}</span>
@@ -303,7 +315,18 @@ export default function ManageAppointmentsPage() {
                           <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
                           <span className="truncate max-w-[240px]" title={apt.apartmentTitle}>{apt.apartmentTitle}</span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">Appt #{apt.id}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-slate-400">Appt #{apt.id}</p>
+                          {apt.notes && apt.notes.trim() && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80"
+                              title={`Customer note: "${apt.notes}"`}
+                            >
+                              <MessageSquareQuote className="w-3 h-3 text-amber-600 shrink-0" />
+                              Note
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Viewing Schedule (Combined Date & Slot) */}
@@ -343,7 +366,7 @@ export default function ManageAppointmentsPage() {
                       </td>
 
                       {/* Actions */}
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Pending -> Approve & Reject */}
                           {apt.status === 'Pending' && (
@@ -415,6 +438,16 @@ export default function ManageAppointmentsPage() {
                               <CalendarClock className="w-3.5 h-3.5 text-amber-600" />
                             </button>
                           )}
+
+                          {/* View Details Button */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAppointment(apt)}
+                            className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                            title="View full appointment details & customer note"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -425,6 +458,17 @@ export default function ManageAppointmentsPage() {
           </div>
         )}
       </div>
+
+      {/* Appointment Details Modal */}
+      <AppointmentDetailsModal
+        open={!!selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+        appointment={selectedAppointment}
+        onUpdateStatus={updateStatus}
+        onRescheduleClick={(appt) => setRescheduleTarget(appt)}
+        onAcceptReschedule={handleAcceptReschedule}
+        onDeclineReschedule={handleDeclineReschedule}
+      />
 
       {/* Reschedule Modal */}
       <AppointmentRescheduleModal

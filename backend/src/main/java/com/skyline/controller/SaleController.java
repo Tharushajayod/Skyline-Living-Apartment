@@ -16,7 +16,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/sales")
-@PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
 public class SaleController {
 
     private final SaleService saleService;
@@ -26,23 +25,33 @@ public class SaleController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<List<SaleResponse>> getAllSales() {
         return ResponseEntity.ok(saleService.getAllSales());
     }
 
+    @GetMapping("/my-apartments")
+    public ResponseEntity<List<com.skyline.dto.sale.PurchasedApartmentResponse>> getMyPurchasedApartments(
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return ResponseEntity.ok(saleService.getPurchasedApartmentsForCustomer(userPrincipal));
+    }
+
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<SaleResponse> getSaleById(@PathVariable String id) {
         Long numericId = IdParser.parseId(id);
         return ResponseEntity.ok(saleService.getSaleById(numericId));
     }
 
     @GetMapping("/{id}/details")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<com.skyline.dto.sale.SaleDetailsResponse> getSaleDetails(@PathVariable String id) {
         Long numericId = IdParser.parseId(id);
         return ResponseEntity.ok(saleService.getSaleDetails(numericId));
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<SaleResponse> recordSale(
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @Valid @RequestBody SaleRequest request) {
