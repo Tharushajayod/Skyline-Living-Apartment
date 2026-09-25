@@ -256,12 +256,13 @@ export default function ReviewsPage() {
     }
 
     if (targetApartmentId) {
-      const target = eligibleApartments.find((a) => a.apartmentId === targetApartmentId);
+      const target = eligibleApartments.find((a) => (a.apartmentId || a.id) === targetApartmentId);
       if (target?.hasReviewed) {
-        toast('You have already submitted a review for this residence.', 'info');
+        toast('You have already reviewed this apartment.', 'info');
         return;
       }
-      setForm((prev) => ({ ...prev, apartmentId: targetApartmentId }));
+      const actualId = target ? (target.apartmentId || target.id) : targetApartmentId;
+      setForm((prev) => ({ ...prev, apartmentId: actualId }));
       setErrors({});
       setShowNew(true);
       return;
@@ -269,29 +270,39 @@ export default function ReviewsPage() {
 
     const firstAvailable = eligibleApartments.find((a) => !a.hasReviewed);
     if (!firstAvailable) {
-      toast('You have already submitted reviews for all your eligible residences.', 'info');
+      toast('You have already reviewed all your eligible residences.', 'info');
       return;
     }
 
-    setForm((prev) => ({ ...prev, apartmentId: firstAvailable.apartmentId }));
+    const firstId = firstAvailable.apartmentId || firstAvailable.id;
+    setForm((prev) => ({ ...prev, apartmentId: firstId }));
     setErrors({});
     setShowNew(true);
   };
 
   const handleSubmit = async () => {
     const e: Record<string, string> = {};
-    if (!form.apartmentId) e.apartmentId = 'Please select your residence';
+    const selectedAptId = form.apartmentId?.trim();
+    if (!selectedAptId || selectedAptId === 'undefined' || selectedAptId === 'null') {
+      e.apartmentId = 'Please select your residence';
+    }
     if (!form.title.trim()) e.title = 'Review headline is required';
     if (!form.comment.trim()) e.comment = 'Detailed feedback is required';
     setErrors(e);
     if (Object.keys(e).length > 0 || !user) return;
 
+    const selected = eligibleApartments.find((a) => (a.apartmentId || a.id) === selectedAptId);
+    if (selected?.hasReviewed) {
+      toast('You have already reviewed this apartment.', 'info');
+      setShowNew(false);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const selected = eligibleApartments.find((a) => a.apartmentId === form.apartmentId);
       const created = await reviewService.create({
-        apartmentId: form.apartmentId,
-        apartmentTitle: selected?.apartmentTitle || '',
+        apartmentId: selectedAptId,
+        apartmentTitle: selected?.apartmentTitle || selected?.title || '',
         customerName: user.name || 'Resident',
         rating: form.rating,
         title: form.title.trim(),
@@ -300,7 +311,7 @@ export default function ReviewsPage() {
       setMyReviews((prev) => [created, ...prev]);
       setEligibleApartments((prev) =>
         prev.map((a) =>
-          a.apartmentId === form.apartmentId
+          (a.apartmentId || a.id) === selectedAptId
             ? {
                 ...a,
                 hasReviewed: true,
@@ -318,7 +329,7 @@ export default function ReviewsPage() {
       setForm({ apartmentId: '', rating: 5, title: '', comment: '' });
       setActiveTab('my');
     } catch (err: any) {
-      toast(err.message || 'Failed to submit review', 'error');
+      toast(err.message || 'Unable to submit your review. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -357,7 +368,7 @@ export default function ReviewsPage() {
                 <div className="mt-4">
                   <button
                     type="button"
-                    onClick={handleOpenWriteReview}
+                    onClick={() => handleOpenWriteReview()}
                     className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5 text-amber-400" />
@@ -527,9 +538,11 @@ export default function ReviewsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {eligibleApartments.map((apt) => {
                     const isPurchased = apt.relationshipType === 'PURCHASED';
+                    const aptId = apt.apartmentId || apt.id;
+                    const aptTitle = apt.apartmentTitle || apt.title;
                     return (
                       <div
-                        key={apt.apartmentId}
+                        key={aptId}
                         className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
                       >
                         <div>
@@ -537,7 +550,7 @@ export default function ReviewsPage() {
                           <div className="relative h-36 bg-slate-100 overflow-hidden group">
                             <img
                               src={apt.imageUrl || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'}
-                              alt={apt.apartmentTitle}
+                              alt={aptTitle}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             />
                             <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
@@ -571,18 +584,18 @@ export default function ReviewsPage() {
                           <div className="p-4">
                             <div className="flex items-baseline justify-between gap-2 mb-1">
                               <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                                {apt.buildingName || 'Skyline Tower'} {apt.unitNumber ? `• Unit ${apt.unitNumber}` : ''}
+                                {apt.buildingName || 'Skyline Tower'} {apt.unitNumber || apt.apartmentNumber ? `• Unit ${apt.unitNumber || apt.apartmentNumber}` : ''}
                               </p>
-                              {apt.floor !== undefined && (
+                              {apt.floor !== undefined && apt.floor !== null && (
                                 <span className="text-[10px] text-slate-400 font-medium">Floor {apt.floor}</span>
                               )}
                             </div>
 
                             <Link
-                              to={`/apartments/${apt.apartmentId}`}
+                              to={`/apartments/${aptId}`}
                               className="text-xs sm:text-sm font-bold text-slate-900 hover:text-amber-600 transition block truncate"
                             >
-                              {apt.apartmentTitle}
+                              {aptTitle}
                             </Link>
 
                             <p className="text-[11px] text-slate-500 mt-1">
@@ -611,7 +624,7 @@ export default function ReviewsPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => handleOpenWriteReview(apt.apartmentId)}
+                              onClick={() => handleOpenWriteReview(aptId)}
                               className="w-full py-2 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                             >
                               <Plus className="w-3.5 h-3.5 text-amber-400" />
@@ -743,7 +756,7 @@ export default function ReviewsPage() {
                 isAuthenticated && (
                   <button
                     type="button"
-                    onClick={handleOpenWriteReview}
+                    onClick={() => handleOpenWriteReview()}
                     className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-2xs transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5 text-amber-400" />
@@ -883,13 +896,25 @@ export default function ReviewsPage() {
             </label>
             <Select
               value={form.apartmentId}
-              onChange={(e) => setForm({ ...form, apartmentId: e.target.value })}
+              onChange={(e) => {
+                const chosenId = e.target.value;
+                const chosen = eligibleApartments.find((a) => (a.apartmentId || a.id) === chosenId);
+                if (chosen?.hasReviewed) {
+                  toast('You have already reviewed this apartment.', 'info');
+                  return;
+                }
+                setForm((prev) => ({ ...prev, apartmentId: chosenId }));
+              }}
               placeholder="Choose from your verified properties..."
-              options={eligibleApartments.map((a) => ({
-                value: a.apartmentId,
-                label: `${a.apartmentTitle} (${a.relationshipLabel})${a.hasReviewed ? ' — Already Reviewed' : ''}`,
-                disabled: a.hasReviewed,
-              }))}
+              options={eligibleApartments.map((a) => {
+                const aId = a.apartmentId || a.id;
+                const aTitle = a.apartmentTitle || a.title;
+                const relLabel = a.relationshipLabel || (a.relationshipType === 'PURCHASED' ? 'Purchased' : 'Reserved');
+                return {
+                  value: aId,
+                  label: `${aTitle} (${relLabel})${a.hasReviewed ? ' — Already Reviewed' : ''}`,
+                };
+              })}
               error={errors.apartmentId}
             />
           </div>

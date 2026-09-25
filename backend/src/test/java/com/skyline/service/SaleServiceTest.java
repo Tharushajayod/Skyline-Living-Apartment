@@ -7,7 +7,6 @@ import com.skyline.enums.ReservationStatus;
 import com.skyline.enums.UserRole;
 import com.skyline.enums.UserStatus;
 import com.skyline.repository.ApartmentRepository;
-import com.skyline.repository.OwnershipRecordRepository;
 import com.skyline.repository.ReservationRepository;
 import com.skyline.repository.SaleRepository;
 import com.skyline.security.UserPrincipal;
@@ -31,9 +30,6 @@ class SaleServiceTest {
 
     @Mock
     private SaleRepository saleRepository;
-
-    @Mock
-    private OwnershipRecordRepository ownershipRecordRepository;
 
     @Mock
     private ApartmentRepository apartmentRepository;
@@ -62,7 +58,6 @@ class SaleServiceTest {
     void setUp() {
         saleService = new SaleService(
                 saleRepository,
-                ownershipRecordRepository,
                 apartmentRepository,
                 reservationRepository,
                 paymentRepository,
@@ -74,7 +69,7 @@ class SaleServiceTest {
     }
 
     @Test
-    void testCompletedSaleChangesApartmentToSoldAndCreatesOwnershipRecord() {
+    void testCompletedSaleChangesApartmentToSoldAndUpdatesSaleOwnership() {
         User staff = User.builder()
                 .id(2L)
                 .name("Staff Member")
@@ -132,9 +127,11 @@ class SaleServiceTest {
         assertEquals(ReservationStatus.CONFIRMED, reservation.getStatus());
 
         verify(apartmentRepository).save(apartment);
-        verify(saleRepository).save(any(Sale.class));
-        verify(ownershipRecordRepository).save(argThat(rec ->
-                rec.getApartment().equals(apartment) && rec.getCustomer().equals(customer)));
+        verify(saleRepository).save(argThat(s ->
+                s.getApartment().equals(apartment) &&
+                s.getCustomer().equals(customer) &&
+                "Deed Transferred".equals(s.getOwnershipStatus()) &&
+                s.getOwnershipDate() != null));
         verify(notificationService).createNotification(eq(customer), any(), anyString(), anyString());
     }
 }

@@ -56,9 +56,6 @@ class ReservationServiceTest {
     private com.skyline.repository.SaleRepository saleRepository;
 
     @Mock
-    private com.skyline.repository.OwnershipRecordRepository ownershipRecordRepository;
-
-    @Mock
     private UserService userService;
 
     @Mock
@@ -80,7 +77,6 @@ class ReservationServiceTest {
                 paymentPlanRepository,
                 reservationRefundRepository,
                 saleRepository,
-                ownershipRecordRepository,
                 userService,
                 notificationService
         );
@@ -264,7 +260,6 @@ class ReservationServiceTest {
                 .build();
 
         when(reservationRepository.findById(61L)).thenReturn(Optional.of(reservation));
-        when(paymentPlanRepository.existsByReservationIdAndStatusIn(eq(61L), any())).thenReturn(true);
 
         com.skyline.dto.reservation.ReservationCancellationRequest request =
                 new com.skyline.dto.reservation.ReservationCancellationRequest(

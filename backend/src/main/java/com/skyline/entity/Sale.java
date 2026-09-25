@@ -53,6 +53,16 @@ public class Sale {
 
     private String staffName;
 
+    @Column(name = "ownership_status")
+    @Builder.Default
+    private String ownershipStatus = "Deed Transferred";
+
+    @Column(name = "ownership_date")
+    private LocalDate ownershipDate;
+
+    @Column(name = "deed_reference_number")
+    private String deedReferenceNumber;
+
     @Column(nullable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

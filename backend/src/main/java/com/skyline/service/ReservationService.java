@@ -13,7 +13,6 @@ import com.skyline.exception.ForbiddenException;
 import com.skyline.exception.ResourceNotFoundException;
 import com.skyline.repository.ApartmentRepository;
 import com.skyline.repository.AppointmentRepository;
-import com.skyline.repository.OwnershipRecordRepository;
 import com.skyline.repository.PaymentPlanRepository;
 import com.skyline.repository.PaymentRepository;
 import com.skyline.repository.ReservationRefundRepository;
@@ -39,7 +38,6 @@ public class ReservationService {
     private final PaymentPlanRepository paymentPlanRepository;
     private final ReservationRefundRepository reservationRefundRepository;
     private final SaleRepository saleRepository;
-    private final OwnershipRecordRepository ownershipRecordRepository;
     private final UserService userService;
     private final NotificationService notificationService;
 
@@ -50,7 +48,6 @@ public class ReservationService {
                               PaymentPlanRepository paymentPlanRepository,
                               ReservationRefundRepository reservationRefundRepository,
                               SaleRepository saleRepository,
-                              OwnershipRecordRepository ownershipRecordRepository,
                               UserService userService,
                               NotificationService notificationService) {
         this.reservationRepository = reservationRepository;
@@ -60,7 +57,6 @@ public class ReservationService {
         this.paymentPlanRepository = paymentPlanRepository;
         this.reservationRefundRepository = reservationRefundRepository;
         this.saleRepository = saleRepository;
-        this.ownershipRecordRepository = ownershipRecordRepository;
         this.userService = userService;
         this.notificationService = notificationService;
     }
@@ -234,7 +230,12 @@ public class ReservationService {
         boolean isFullyPaid = isFullPayment || hasCompletedSale;
         String saleId = sale != null ? IdParser.formatId("SAL", sale.getId()) : null;
 
-        return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid);
+        BigDecimal fee = r.getReservationFee() != null ? r.getReservationFee() : BigDecimal.ZERO;
+        BigDecimal nonRefundable = fee;
+        BigDecimal otherPaid = totalVerified.compareTo(fee) > 0 ? totalVerified.subtract(fee) : BigDecimal.ZERO;
+        BigDecimal refundable = otherPaid;
+
+        return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid, totalVerified, otherPaid, refundable, nonRefundable);
     }
 
     @Transactional(readOnly = true)
@@ -304,7 +305,12 @@ public class ReservationService {
             boolean isFullyPaid = isFullPayment || hasCompletedSale;
             String saleId = sale != null ? IdParser.formatId("SAL", sale.getId()) : null;
 
-            return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid);
+            BigDecimal fee = r.getReservationFee() != null ? r.getReservationFee() : BigDecimal.ZERO;
+            BigDecimal nonRefundable = fee;
+            BigDecimal otherPaid = totalVerified.compareTo(fee) > 0 ? totalVerified.subtract(fee) : BigDecimal.ZERO;
+            BigDecimal refundable = otherPaid;
+
+            return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid, totalVerified, otherPaid, refundable, nonRefundable);
         }).collect(Collectors.toList());
     }
 
@@ -513,26 +519,51 @@ public class ReservationService {
             throw new BadRequestException("This reservation is already cancelled.");
         }
 
-        if (hasFinancialCommitment(reservation)) {
-            throw new BadRequestException("Reservation cannot be cancelled because a payment or active payment plan is associated with this reservation.");
+        if (reservation.getApartment() != null && reservation.getApartment().getId() != null) {
+            if (saleRepository.findByApartmentId(reservation.getApartment().getId()).isPresent()) {
+                throw new BadRequestException("Reservation cannot be cancelled because a completed sale deed is already registered for this apartment.");
+            }
         }
 
         if (reservationRefundRepository.existsByReservationId(reservation.getId())) {
             throw new ConflictException("A refund/financial record has already been processed for this reservation.");
         }
 
-        // Financial validation
-        BigDecimal originalFee = reservation.getReservationFee();
+        // Financial calculation: Reservation Fee is strictly non-refundable
+        List<Payment> payments = paymentRepository.findByReservationId(reservation.getId());
+        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
+            payments = paymentRepository.findByApartmentId(reservation.getApartment().getId());
+        }
+        BigDecimal totalVerifiedPaid = payments.stream()
+                .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
+                .map(Payment::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal reservationFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
+        BigDecimal otherPaidAmount = totalVerifiedPaid.compareTo(reservationFee) > 0
+                ? totalVerifiedPaid.subtract(reservationFee)
+                : BigDecimal.ZERO;
+
         BigDecimal refundAmount = request.getRefundAmount();
         BigDecimal companyRetained = request.getCompanyRetainedAmount();
 
-        validateRefundCalculation(originalFee, refundAmount, companyRetained);
+        validateRefundCalculation(totalVerifiedPaid, reservationFee, otherPaidAmount, refundAmount, companyRetained);
+
+        // Cancel any active or pending payment plans for this reservation
+        List<PaymentPlan> plans = paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId());
+        for (PaymentPlan p : plans) {
+            if (p.getStatus() == PaymentPlanStatus.PENDING || p.getStatus() == PaymentPlanStatus.AWAITING_CUSTOMER || p.getStatus() == PaymentPlanStatus.APPROVED) {
+                p.setStatus(PaymentPlanStatus.CANCELLED);
+                paymentPlanRepository.save(p);
+            }
+        }
 
         // Update reservation status
         reservation.setStatus(ReservationStatus.CANCELLED);
         Reservation savedReservation = reservationRepository.save(reservation);
 
-        // Update apartment availability safely if eligible (unsold and no other active hold)
+        // Update apartment availability safely if eligible
         if (reservation.getApartment() != null) {
             updateApartmentAvailabilityAfterReservationChange(reservation.getApartment().getId());
         }
@@ -541,13 +572,14 @@ public class ReservationService {
         Payment payment = findAssociatedReservationPayment(reservation.getId(), reservation.getApartment().getId());
 
         String processorName = principal != null ? principal.getUser().getName() : "Management Staff";
+        BigDecimal recordedBasis = totalVerifiedPaid.compareTo(BigDecimal.ZERO) > 0 ? totalVerifiedPaid : reservationFee;
 
         ReservationRefund refundRecord = ReservationRefund.builder()
                 .reservation(savedReservation)
                 .customer(savedReservation.getCustomer())
                 .apartment(savedReservation.getApartment())
                 .payment(payment)
-                .originalFee(originalFee)
+                .originalFee(recordedBasis)
                 .refundAmount(refundAmount)
                 .companyRetainedAmount(companyRetained)
                 .refundStatus(RefundStatus.PROCESSED)
@@ -567,8 +599,8 @@ public class ReservationService {
                 reservation.getCustomer(),
                 NotificationType.RESERVATION,
                 "Reservation Cancelled & Refund Processed",
-                "Your reservation for " + reservation.getApartment().getTitle() + " has been cancelled. Refund amount: "
-                        + refundAmount + ", Company retained cancellation fee: " + companyRetained + "."
+                "Your reservation for " + reservation.getApartment().getTitle() + " has been cancelled. Non-refundable reservation fee: "
+                        + reservationFee + ", Customer refund: " + refundAmount + ", Company retained: " + companyRetained + "."
         );
 
         return ReservationRefundResponse.fromEntity(savedRefund);
@@ -586,23 +618,38 @@ public class ReservationService {
             throw new ConflictException("A refund/settlement has already been recorded for this expired reservation.");
         }
 
-        BigDecimal originalFee = reservation.getReservationFee();
+        List<Payment> payments = paymentRepository.findByReservationId(reservation.getId());
+        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
+            payments = paymentRepository.findByApartmentId(reservation.getApartment().getId());
+        }
+        BigDecimal totalVerifiedPaid = payments.stream()
+                .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
+                .map(Payment::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal reservationFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
+        BigDecimal otherPaidAmount = totalVerifiedPaid.compareTo(reservationFee) > 0
+                ? totalVerifiedPaid.subtract(reservationFee)
+                : BigDecimal.ZERO;
+
         BigDecimal refundAmount = request.getRefundAmount();
         BigDecimal companyRetained = request.getCompanyRetainedAmount();
 
-        validateRefundCalculation(originalFee, refundAmount, companyRetained);
+        validateRefundCalculation(totalVerifiedPaid, reservationFee, otherPaidAmount, refundAmount, companyRetained);
 
         // Find associated payment
         Payment payment = findAssociatedReservationPayment(reservation.getId(), reservation.getApartment().getId());
 
         String processorName = principal != null ? principal.getUser().getName() : "Management Staff";
+        BigDecimal recordedBasis = totalVerifiedPaid.compareTo(BigDecimal.ZERO) > 0 ? totalVerifiedPaid : reservationFee;
 
         ReservationRefund refundRecord = ReservationRefund.builder()
                 .reservation(reservation)
                 .customer(reservation.getCustomer())
                 .apartment(reservation.getApartment())
                 .payment(payment)
-                .originalFee(originalFee)
+                .originalFee(recordedBasis)
                 .refundAmount(refundAmount)
                 .companyRetainedAmount(companyRetained)
                 .refundStatus(RefundStatus.PROCESSED)
@@ -623,29 +670,33 @@ public class ReservationService {
                 NotificationType.RESERVATION,
                 "Expired Reservation Settlement Processed",
                 "Financial settlement for your expired reservation on " + reservation.getApartment().getTitle()
-                        + " has been recorded. Refund amount: " + refundAmount + ", Company retained amount: " + companyRetained + "."
+                        + " has been recorded. Non-refundable reservation fee: " + reservationFee + ", Customer refund: " + refundAmount + ", Company retained: " + companyRetained + "."
         );
 
         return ReservationRefundResponse.fromEntity(savedRefund);
     }
 
-    private void validateRefundCalculation(BigDecimal originalFee, BigDecimal refundAmount, BigDecimal companyRetained) {
-        if (originalFee == null || originalFee.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BadRequestException("Original reservation fee must be positive.");
-        }
+    private void validateRefundCalculation(BigDecimal totalPaid, BigDecimal reservationFee, BigDecimal otherPaidAmount,
+                                           BigDecimal refundAmount, BigDecimal companyRetained) {
         if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException("Refund amount cannot be negative.");
         }
         if (companyRetained == null || companyRetained.compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestException("Company retained amount cannot be negative.");
         }
-        if (refundAmount.compareTo(originalFee) > 0) {
-            throw new BadRequestException("Refund amount (" + refundAmount + ") cannot exceed original reservation fee (" + originalFee + ").");
+        if (refundAmount.compareTo(otherPaidAmount) > 0) {
+            throw new BadRequestException("Refund amount (" + refundAmount + ") cannot exceed refundable other payments (" + otherPaidAmount
+                    + "). The reservation fee of " + reservationFee + " is strictly non-refundable.");
         }
         BigDecimal sum = refundAmount.add(companyRetained);
-        if (sum.compareTo(originalFee) != 0) {
+        BigDecimal basis = totalPaid.compareTo(BigDecimal.ZERO) > 0 ? totalPaid : reservationFee;
+        if (sum.compareTo(basis) != 0) {
             throw new BadRequestException("Refund amount (" + refundAmount + ") + Company retained amount (" + companyRetained
-                    + ") must exactly equal original reservation fee (" + originalFee + ").");
+                    + ") must exactly equal total payments recorded (" + basis + ").");
+        }
+        if (companyRetained.compareTo(reservationFee) < 0 && totalPaid.compareTo(reservationFee) >= 0) {
+            throw new BadRequestException("Company retained amount (" + companyRetained
+                    + ") must include at least the non-refundable reservation fee (" + reservationFee + ").");
         }
     }
 
@@ -688,12 +739,7 @@ public class ReservationService {
             return;
         }
 
-        // 3. If an Ownership Record exists for this apartment, keep it SOLD
-        if (ownershipRecordRepository.findByApartmentId(apartmentId).isPresent()) {
-            return;
-        }
-
-        // 4. Verify there are no other active reservations (PENDING or CONFIRMED)
+        // 3. Verify there are no other active reservations (PENDING or CONFIRMED)
         boolean hasActive = reservationRepository.existsByApartmentIdAndStatusIn(
                 apartmentId,
                 Arrays.asList(ReservationStatus.PENDING, ReservationStatus.CONFIRMED)

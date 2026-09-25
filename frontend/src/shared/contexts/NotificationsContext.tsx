@@ -23,6 +23,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const fetchNotifications = useCallback(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     const token = localStorage.getItem('auth_token');
     if (token) {
       apiClient.get<Notification[]>('/notifications')
@@ -38,25 +39,29 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchNotifications();
 
-    // Auto-update notifications every 12 seconds
+    // Auto-update notifications every 20 seconds when online and tab is active
     const interval = setInterval(() => {
-      fetchNotifications();
-    }, 12000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    }, 20000);
 
-    // Refresh immediately when window or tab regains focus
-    const handleFocus = () => {
-      if (document.visibilityState === 'visible') {
+    // Refresh immediately when window or tab regains focus or comes back online
+    const handleActive = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         fetchNotifications();
       }
     };
 
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleFocus);
+    window.addEventListener('focus', handleActive);
+    window.addEventListener('online', handleActive);
+    document.addEventListener('visibilitychange', handleActive);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('focus', handleActive);
+      window.removeEventListener('online', handleActive);
+      document.removeEventListener('visibilitychange', handleActive);
     };
   }, [fetchNotifications]);
 

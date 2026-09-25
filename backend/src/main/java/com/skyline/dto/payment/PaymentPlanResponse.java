@@ -41,6 +41,24 @@ public class PaymentPlanResponse {
 
     private BigDecimal remainingAmount;
 
+    private BigDecimal annualInterestRate;
+
+    private BigDecimal interestAmount;
+
+    private BigDecimal additionalAmount;
+
+    private BigDecimal apartmentPrice;
+
+    private BigDecimal reservationFee;
+
+    private BigDecimal remainingPrincipal;
+
+    private String apartmentNumber;
+
+    private String buildingName;
+
+    private String reservationDate;
+
     private String startDate;
 
     private PaymentPlanStatus status;
@@ -112,6 +130,49 @@ public class PaymentPlanResponse {
                 .totalPlanAmount(plan.getTotalPlanAmount())
 
                 .remainingAmount(plan.getRemainingAmount())
+
+                .annualInterestRate(plan.getAnnualInterestRate())
+
+                .interestAmount(plan.getInterestAmount())
+
+                .additionalAmount(plan.getAdditionalAmount())
+
+                .apartmentPrice(
+                        plan.getApartment() != null
+                                ? plan.getApartment().getPrice()
+                                : null
+                )
+
+                .reservationFee(
+                        plan.getReservation() != null
+                                ? plan.getReservation().getReservationFee()
+                                : null
+                )
+
+                .remainingPrincipal(
+                        (plan.getApartment() != null && plan.getReservation() != null &&
+                         plan.getApartment().getPrice() != null && plan.getReservation().getReservationFee() != null)
+                                ? plan.getApartment().getPrice().subtract(plan.getReservation().getReservationFee())
+                                : null
+                )
+
+                .apartmentNumber(
+                        plan.getApartment() != null
+                                ? plan.getApartment().getApartmentNumber()
+                                : null
+                )
+
+                .buildingName(
+                        plan.getApartment() != null
+                                ? plan.getApartment().getBuildingName()
+                                : null
+                )
+
+                .reservationDate(
+                        plan.getReservation() != null && plan.getReservation().getCreatedAt() != null
+                                ? plan.getReservation().getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME)
+                                : null
+                )
 
                 .startDate(
                         plan.getStartDate() != null

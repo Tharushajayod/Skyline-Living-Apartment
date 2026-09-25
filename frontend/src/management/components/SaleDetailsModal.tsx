@@ -25,7 +25,7 @@ import Modal from '@/shared/components/ui/Modal';
 import Badge from '@/shared/components/ui/Badge';
 import Button from '@/shared/components/ui/Button';
 import { salesService } from '@/shared/services/managementService';
-import { formatCurrency, formatDate } from '@/shared/utils/format';
+import { formatCurrency, formatDate, getFriendlyErrorMessage } from '@/shared/utils/format';
 import type { SaleDetails, Payment, PaymentPlanItem } from '@/shared/types';
 
 interface SaleDetailsModalProps {
@@ -72,7 +72,7 @@ export default function SaleDetailsModal({
         if (isMounted) {
           console.error('Failed to load sale details:', err);
           if (!cached) {
-            setError(err.message || 'Unable to retrieve complete sale records.');
+            setError(getFriendlyErrorMessage(err, 'Unable to retrieve complete sale records.'));
           }
         }
       })

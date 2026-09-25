@@ -70,6 +70,27 @@ public class PaymentPlan {
     )
     private BigDecimal remainingAmount;
 
+    @Column(
+        name = "annual_interest_rate",
+        precision = 10,
+        scale = 2
+    )
+    private BigDecimal annualInterestRate;
+
+    @Column(
+        name = "interest_amount",
+        precision = 19,
+        scale = 2
+    )
+    private BigDecimal interestAmount;
+
+    @Column(
+        name = "additional_amount",
+        precision = 19,
+        scale = 2
+    )
+    private BigDecimal additionalAmount;
+
     @Column(name = "start_date")
     private LocalDate startDate;
 

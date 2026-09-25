@@ -32,7 +32,7 @@ import type { Reservation, Apartment, ReservationStatus } from '@/shared/types';
 import { reservationService } from '@/shared/services/reservationService';
 import { apartmentService } from '@/shared/services/apartmentService';
 import { useAuth } from '@/shared/contexts/AuthContext';
-import { formatCurrency, formatDate, countdownTo } from '@/shared/utils/format';
+import { formatCurrency, formatDate, countdownTo, getFriendlyErrorMessage } from '@/shared/utils/format';
 import ReservationDetailsModal from '@/management/components/ReservationDetailsModal';
 
 type FilterTab = 'all' | 'active' | 'confirmed' | 'completed_cancelled';
@@ -113,7 +113,7 @@ export default function ReservationsPage() {
     } catch (err: any) {
       console.error('Error fetching reservations page data:', err);
       if (rsvs.length === 0) {
-        setError(err?.message || 'Error communicating with the reservation server.');
+        setError(getFriendlyErrorMessage(err, 'Unable to communicate with the reservation server.'));
       }
     } finally {
       setLoading(false);

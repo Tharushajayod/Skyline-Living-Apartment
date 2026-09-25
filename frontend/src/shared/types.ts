@@ -108,6 +108,10 @@ export interface Reservation {
   hasCompletedSale?: boolean;
   saleId?: string;
   isFullyPaid?: boolean;
+  totalPaid?: number;
+  otherPaidAmount?: number;
+  refundableAmount?: number;
+  nonRefundableFee?: number;
 }
 
 export interface PurchasedApartment {
@@ -174,13 +178,18 @@ export type PaymentType =
   | 'Installment'
   | 'Full Payment'
   | 'Installment Payment'
-  | 'Part Payment';
+  | 'Part Payment'
+  | 'RESERVATION_FEE'
+  | 'FULL_PAYMENT'
+  | 'INSTALLMENT'
+  | 'PART_PAYMENT';
 
 export type PaymentStatus = 'Pending' | 'Verified' | 'Rejected';
 
 export interface Payment {
   id: string;
   reservationId: string;
+  apartmentId?: string;
   apartmentTitle: string;
   customerName: string;
   type: PaymentType;
@@ -202,6 +211,8 @@ export type PaymentPlanType =
 
 export type PaymentPlanStatus =
   | 'Pending'
+  | 'Plan Ready for Confirmation'
+  | 'Terms Proposed'
   | 'Approved'
   | 'Rejected'
   | 'Completed'
@@ -236,6 +247,18 @@ export interface PaymentPlan {
 
   totalPlanAmount: number;
   remainingAmount: number;
+
+  annualInterestRate?: number;
+  interestAmount?: number;
+  additionalAmount?: number;
+
+  apartmentPrice?: number;
+  reservationFee?: number;
+  remainingPrincipal?: number;
+
+  apartmentNumber?: string;
+  buildingName?: string;
+  reservationDate?: string;
 
   startDate?: string;
 
@@ -299,9 +322,12 @@ export interface Review {
 
 export interface EligibleApartment {
   id: string;
-  numericId: number;
-  apartmentNumber: string;
+  apartmentId?: string;
+  numericId?: number;
+  apartmentNumber?: string;
+  unitNumber?: string;
   title: string;
+  apartmentTitle?: string;
   buildingName?: string;
   type?: string;
   price?: number;

@@ -2,7 +2,6 @@ package com.skyline.dto.sale;
 
 import com.skyline.entity.Apartment;
 import com.skyline.entity.ApartmentImage;
-import com.skyline.entity.OwnershipRecord;
 import com.skyline.entity.Sale;
 import com.skyline.util.IdParser;
 import lombok.AllArgsConstructor;
@@ -44,7 +43,7 @@ public class PurchasedApartmentResponse {
     private String reservationId;
     private String staffName;
 
-    public static PurchasedApartmentResponse fromSale(Sale sale, OwnershipRecord ownershipRecord) {
+    public static PurchasedApartmentResponse fromSale(Sale sale) {
         if (sale == null) return null;
         Apartment apt = sale.getApartment();
 
@@ -54,6 +53,14 @@ public class PurchasedApartmentResponse {
             imgUrls = apt.getImages().stream().map(ApartmentImage::getUrl).collect(Collectors.toList());
             primaryImg = imgUrls.get(0);
         }
+
+        String effectiveOwnershipStatus = sale.getOwnershipStatus() != null && !sale.getOwnershipStatus().trim().isEmpty()
+                ? sale.getOwnershipStatus()
+                : "Deed Transferred";
+
+        String effectiveOwnershipDate = sale.getOwnershipDate() != null
+                ? sale.getOwnershipDate().toString()
+                : (sale.getSaleDate() != null ? sale.getSaleDate().toString() : "");
 
         return PurchasedApartmentResponse.builder()
                 .saleId(IdParser.formatId("SAL", sale.getId()))
@@ -74,10 +81,8 @@ public class PurchasedApartmentResponse {
                 .purchasePrice(sale.getFinalPrice())
                 .purchaseDate(sale.getSaleDate() != null ? sale.getSaleDate().toString() : "")
                 .status("Purchased")
-                .ownershipStatus(ownershipRecord != null ? "Deed Transferred" : "Sale Completed")
-                .ownershipDate(ownershipRecord != null && ownershipRecord.getOwnershipDate() != null
-                        ? ownershipRecord.getOwnershipDate().toString()
-                        : (sale.getSaleDate() != null ? sale.getSaleDate().toString() : ""))
+                .ownershipStatus(effectiveOwnershipStatus)
+                .ownershipDate(effectiveOwnershipDate)
                 .reservationId(sale.getReservation() != null ? IdParser.formatId("RSV", sale.getReservation().getId()) : "")
                 .staffName(sale.getStaffName() != null ? sale.getStaffName() : "Skyline Sales Desk")
                 .build();

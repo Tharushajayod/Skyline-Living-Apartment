@@ -28,7 +28,7 @@ export default function ManageUsersPage() {
   const [confirmTarget, setConfirmTarget] = useState<User | null>(null);
   const [submittingRole, setSubmittingRole] = useState(false);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'ADMIN';
+  const isAdmin = (user?.role as string)?.toLowerCase() === 'admin';
 
   const fetchUsers = async () => {
     try {

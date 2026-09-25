@@ -14,7 +14,13 @@ import Button from '@/shared/components/ui/Button';
 import { Input, Select } from '@/shared/components/ui/Form';
 import { useToast } from '@/shared/components/ui/Toast';
 import { appointmentService } from '@/shared/services/appointmentService';
-import { formatDate } from '@/shared/utils/format';
+import {
+  formatDate,
+  getTodayDateString,
+  isPastDate,
+  getAvailableTimeSlots,
+  ALL_VIEWING_TIME_SLOTS,
+} from '@/shared/utils/format';
 import type { Appointment, AppointmentRescheduleHistory } from '@/shared/types';
 
 interface AppointmentRescheduleModalProps {
@@ -24,16 +30,7 @@ interface AppointmentRescheduleModalProps {
   onSuccess: () => void;
 }
 
-const ALL_TIME_SLOTS = [
-  '09:00 AM - 10:00 AM',
-  '10:00 AM - 11:00 AM',
-  '11:00 AM - 12:00 PM',
-  '01:00 PM - 02:00 PM',
-  '02:00 PM - 03:00 PM',
-  '03:00 PM - 04:00 PM',
-  '04:00 PM - 05:00 PM',
-  '05:00 PM - 06:00 PM',
-];
+const ALL_TIME_SLOTS = ALL_VIEWING_TIME_SLOTS;
 
 export default function AppointmentRescheduleModal({
   open,
@@ -49,11 +46,16 @@ export default function AppointmentRescheduleModal({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const todayStr = new Date().toISOString().substring(0, 10);
+  const todayStr = getTodayDateString();
 
   useEffect(() => {
     if (open && appointment) {
-      setRescheduleDate(appointment.date || todayStr);
+      // If previous appointment date was in the past, default to today
+      const defaultDate = appointment.date && !isPastDate(appointment.date)
+        ? appointment.date
+        : todayStr;
+
+      setRescheduleDate(defaultDate);
       setRescheduleTime(appointment.timeSlot || '10:00 AM - 11:00 AM');
       setReason('');
 
@@ -65,34 +67,12 @@ export default function AppointmentRescheduleModal({
         .catch(() => setHistory([]))
         .finally(() => setLoadingHistory(false));
     }
-  }, [open, appointment]);
+  }, [open, appointment, todayStr]);
 
   // Filter available time slots when selecting today
   const availableSlots = useMemo(() => {
-    if (!rescheduleDate) return ALL_TIME_SLOTS;
-
-    if (rescheduleDate === todayStr) {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-
-      return ALL_TIME_SLOTS.filter((slot) => {
-        // Parse slot start time (e.g. "09:00 AM" or "02:00 PM")
-        const startPart = slot.split('-')[0].trim();
-        const [timePart, modifier] = startPart.split(' ');
-        let [hours, minutes] = timePart.split(':').map(Number);
-
-        if (modifier === 'PM' && hours < 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
-
-        if (hours > currentHour) return true;
-        if (hours === currentHour && (minutes || 0) > currentMinute) return true;
-        return false;
-      });
-    }
-
-    return ALL_TIME_SLOTS;
-  }, [rescheduleDate, todayStr]);
+    return getAvailableTimeSlots(rescheduleDate, ALL_TIME_SLOTS);
+  }, [rescheduleDate]);
 
   // Update selected time if current selection is not available
   useEffect(() => {
@@ -103,14 +83,24 @@ export default function AppointmentRescheduleModal({
 
   if (!open || !appointment) return null;
 
-  const isPastDate = rescheduleDate < todayStr;
+  const dateIsPast = isPastDate(rescheduleDate);
   const isReasonEmpty = !reason.trim();
   const noSlotsAvailable = availableSlots.length === 0;
-  const isValid = !isPastDate && !isReasonEmpty && !noSlotsAvailable;
+  const isValid = !dateIsPast && !isReasonEmpty && !noSlotsAvailable;
 
   const handleConfirm = async () => {
-    if (!isValid) {
-      toast('Please enter a valid future date, time slot, and reason', 'error');
+    if (dateIsPast) {
+      toast('Appointment date cannot be in the past.', 'error');
+      return;
+    }
+
+    if (noSlotsAvailable) {
+      toast('No time slots available for the selected date. Please choose another date.', 'error');
+      return;
+    }
+
+    if (isReasonEmpty) {
+      toast('Please enter a reason for the reschedule request.', 'error');
       return;
     }
 
@@ -125,7 +115,7 @@ export default function AppointmentRescheduleModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast(err.message || 'Failed to submit reschedule proposal', 'error');
+      toast(err.message || 'Unable to submit reschedule proposal. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -197,7 +187,7 @@ export default function AppointmentRescheduleModal({
               onChange={(e) => setRescheduleDate(e.target.value)}
               className="w-full text-xs rounded-xl border border-slate-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-slate-900"
             />
-            {isPastDate && (
+            {dateIsPast && (
               <p className="text-[11px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5" />
                 Past dates are not allowed. Please choose today or a future date.

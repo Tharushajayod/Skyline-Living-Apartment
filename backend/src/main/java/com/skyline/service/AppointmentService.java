@@ -91,19 +91,23 @@ public class AppointmentService {
                 .collect(Collectors.toList());
     }
 
+    public static final java.time.ZoneId APP_ZONE = java.time.ZoneId.of("Asia/Colombo");
+
     private void validateFutureDateTime(LocalDate date, String timeSlot) {
         if (date == null) {
-            throw new BadRequestException("Appointment date is required");
+            throw new BadRequestException("Please select a valid appointment date.");
         }
-        if (date.isBefore(LocalDate.now())) {
-            throw new BadRequestException("Viewing date cannot be in the past");
+        LocalDate today = LocalDate.now(APP_ZONE);
+        if (date.isBefore(today)) {
+            throw new BadRequestException("Appointment date cannot be in the past.");
         }
-        if (date.isEqual(LocalDate.now()) && timeSlot != null && !timeSlot.trim().isEmpty()) {
+        if (date.isEqual(today) && timeSlot != null && !timeSlot.trim().isEmpty()) {
             LocalTime slotStartTime = parseSlotStartTime(timeSlot);
             if (slotStartTime != null) {
                 LocalDateTime slotDateTime = LocalDateTime.of(date, slotStartTime);
-                if (slotDateTime.isBefore(LocalDateTime.now())) {
-                    throw new BadRequestException("Selected time slot (" + timeSlot + ") has already passed for today. Please choose a future time slot.");
+                LocalDateTime nowTime = LocalDateTime.now(APP_ZONE);
+                if (slotDateTime.isBefore(nowTime)) {
+                    throw new BadRequestException("The selected time slot (" + timeSlot + ") has already passed for today. Please choose a future time slot.");
                 }
             }
         }

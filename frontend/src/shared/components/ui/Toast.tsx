@@ -35,6 +35,8 @@ const borders = {
   warning: 'border-l-warning-500',
 };
 
+import { getFriendlyErrorMessage } from '@/shared/utils/errorHandler';
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -44,7 +46,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const toast = useCallback((message: string, type: ToastType = 'success') => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setToasts(prev => [...prev, { id, type, message }]);
+    const cleanMessage = type === 'error' ? getFriendlyErrorMessage(message) : (message || '');
+    setToasts(prev => [...prev, { id, type, message: cleanMessage }]);
     setTimeout(() => remove(id), 4000);
   }, [remove]);
 

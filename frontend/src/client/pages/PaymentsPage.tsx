@@ -14,6 +14,7 @@ import {
   Landmark,
   Layers3,
   Loader2,
+  Lock,
   Plus,
   ReceiptText,
   ShieldCheck,
@@ -64,6 +65,8 @@ import {
 import {
   formatCurrency,
   formatDate,
+  getTodayDateString,
+  isPastDate,
 } from '@/shared/utils/format';
 
 /* =========================================================
@@ -282,12 +285,13 @@ export default function PaymentsPage() {
       const reservationFeePending =
         !reservationFeePaid && feePayments.some((p) => p.status === 'Pending');
 
-      const matchingPlan = plans.find(
-        (plan) =>
-          (plan.reservationId === reservation.id ||
-            plan.apartmentId === reservation.apartmentId) &&
-          (plan.status === 'Approved' || plan.status === 'Pending')
-      );
+      const matchingPlan = plans
+        .filter(
+          (plan) =>
+            plan.reservationId === reservation.id ||
+            plan.apartmentId === reservation.apartmentId
+        )
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
       return {
         reservationId: reservation.id,
@@ -385,6 +389,14 @@ export default function PaymentsPage() {
     account: PropertyAccount,
     mode: SettlementMode = 'Full'
   ) => {
+    if (!account.reservationFeePaid) {
+      if (account.reservationFeePending) {
+        toast('Payment options will be available after your reservation payment is approved.', 'info');
+        return;
+      }
+      mode = 'ReservationFee';
+    }
+
     setSelectedAccountId(account.reservationId);
     setSettlementMode(mode);
 
@@ -406,6 +418,11 @@ export default function PaymentsPage() {
   const handleFullPayment = async () => {
     if (!selectedAccount) {
       toast('Please select a property account.', 'error');
+      return;
+    }
+
+    if (settlementMode === 'Full' && !selectedAccount.reservationFeePaid) {
+      toast('Payment options will be available after your reservation payment is approved.', 'error');
       return;
     }
 
@@ -459,8 +476,15 @@ export default function PaymentsPage() {
      SUBMIT PAYMENT PLAN REQUEST
      ========================================================= */
   const handlePlanRequest = async () => {
+    if (submittingPlan) return;
+
     if (!selectedAccount) {
       toast('Please select a property account.', 'error');
+      return;
+    }
+
+    if (!selectedAccount.reservationFeePaid) {
+      toast('Payment options will be available after your reservation payment is approved.', 'error');
       return;
     }
 
@@ -470,9 +494,16 @@ export default function PaymentsPage() {
       return;
     }
 
-    if (!planPaymentCount || planPaymentCount < 2) {
-      toast('A payment plan must contain at least 2 installments.', 'error');
-      return;
+    if (settlementMode === 'Installment') {
+      if (!planPaymentCount || planPaymentCount < 2 || planPaymentCount > 60) {
+        toast('Installment plan requires between 2 and 60 installments.', 'error');
+        return;
+      }
+    } else if (settlementMode === 'PartPayment') {
+      if (!planPaymentCount || planPaymentCount < 2 || planPaymentCount > 5) {
+        toast('Part payment requires between 2 and 5 parts.', 'error');
+        return;
+      }
     }
 
     if (!planStartDate) {
@@ -480,15 +511,23 @@ export default function PaymentsPage() {
       return;
     }
 
+    if (isPastDate(planStartDate)) {
+      toast('First payment date cannot be in the past. Please select today or a future date.', 'error');
+      return;
+    }
+
     const existingActivePlan = plans.find(
       (plan) =>
         plan.reservationId === selectedAccount.reservationId &&
-        (plan.status === 'Pending' || plan.status === 'Approved')
+        (plan.status === 'Pending' ||
+         plan.status === 'Plan Ready for Confirmation' ||
+         plan.status === 'Terms Proposed' ||
+         plan.status === 'Approved')
     );
 
     if (existingActivePlan) {
       toast(
-        `This property already has an active ${existingActivePlan.status.toLowerCase()} payment plan.`,
+        'You already have an active or proposed payment plan for this reservation.',
         'error'
       );
       return;
@@ -507,16 +546,47 @@ export default function PaymentsPage() {
       });
 
       toast(
-        'Payment plan request submitted. No payment is required until the plan is reviewed and approved.',
+        'Payment plan request submitted successfully. No payment is required until the plan is reviewed and approved.',
         'success'
       );
 
       setPaymentModalOpen(false);
       await loadData();
     } catch (error: any) {
-      toast(error?.message || 'Unable to submit payment plan.', 'error');
+      toast(error?.message || 'We couldn\'t create the payment plan right now. Please try again.', 'error');
     } finally {
       setSubmittingPlan(false);
+    }
+  };
+
+  /* =========================================================
+     CUSTOMER RE-APPROVAL ACTIONS
+     ========================================================= */
+  const [actingPlanId, setActingPlanId] = useState<string | null>(null);
+
+  const handleCustomerAcceptPlan = async (planId: string) => {
+    try {
+      setActingPlanId(planId);
+      await paymentPlanService.customerAccept(planId);
+      toast('Payment plan terms confirmed and activated! You can now make scheduled payments.', 'success');
+      await loadData();
+    } catch (err: any) {
+      toast(err?.message || 'Failed to accept payment plan terms.', 'error');
+    } finally {
+      setActingPlanId(null);
+    }
+  };
+
+  const handleCustomerDeclinePlan = async (planId: string) => {
+    try {
+      setActingPlanId(planId);
+      await paymentPlanService.customerDecline(planId);
+      toast('You have declined the proposed payment plan.', 'info');
+      await loadData();
+    } catch (err: any) {
+      toast(err?.message || 'Failed to decline payment plan terms.', 'error');
+    } finally {
+      setActingPlanId(null);
     }
   };
 
@@ -890,7 +960,137 @@ export default function PaymentsPage() {
                         )}
                       </div>
 
-                      {/* Active Payment Plan Items List (if applicable) */}
+                      {/* Pending Review Status */}
+                      {plan && plan.status === 'Pending' && (
+                        <div className="mt-4 p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-amber-950">
+                            <span className="flex items-center gap-1.5">
+                              <Clock3 className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                              Waiting for Admin Approval
+                            </span>
+                            <span className="text-[10px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded font-mono">
+                              {String(plan.planType || '').toLowerCase().includes('part') ? `${plan.numberOfPayments} Parts` : `${plan.numberOfPayments} Installments`}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                            Your payment plan request is currently under financial review. Once staff configures and approves the applicable terms, you will be invited to review and confirm the finalized schedule.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Terms Proposed / Awaiting Customer Confirmation */}
+                      {plan && (plan.status === 'Plan Ready for Confirmation' || plan.status === 'Terms Proposed') && (
+                        <div className="mt-4 p-4 rounded-2xl bg-blue-50/80 border-2 border-blue-300 space-y-3.5 shadow-xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
+                              </span>
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-blue-950">
+                                Plan Ready for Your Confirmation
+                              </h4>
+                            </div>
+                            <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full">
+                              Confirmation Required
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-blue-900/90 leading-relaxed">
+                            Management has reviewed your payment plan request and prepared the finalized terms below. Please review the breakdown and accept the terms to confirm and activate your schedule.
+                          </p>
+
+                          {/* Proposed Financial Breakdown */}
+                          <div className="bg-white rounded-xl p-3.5 border border-blue-200/80 space-y-2 text-xs">
+                            <div className="flex justify-between items-center text-slate-600">
+                              <span>Apartment Price:</span>
+                              <span className="font-bold text-slate-900">{formatCurrency(plan.apartmentPrice || account.totalPrice)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600">
+                              <span>Reservation Fee (Paid):</span>
+                              <span className="font-bold text-slate-900">-{formatCurrency(plan.reservationFee || account.reservationFee)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600 border-t border-slate-100 pt-1">
+                              <span>Remaining Principal:</span>
+                              <span className="font-bold text-slate-900">{formatCurrency(plan.remainingPrincipal || (account.totalPrice - account.reservationFee))}</span>
+                            </div>
+
+                            {!String(plan.planType || '').toLowerCase().includes('part') ? (
+                              <>
+                                <div className="flex justify-between items-center text-slate-600">
+                                  <span>Annual Interest Rate:</span>
+                                  <span className="font-bold text-blue-700">{plan.annualInterestRate || 0}%</span>
+                                </div>
+                                <div className="flex justify-between items-center text-slate-600">
+                                  <span>Interest Amount:</span>
+                                  <span className="font-bold text-slate-900">+{formatCurrency(plan.interestAmount || 0)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-slate-900 border-t border-slate-200 pt-1 font-bold">
+                                  <span>Total Payable under Plan:</span>
+                                  <span className="text-amber-800 font-extrabold text-sm">{formatCurrency(plan.totalPlanAmount)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-emerald-900 bg-emerald-50 border border-emerald-200 p-2 rounded-xl font-bold">
+                                  <span>Monthly Installment ({plan.numberOfPayments} payments):</span>
+                                  <span className="text-emerald-900 font-extrabold text-sm">{formatCurrency(plan.paymentAmount)}/mo</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex justify-between items-center text-slate-600">
+                                  <span>Additional Amount:</span>
+                                  <span className="font-bold text-slate-900">+{formatCurrency(plan.additionalAmount || 0)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-slate-900 border-t border-slate-200 pt-1 font-bold">
+                                  <span>Total Payable under Plan:</span>
+                                  <span className="text-purple-900 font-extrabold text-sm">{formatCurrency(plan.totalPlanAmount)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-emerald-900 bg-emerald-50 border border-emerald-200 p-2 rounded-xl font-bold">
+                                  <span>Amount per Part ({plan.numberOfPayments} parts):</span>
+                                  <span className="text-emerald-900 font-extrabold text-sm">{formatCurrency(plan.paymentAmount)}/part</span>
+                                </div>
+                              </>
+                            )}
+
+                            {plan.adminNotes && (
+                              <div className="text-[11px] text-slate-600 border-t border-slate-100 pt-1.5">
+                                <span className="font-bold text-slate-800">Admin Remarks:</span> "{plan.adminNotes}"
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              disabled={actingPlanId === plan.id}
+                              onClick={() => handleCustomerAcceptPlan(plan.id)}
+                              className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs disabled:opacity-50"
+                            >
+                              {actingPlanId === plan.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-4 h-4" />
+                              )}
+                              <span>Accept & Continue</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={actingPlanId === plan.id}
+                              onClick={() => handleCustomerDeclinePlan(plan.id)}
+                              className="py-2.5 px-4 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs transition cursor-pointer disabled:opacity-50"
+                            >
+                              <span>Decline</span>
+                            </button>
+                          </div>
+
+                          <p className="text-[10px] text-slate-500 italic text-center">
+                            Please review and accept the payment plan to continue. Installment payments unlock after acceptance.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Active Payment Plan Items List (Approved) */}
                       {plan && plan.status === 'Approved' && plan.items && plan.items.length > 0 && (
                         <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
                           <div className="flex items-center justify-between text-xs font-bold text-slate-700">
@@ -899,11 +1099,11 @@ export default function PaymentsPage() {
                               Installment Schedule ({plan.items.filter((i) => i.status === 'Paid').length}/{plan.items.length} Paid)
                             </span>
                             <span className="text-[11px] text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md">
-                              {plan.planType === 'INSTALLMENT' ? 'Monthly Plan' : 'Part Payment Plan'}
+                              {!String(plan.planType || '').toLowerCase().includes('part') ? 'Monthly Plan' : 'Part Payment Plan'}
                             </span>
                           </div>
 
-                          <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                          <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                             {plan.items.map((item) => (
                               <div
                                 key={item.id}
@@ -940,25 +1140,55 @@ export default function PaymentsPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* Rejected Status Notice */}
+                      {plan && plan.status === 'Rejected' && (
+                        <div className="mt-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold">
+                            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Payment Plan Proposal Declined / Rejected</span>
+                          </div>
+                          <p className="text-[11px] text-rose-800">
+                            {plan.adminNotes
+                              ? `Note: ${plan.adminNotes}`
+                              : 'You or the administration declined the proposed payment terms. You may submit a new payment plan request or proceed with full balance settlement.'}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Bottom Actions */}
                     {!account.isFullyPaid && (
-                      <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                      <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-2">
                         {!account.reservationFeePaid && !account.reservationFeePending ? (
-                          <button
-                            type="button"
-                            onClick={() => openPaymentModal(account, 'ReservationFee')}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-2xs"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" />
-                            <span>Pay 10% Deposit</span>
-                          </button>
-                        ) : !plan ? (
+                          <>
+                            <p className="text-[11px] text-slate-500">
+                              Payment options will be available after your reservation payment is approved.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => openPaymentModal(account, 'ReservationFee')}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-2xs shrink-0"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>Pay 10% Deposit</span>
+                            </button>
+                          </>
+                        ) : account.reservationFeePending ? (
+                          <div className="w-full flex items-center justify-between gap-2 bg-amber-50/80 border border-amber-200/80 px-3.5 py-2.5 rounded-2xl">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+                              <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span>Payment options will be available after your reservation payment is approved.</span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded shrink-0">
+                              Deposit Pending
+                            </span>
+                          </div>
+                        ) : (!plan || plan.status === 'Rejected') ? (
                           <button
                             type="button"
                             onClick={() => openPaymentModal(account, 'Full')}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs ml-auto"
                           >
                             <span>Balance Settlement</span>
                             <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
@@ -1208,7 +1438,9 @@ export default function PaymentsPage() {
           }
         }}
         title={
-          settlementMode === 'ReservationFee'
+          !selectedAccount?.reservationFeePaid
+            ? 'Pay 10% Reservation Fee'
+            : settlementMode === 'ReservationFee'
             ? 'Pay 10% Reservation Fee'
             : 'Balance Settlement'
         }
@@ -1223,7 +1455,7 @@ export default function PaymentsPage() {
               Cancel
             </Button>
 
-            {settlementMode === 'Full' || settlementMode === 'ReservationFee' ? (
+            {!selectedAccount?.reservationFeePaid || settlementMode === 'Full' || settlementMode === 'ReservationFee' ? (
               <button
                 type="button"
                 onClick={handleFullPayment}
@@ -1236,7 +1468,7 @@ export default function PaymentsPage() {
                   <Upload className="w-4 h-4" />
                 )}
                 <span>
-                  {settlementMode === 'ReservationFee'
+                  {!selectedAccount?.reservationFeePaid || settlementMode === 'ReservationFee'
                     ? 'Submit 10% Deposit Slip'
                     : 'Submit Balance Slip'}
                 </span>
@@ -1253,7 +1485,7 @@ export default function PaymentsPage() {
                 ) : (
                   <ArrowRight className="w-4 h-4" />
                 )}
-                <span>Submit Plan Request</span>
+                <span>{submittingPlan ? 'Submitting Request...' : 'Submit Plan Request'}</span>
               </button>
             )}
           </div>
@@ -1270,13 +1502,18 @@ export default function PaymentsPage() {
                 setSelectedAccountId(id);
                 const account = propertyAccounts.find((item) => item.reservationId === id);
                 if (account) {
-                  setPaymentAmount(
-                    String(
-                      settlementMode === 'ReservationFee'
-                        ? account.reservationFee
-                        : account.remainingBalance
-                    )
-                  );
+                  if (!account.reservationFeePaid) {
+                    setSettlementMode('ReservationFee');
+                    setPaymentAmount(String(account.reservationFee));
+                  } else {
+                    setPaymentAmount(
+                      String(
+                        settlementMode === 'ReservationFee'
+                          ? account.reservationFee
+                          : account.remainingBalance
+                      )
+                    );
+                  }
                   setPlanPaymentAmount(
                     String(Math.ceil(account.remainingBalance / planPaymentCount))
                   );
@@ -1287,7 +1524,7 @@ export default function PaymentsPage() {
                 .map((account) => ({
                   value: account.reservationId,
                   label: `${account.apartmentTitle} • ${
-                    settlementMode === 'ReservationFee'
+                    !account.reservationFeePaid
                       ? formatCurrency(account.reservationFee) + ' reservation deposit'
                       : formatCurrency(account.remainingBalance) + ' remaining'
                   }`,
@@ -1336,66 +1573,119 @@ export default function PaymentsPage() {
           )}
 
           {/* Settlement Option Switcher */}
-          {settlementMode === 'ReservationFee' ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <BadgePercent className="w-4 h-4 text-amber-700" />
-                <p className="text-xs font-bold text-amber-950 uppercase tracking-wider">
-                  10% Reservation Hold Deposit
+          {!selectedAccount?.reservationFeePaid ? (
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <BadgePercent className="w-4 h-4 text-amber-700" />
+                  <p className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                    10% Reservation Hold Deposit
+                  </p>
+                </div>
+                <p className="text-xs text-amber-900/90 leading-relaxed">
+                  To secure <strong className="text-slate-900">{selectedAccount?.apartmentTitle}</strong>, please deposit the 10% reservation fee of <strong className="text-slate-900 font-bold">{formatCurrency(selectedAccount?.reservationFee || 0)}</strong>. Once verified, your balance settlement options will unlock.
                 </p>
               </div>
-              <p className="text-xs text-amber-900/90 leading-relaxed">
-                To secure <strong className="text-slate-900">{selectedAccount?.apartmentTitle}</strong>, please deposit the 10% reservation fee of <strong className="text-slate-900 font-bold">{formatCurrency(selectedAccount?.reservationFee || 0)}</strong>. Once verified, your balance settlement options will unlock.
-              </p>
+
+              {/* Informational notice: Reservation Fee Refund Policy (Section 16) */}
+              <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-3.5 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-amber-950">Reservation Fee Policy</p>
+                  <p className="text-[11px] text-amber-900 leading-relaxed mt-0.5">
+                    The reservation fee is non-refundable if the customer cancels the reservation or if the reservation expires, subject to the applicable project policy. If a refund is approved, the refundable amount excludes the non-refundable reservation fee.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-100 p-3.5 flex items-center gap-2 text-xs text-slate-600">
+                <Lock className="w-4 h-4 text-slate-500 shrink-0" />
+                <span>Payment options will be available after your reservation payment is approved.</span>
+              </div>
             </div>
           ) : (
-            <div>
-              <p className="text-xs font-bold text-slate-700 mb-2">
-                Settlement Structure:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSettlementMode('Full')}
-                  className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                    settlementMode === 'Full'
-                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <CreditCard className="w-4 h-4 text-slate-700 mb-1" />
-                  <p className="text-xs font-bold text-slate-900">Full Settlement</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Clear remaining balance</p>
-                </button>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-bold text-slate-700 mb-2">
+                  Settlement Structure:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSettlementMode('Full')}
+                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                      settlementMode === 'Full'
+                        ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <CreditCard className="w-4 h-4 text-slate-700 mb-1" />
+                    <p className="text-xs font-bold text-slate-900">Full Settlement</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Clear remaining balance</p>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSettlementMode('Installment')}
-                  className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                    settlementMode === 'Installment'
-                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <CalendarDays className="w-4 h-4 text-slate-700 mb-1" />
-                  <p className="text-xs font-bold text-slate-900">Installment Plan</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Monthly schedule</p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettlementMode('Installment');
+                      const count = 12;
+                      setPlanPaymentCount(count);
+                      if (selectedAccount?.remainingBalance) {
+                        setPlanPaymentAmount(String(Math.floor(selectedAccount.remainingBalance / count)));
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                      settlementMode === 'Installment'
+                        ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <CalendarDays className="w-4 h-4 text-slate-700 mb-1" />
+                    <p className="text-xs font-bold text-slate-900">Installment Plan</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">2 – 60 installments</p>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSettlementMode('PartPayment')}
-                  className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                    settlementMode === 'PartPayment'
-                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <Layers3 className="w-4 h-4 text-slate-700 mb-1" />
-                  <p className="text-xs font-bold text-slate-900">Part Payment</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Agreed milestone parts</p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettlementMode('PartPayment');
+                      const count = 4;
+                      setPlanPaymentCount(count);
+                      if (selectedAccount?.remainingBalance) {
+                        setPlanPaymentAmount(String(Math.floor(selectedAccount.remainingBalance / count)));
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                      settlementMode === 'PartPayment'
+                        ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <Layers3 className="w-4 h-4 text-slate-700 mb-1" />
+                    <p className="text-xs font-bold text-slate-900">Part Payment</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">2 – 5 milestone parts</p>
+                  </button>
+                </div>
               </div>
+
+              {/* Explanations for selected payment plan option (Sections 13 & 14) */}
+              {settlementMode === 'Installment' && (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-950">
+                  <p className="font-bold text-blue-900 mb-0.5">Installment Plan</p>
+                  <p className="text-[11px] text-blue-800 leading-relaxed">
+                    Pay the remaining apartment balance in 2–60 installments. An annual interest rate may be applied by Admin/Staff during approval. The final installment amount will be shown before you confirm the plan.
+                  </p>
+                </div>
+              )}
+
+              {settlementMode === 'PartPayment' && (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-950">
+                  <p className="font-bold text-indigo-900 mb-0.5">Part Payment</p>
+                  <p className="text-[11px] text-indigo-800 leading-relaxed">
+                    Split the applicable payment amount into 2–5 parts. Admin/Staff may adjust the payable amount before approval. You will see the final amount per part and must confirm the updated plan before continuing.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1487,29 +1777,41 @@ export default function PaymentsPage() {
           {/* Installment Plan Request Form */}
           {(settlementMode === 'Installment' || settlementMode === 'PartPayment') && (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
+              {/* Financial Breakdown (Section 15) */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 space-y-1.5 text-xs">
+                <p className="font-bold text-slate-700 mb-1">Payment Plan Balance Summary</p>
+                <div className="flex justify-between text-slate-600">
+                  <span>Apartment Price</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(selectedAccount?.totalPrice || 0)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Reservation Fee (Paid)</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(selectedAccount?.reservationFee || 0)}</span>
+                </div>
+                <div className="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-slate-900">
+                  <span>Remaining Principal</span>
+                  <span className="text-amber-700">{formatCurrency(selectedAccount?.remainingBalance || 0)}</span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <p className="text-[11px] leading-relaxed">
-                  No payment slip is required now. Submit your proposed schedule. Once reviewed and approved by the finance team, your scheduled payments will appear here.
+                  No payment slip is required now. Submit your proposed schedule. Once reviewed by the finance team, you will receive the approved terms to review and confirm.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
-                  label="Proposed Installment Amount (Rs.)"
-                  type="number"
-                  min="1"
-                  value={planPaymentAmount}
-                  onChange={(event) => setPlanPaymentAmount(event.target.value)}
-                />
-
-                <Input
-                  label="Number of Installments"
+                  label={settlementMode === 'Installment' ? 'Number of Installments (2 – 60)' : 'Number of Parts (2 – 5)'}
                   type="number"
                   min="2"
+                  max={settlementMode === 'Installment' ? 60 : 5}
                   value={planPaymentCount}
                   onChange={(event) => {
-                    const count = Math.max(2, Number(event.target.value) || 2);
+                    const maxAllowed = settlementMode === 'Installment' ? 60 : 5;
+                    const rawVal = Number(event.target.value);
+                    const count = Math.min(Math.max(2, rawVal || 2), maxAllowed);
                     setPlanPaymentCount(count);
                     if (selectedAccount?.remainingBalance) {
                       setPlanPaymentAmount(
@@ -1520,8 +1822,17 @@ export default function PaymentsPage() {
                 />
 
                 <Input
+                  label={settlementMode === 'Installment' ? 'Estimated Amount / Installment (Rs.)' : 'Estimated Amount / Part (Rs.)'}
+                  type="number"
+                  min="1"
+                  value={planPaymentAmount}
+                  onChange={(event) => setPlanPaymentAmount(event.target.value)}
+                />
+
+                <Input
                   label="First Due Date"
                   type="date"
+                  min={getTodayDateString()}
                   value={planStartDate}
                   onChange={(event) => setPlanStartDate(event.target.value)}
                 />

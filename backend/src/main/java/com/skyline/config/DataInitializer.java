@@ -10,10 +10,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
-import java.util.List;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
@@ -22,25 +20,13 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final ApartmentRepository apartmentRepository;
-    private final SaleRepository saleRepository;
-    private final OwnershipRecordRepository ownershipRecordRepository;
-    private final ReservationRepository reservationRepository;
-    private final PaymentRepository paymentRepository;
     private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(UserRepository userRepository,
                            ApartmentRepository apartmentRepository,
-                           SaleRepository saleRepository,
-                           OwnershipRecordRepository ownershipRecordRepository,
-                           ReservationRepository reservationRepository,
-                           PaymentRepository paymentRepository,
                            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.apartmentRepository = apartmentRepository;
-        this.saleRepository = saleRepository;
-        this.ownershipRecordRepository = ownershipRecordRepository;
-        this.reservationRepository = reservationRepository;
-        this.paymentRepository = paymentRepository;
         this.passwordEncoder = passwordEncoder;
     }
 

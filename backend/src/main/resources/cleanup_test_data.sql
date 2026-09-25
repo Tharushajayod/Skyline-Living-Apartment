@@ -7,27 +7,23 @@
 -- and apartment_facilities).
 --
 -- Foreign Key Dependency Order for Deletion:
---  1. ownership_records   (references sales.id)
---  2. payments            (references payment_plan_items.id, payment_plans.id, reservations.id)
---  3. payment_plan_items  (references payment_plans.id)
---  4. payment_plans       (references reservations.id)
---  5. sales               (references reservations.id)
---  6. reservations        (references apartments.id, users.id)
---  7. appointments        (references apartments.id, users.id)
---  8. inquiry_replies     (references inquiries.id)
---  9. inquiries           (references apartments.id, users.id)
--- 10. reviews             (references apartments.id, users.id)
--- 11. notifications       (references users.id)
--- 12. favorites           (references apartments.id, users.id)
+--  1. payments            (references payment_plan_items.id, payment_plans.id, reservations.id)
+--  2. payment_plan_items  (references payment_plans.id)
+--  3. payment_plans       (references reservations.id)
+--  4. sales               (references reservations.id)
+--  5. reservations        (references apartments.id, users.id)
+--  6. appointments        (references apartments.id, users.id)
+--  7. inquiry_replies     (references inquiries.id)
+--  8. inquiries           (references apartments.id, users.id)
+--  9. reviews             (references apartments.id, users.id)
+-- 10. notifications       (references users.id)
+-- 11. favorites           (references apartments.id, users.id)
 -- =============================================================================
 
 BEGIN TRANSACTION;
 
 BEGIN TRY
-    -- 1. Remove ownership records
-    DELETE FROM ownership_records;
-
-    -- 2. Remove all payments (must precede payment_plan_items, payment_plans, reservations)
+    -- 1. Remove all payments (must precede payment_plan_items, payment_plans, reservations)
     DELETE FROM payments;
 
     -- 3. Remove payment plan items (must precede payment_plans)

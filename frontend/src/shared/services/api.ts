@@ -1,3 +1,5 @@
+import { getFriendlyErrorMessage } from '@/shared/utils/errorHandler';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface RequestOptions {
@@ -27,7 +29,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `API Error: ${response.status} ${response.statusText}`);
+    const raw = errorData.message || (errorData.validationErrors ? Object.values(errorData.validationErrors)[0] : '') || '';
+    const fallback = response.status === 404
+      ? 'The requested apartment or record could not be found.'
+      : "We couldn't complete your request. Please try again.";
+    const friendly = getFriendlyErrorMessage(raw, fallback);
+    throw new Error(friendly);
   }
 
   return response.json();
@@ -69,8 +76,12 @@ export const apiClient = {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
-    }).then(res => {
-      if (!res.ok) throw new Error(`Upload Error: ${res.status}`);
+    }).then(async res => {
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const raw = errorData.message || '';
+        throw new Error(getFriendlyErrorMessage(raw, 'Please upload a valid payment proof image.'));
+      }
       return res.json() as Promise<T>;
     });
   },

@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 public class SaleService {
 
     private final SaleRepository saleRepository;
-    private final OwnershipRecordRepository ownershipRecordRepository;
     private final ApartmentRepository apartmentRepository;
     private final ReservationRepository reservationRepository;
     private final PaymentRepository paymentRepository;
@@ -46,7 +45,6 @@ public class SaleService {
     private final NotificationService notificationService;
 
     public SaleService(SaleRepository saleRepository,
-                       OwnershipRecordRepository ownershipRecordRepository,
                        ApartmentRepository apartmentRepository,
                        ReservationRepository reservationRepository,
                        PaymentRepository paymentRepository,
@@ -55,7 +53,6 @@ public class SaleService {
                        UserService userService,
                        NotificationService notificationService) {
         this.saleRepository = saleRepository;
-        this.ownershipRecordRepository = ownershipRecordRepository;
         this.apartmentRepository = apartmentRepository;
         this.reservationRepository = reservationRepository;
         this.paymentRepository = paymentRepository;
@@ -244,6 +241,8 @@ public class SaleService {
                 .finalPrice(request.getFinalPrice())
                 .reservation(reservation)
                 .saleDate(saleDate)
+                .ownershipDate(saleDate)
+                .ownershipStatus("Deed Transferred")
                 .staff(staff)
                 .staffName(staff != null ? staff.getName() : "Staff Member")
                 .createdAt(LocalDateTime.now())
@@ -251,17 +250,7 @@ public class SaleService {
 
         Sale savedSale = saleRepository.save(sale);
 
-        // 4. Create Ownership Record
-        OwnershipRecord ownershipRecord = OwnershipRecord.builder()
-                .apartment(apartment)
-                .customer(customer)
-                .sale(savedSale)
-                .ownershipDate(saleDate)
-                .build();
-
-        ownershipRecordRepository.save(ownershipRecord);
-
-        // 5. Notify customer
+        // 4. Notify customer
         notificationService.createNotification(
                 customer,
                 NotificationType.GENERAL,
@@ -280,9 +269,6 @@ public class SaleService {
         Long customerId = principal.getUser().getId();
         String customerEmail = principal.getUser().getEmail();
         List<Sale> sales = saleRepository.findByCustomerIdOrCustomerEmail(customerId, customerEmail);
-        Map<Long, OwnershipRecord> ownershipMap = ownershipRecordRepository.findByCustomerIdOrCustomerEmail(customerId, customerEmail).stream()
-                .filter(o -> o.getApartment() != null && o.getApartment().getId() != null)
-                .collect(Collectors.toMap(o -> o.getApartment().getId(), o -> o, (o1, o2) -> o1));
 
         return sales.stream()
                 .sorted((a, b) -> {
@@ -291,11 +277,7 @@ public class SaleService {
                     if (b.getSaleDate() == null) return -1;
                     return b.getSaleDate().compareTo(a.getSaleDate());
                 })
-                .map(sale -> {
-                    Long aptId = sale.getApartment() != null ? sale.getApartment().getId() : null;
-                    OwnershipRecord ownershipRecord = aptId != null ? ownershipMap.get(aptId) : null;
-                    return PurchasedApartmentResponse.fromSale(sale, ownershipRecord);
-                })
+                .map(PurchasedApartmentResponse::fromSale)
                 .collect(Collectors.toList());
     }
 }

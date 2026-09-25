@@ -26,7 +26,7 @@ const defaultMonthlySales: ChartDataPoint[] = [
 
 export default function ManagementDashboardPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin' || user?.role === 'ADMIN';
+  const isAdmin = (user?.role as string)?.toLowerCase() === 'admin';
 
   const [stats, setStats] = useState<any>(() => dashboardService.getCachedStats());
   const [recentAppointments, setRecentAppointments] = useState<Appointment[]>([]);

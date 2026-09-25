@@ -21,7 +21,7 @@ export default function ReportsPage() {
   const [liveApartments, setLiveApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(!dashboardService.getCachedReports());
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'ADMIN';
+  const isAdmin = (user?.role as string)?.toLowerCase() === 'admin';
 
   useEffect(() => {
     let mounted = true;

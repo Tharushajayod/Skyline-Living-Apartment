@@ -11,7 +11,6 @@ import com.skyline.entity.PaymentPlanItem;
 import com.skyline.entity.Reservation;
 import com.skyline.entity.User;
 import com.skyline.entity.Sale;
-import com.skyline.entity.OwnershipRecord;
 import com.skyline.enums.NotificationType;
 import com.skyline.enums.PaymentPlanStatus;
 import com.skyline.enums.PaymentPlanItemStatus;
@@ -28,7 +27,6 @@ import com.skyline.repository.PaymentPlanItemRepository;
 import com.skyline.repository.PaymentRepository;
 import com.skyline.repository.ReservationRepository;
 import com.skyline.repository.SaleRepository;
-import com.skyline.repository.OwnershipRecordRepository;
 import com.skyline.security.UserPrincipal;
 import com.skyline.util.IdParser;
 import org.springframework.stereotype.Service;
@@ -53,7 +51,6 @@ public class PaymentService {
     private final FileStorageService fileStorageService;
     private final NotificationService notificationService;
     private final SaleRepository saleRepository;
-    private final OwnershipRecordRepository ownershipRecordRepository;
 
     public PaymentService(
             PaymentRepository paymentRepository,
@@ -65,8 +62,7 @@ public class PaymentService {
             ApartmentRepository apartmentRepository,
             FileStorageService fileStorageService,
             NotificationService notificationService,
-            SaleRepository saleRepository,
-            OwnershipRecordRepository ownershipRecordRepository
+            SaleRepository saleRepository
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentPlanRepository = paymentPlanRepository;
@@ -78,7 +74,6 @@ public class PaymentService {
         this.fileStorageService = fileStorageService;
         this.notificationService = notificationService;
         this.saleRepository = saleRepository;
-        this.ownershipRecordRepository = ownershipRecordRepository;
     }
 
     // =========================================================
@@ -332,6 +327,23 @@ public class PaymentService {
 
         if (request.getType() == PaymentType.RESERVATION_FEE && apartment.getStatus() == ApartmentStatus.SOLD) {
             throw new BadRequestException("Cannot make payment for a sold apartment");
+        }
+
+        // Enforce that reservation deposit must be verified before allowing balance or payment plan payments
+        if (request.getType() != PaymentType.RESERVATION_FEE) {
+            if (reservation == null) {
+                throw new BadRequestException("Reservation is required for balance settlement or payment plans.");
+            }
+
+            boolean reservationFeeApproved = paymentRepository.existsByReservationIdAndTypeAndStatus(
+                    reservation.getId(),
+                    PaymentType.RESERVATION_FEE,
+                    PaymentStatus.VERIFIED
+            ) || reservation.getStatus() == ReservationStatus.CONFIRMED;
+
+            if (!reservationFeeApproved) {
+                throw new BadRequestException("Payment options will be available after your reservation payment is approved.");
+            }
         }
 
         // =====================================================
@@ -1122,22 +1134,14 @@ public class PaymentService {
                         .finalPrice(apartment.getPrice())
                         .reservation(payment.getReservation())
                         .saleDate(java.time.LocalDate.now())
+                        .ownershipDate(java.time.LocalDate.now())
+                        .ownershipStatus("Deed Transferred")
                         .staff(principal != null ? principal.getUser() : null)
                         .staffName(verifierName)
                         .createdAt(LocalDateTime.now())
                         .build();
 
-                Sale savedSale = saleRepository.save(sale);
-
-                if (customer != null) {
-                    OwnershipRecord ownershipRecord = OwnershipRecord.builder()
-                            .apartment(apartment)
-                            .customer(customer)
-                            .sale(savedSale)
-                            .ownershipDate(java.time.LocalDate.now())
-                            .build();
-                    ownershipRecordRepository.save(ownershipRecord);
-                }
+                saleRepository.save(sale);
             }
         }
 

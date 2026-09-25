@@ -14,6 +14,9 @@ import {
   CalendarDays,
   Layers3,
   ClipboardCheck,
+  Lock,
+  User,
+  Building2,
 } from 'lucide-react';
 
 import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
@@ -113,7 +116,7 @@ export default function VerifyPaymentsPage() {
     useState('');
 
   const [planStatusFilter, setPlanStatusFilter] =
-    useState('Pending');
+    useState('All');
 
   const [planActionTarget, setPlanActionTarget] =
     useState<PaymentPlan | null>(null);
@@ -123,6 +126,12 @@ export default function VerifyPaymentsPage() {
 
   const [planNotes, setPlanNotes] =
     useState('');
+
+  const [adminInterestRate, setAdminInterestRate] =
+    useState<string>('10.0');
+
+  const [adminAdditionalAmount, setAdminAdditionalAmount] =
+    useState<string>('0');
 
   const [planActionLoading, setPlanActionLoading] =
     useState(false);
@@ -497,10 +506,26 @@ export default function VerifyPaymentsPage() {
     setPlanActionTarget(plan);
     setPlanActionType(type);
     setPlanNotes('');
+    setAdminInterestRate(
+      plan.annualInterestRate !== undefined && plan.annualInterestRate !== null
+        ? String(plan.annualInterestRate)
+        : '10.0'
+    );
+    setAdminAdditionalAmount(
+      plan.additionalAmount !== undefined && plan.additionalAmount !== null
+        ? String(plan.additionalAmount)
+        : '0'
+    );
   }
 
   async function confirmPlanAction() {
     if (!planActionTarget) {
+      return;
+    }
+
+    const s = String(planActionTarget.status || '').toLowerCase();
+    if (s === 'approved' || s === 'completed') {
+      toast('This payment plan has already been accepted and its financial terms can no longer be changed.', 'error');
       return;
     }
 
@@ -516,6 +541,28 @@ export default function VerifyPaymentsPage() {
       return;
     }
 
+    const isPartPayment = String(planActionTarget.planType || '').toLowerCase().includes('part');
+    const isInstallment = !isPartPayment;
+
+    let rateNum = 0;
+    let addNum = 0;
+
+    if (planActionType === 'approve') {
+      if (isInstallment) {
+        rateNum = Number(adminInterestRate);
+        if (isNaN(rateNum) || rateNum < 0) {
+          toast('Please enter a valid annual interest rate (0% or greater).', 'error');
+          return;
+        }
+      } else {
+        addNum = Number(adminAdditionalAmount);
+        if (isNaN(addNum) || addNum < 0) {
+          toast('Please enter a valid additional amount (0 or greater).', 'error');
+          return;
+        }
+      }
+    }
+
     try {
       setPlanActionLoading(true);
 
@@ -525,7 +572,11 @@ export default function VerifyPaymentsPage() {
         updated =
           await paymentPlanService.approve(
             planActionTarget.id,
-            planNotes
+            {
+              notes: planNotes,
+              annualInterestRate: isInstallment ? rateNum : undefined,
+              additionalAmount: isPartPayment ? addNum : undefined,
+            }
           );
       } else {
         updated =
@@ -546,7 +597,7 @@ export default function VerifyPaymentsPage() {
 
       toast(
         planActionType === 'approve'
-          ? 'Payment plan approved successfully'
+          ? 'Payment plan terms proposed successfully. Customer can now review and confirm.'
           : 'Payment plan rejected successfully',
         'success'
       );
@@ -583,6 +634,11 @@ export default function VerifyPaymentsPage() {
     switch (s) {
       case 'approved':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+      case 'plan ready for confirmation':
+      case 'awaiting customer':
+      case 'terms proposed':
+        return 'bg-purple-50 text-purple-700 border-purple-200';
 
       case 'rejected':
         return 'bg-rose-50 text-rose-700 border-rose-200';
@@ -1076,7 +1132,7 @@ export default function VerifyPaymentsPage() {
             <div className="w-full sm:w-56">
               <Select
                 options={[
-                  { value: '', label: 'All Plan Statuses' },
+                  { value: 'All', label: 'All Plan Statuses' },
                   { value: 'Pending', label: 'Pending Approval' },
                   { value: 'Approved', label: 'Approved Plans' },
                   { value: 'Rejected', label: 'Rejected Plans' },
@@ -1234,48 +1290,61 @@ export default function VerifyPaymentsPage() {
                           </td>
 
                           {/* ACTION */}
-
                           <td className="px-5 py-3.5 text-right">
+                            {(() => {
+                              const s = String(plan.status || '').toLowerCase();
+                              const canAction = s === 'pending' || s === 'plan ready for confirmation' || s === 'terms proposed' || s === 'awaiting customer';
+                              if (canAction) {
+                                return (
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openPlanAction(
+                                          plan,
+                                          'approve'
+                                        )
+                                      }
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      {s === 'pending' ? 'Review & Propose' : 'Update Terms'}
+                                    </button>
 
-                            {String(plan.status || '').toLowerCase() ===
-                            'pending' ? (
-                              <div className="flex items-center justify-end gap-1.5">
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    openPlanAction(
-                                      plan,
-                                      'approve'
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  Approve
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    openPlanAction(
-                                      plan,
-                                      'reject'
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 font-bold text-xs transition cursor-pointer"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                  Reject
-                                </button>
-
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-400 font-medium">
-                                Reviewed
-                              </span>
-                            )}
-
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openPlanAction(
+                                          plan,
+                                          'reject'
+                                        )
+                                      }
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 font-bold text-xs transition cursor-pointer"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                      Reject
+                                    </button>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openPlanAction(
+                                        plan,
+                                        'approve'
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                    Review Plan
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </td>
 
                         </tr>
@@ -1542,244 +1611,554 @@ export default function VerifyPaymentsPage() {
       <Modal
         open={!!planActionTarget}
         onClose={() => {
-          if (
-            !planActionLoading
-          ) {
-            setPlanActionTarget(
-              null
-            );
+          if (!planActionLoading) {
+            setPlanActionTarget(null);
           }
         }}
+        size="xl"
         title={
-          planActionType ===
-          'approve'
-            ? 'Approve Payment Plan'
-            : 'Reject Payment Plan'
+          planActionTarget ? (
+            <div className="flex items-center gap-2.5">
+              <span>
+                {(() => {
+                  const s = String(planActionTarget.status || '').toLowerCase();
+                  if (s === 'approved' || s === 'completed') return 'Payment Plan Review (Accepted & Locked)';
+                  if (planActionType === 'reject') return 'Reject Payment Plan';
+                  if (s === 'pending') return 'Payment Plan Review & Approval';
+                  return 'Update Payment Plan Terms';
+                })()}
+              </span>
+              <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                {planActionTarget.id?.startsWith('PLN-') ? planActionTarget.id : `PLN-${planActionTarget.id}`}
+              </span>
+            </div>
+          ) : 'Payment Plan Review'
         }
         footer={
-          <div className="flex items-center justify-end gap-3 w-full">
+          planActionTarget && (() => {
+            const s = String(planActionTarget.status || '').toLowerCase();
+            const isAccepted = s === 'approved' || s === 'completed';
 
-            <Button
-              variant="outline"
-              disabled={
-                planActionLoading
-              }
-              onClick={() =>
-                setPlanActionTarget(
-                  null
-                )
-              }
-            >
-              Cancel
-            </Button>
+            if (isAccepted) {
+              return (
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+                    <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Customer Accepted — Financial Terms Locked</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPlanActionTarget(null)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              );
+            }
 
-            <Button
-              disabled={
-                planActionLoading
-              }
-              onClick={
-                confirmPlanAction
-              }
-              className={
-                planActionType ===
-                'approve'
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-0'
-                  : 'bg-rose-600 hover:bg-rose-700 text-white font-bold border-0'
-              }
-            >
-              {planActionLoading
-                ? 'Processing...'
-                : planActionType ===
-                  'approve'
-                ? 'Approve Plan'
-                : 'Reject Plan'}
-            </Button>
+            if (planActionType === 'reject') {
+              return (
+                <div className="flex items-center justify-between w-full">
+                  <Button
+                    variant="outline"
+                    disabled={planActionLoading}
+                    onClick={() => setPlanActionType('approve')}
+                  >
+                    Back to Review
+                  </Button>
 
-          </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={planActionLoading}
+                      onClick={() => setPlanActionTarget(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={planActionLoading}
+                      onClick={confirmPlanAction}
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold border-0 shadow-sm"
+                    >
+                      {planActionLoading ? 'Processing...' : 'Confirm Rejection'}
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex items-center justify-between w-full">
+                <button
+                  type="button"
+                  disabled={planActionLoading}
+                  onClick={() => setPlanActionType('reject')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs transition cursor-pointer disabled:opacity-50"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Reject Plan</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={planActionLoading}
+                    onClick={() => setPlanActionTarget(null)}
+                  >
+                    Cancel / Close
+                  </Button>
+                  <Button
+                    disabled={planActionLoading}
+                    onClick={confirmPlanAction}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-0 shadow-sm flex items-center gap-1.5 px-4 py-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>
+                      {planActionLoading
+                        ? 'Submitting...'
+                        : s === 'pending'
+                        ? 'Approve Plan'
+                        : 'Update Terms'}
+                    </span>
+                  </Button>
+                </div>
+              </div>
+            );
+          })()
         }
       >
+        {planActionTarget && (() => {
+          const s = String(planActionTarget.status || '').toLowerCase();
+          const isAccepted = s === 'approved' || s === 'completed';
+          const isPartPayment = String(planActionTarget.planType || '').toLowerCase().includes('part');
+          const isInstallment = !isPartPayment;
 
-        {planActionTarget && (
-          <div className="space-y-5">
+          const aptPrice = Number(planActionTarget.apartmentPrice) || 0;
+          const resFee = Number(planActionTarget.reservationFee) || 0;
+          const rawPrincipal = Number(planActionTarget.remainingPrincipal);
+          const principal = (rawPrincipal !== undefined && !isNaN(rawPrincipal) && rawPrincipal > 0)
+            ? rawPrincipal
+            : (aptPrice > 0 ? Math.max(0, aptPrice - resFee) : Number(planActionTarget.totalPlanAmount) || 0);
 
-            <div
-              className={`rounded-2xl border p-4 ${
-                planActionType ===
-                'approve'
-                  ? 'bg-emerald-50/70 border-emerald-200'
-                  : 'bg-rose-50/70 border-rose-200'
-              }`}
-            >
+          const numPayments = Number(planActionTarget.numberOfPayments) || 1;
+          const durationYears = numPayments / 12.0;
 
-              <div className="flex items-start gap-3">
+          const rate = isAccepted
+            ? Number(planActionTarget.annualInterestRate || 0)
+            : Math.max(0, Number(adminInterestRate) || 0);
 
-                {planActionType ===
-                'approve' ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
-                )}
+          const addAmount = isAccepted
+            ? Number(planActionTarget.additionalAmount || 0)
+            : Math.max(0, Number(adminAdditionalAmount) || 0);
 
-                <div>
+          const calcInterest = isAccepted
+            ? Number(planActionTarget.interestAmount || 0)
+            : (isInstallment ? Math.round(principal * (rate / 100) * durationYears * 100) / 100 : 0);
 
-                  <p className="font-extrabold text-slate-900">
-                    {
-                      planActionTarget.customerName
-                    }
-                  </p>
+          const calcTotal = isAccepted
+            ? Number(planActionTarget.totalPlanAmount || 0)
+            : (isInstallment
+                ? Math.round((principal + calcInterest) * 100) / 100
+                : Math.round((principal + addAmount) * 100) / 100);
 
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {
-                      planActionTarget.apartmentTitle
-                    }
-                  </p>
+          const calcPeriodic = isAccepted
+            ? Number(planActionTarget.paymentAmount || 0)
+            : Math.round((calcTotal / numPayments) * 100) / 100;
 
+          return (
+            <div className="space-y-4 text-slate-800">
+              {/* LOCK BANNER IF CUSTOMER ACCEPTED */}
+              {isAccepted && (
+                <div className="rounded-2xl bg-amber-50/90 border border-amber-200 p-3.5 flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0">
+                    <Lock className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-amber-950 text-xs uppercase tracking-wide">
+                      Financial Terms Locked & Immutable
+                    </h5>
+                    <p className="text-xs text-amber-900/90 mt-0.5 leading-relaxed">
+                      The customer has accepted the approved terms for this payment plan. Pursuant to platform financial regulations, interest rates, additional adjustments, installment amounts, and total payable values are permanently locked and cannot be altered.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* REJECTION SCREEN IF REJECT ACTION */}
+              {planActionType === 'reject' && !isAccepted && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <XCircle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
+                    <div>
+                      <h5 className="font-bold text-rose-950 text-sm">
+                        Rejecting Payment Plan Application ({planActionTarget.customerName})
+                      </h5>
+                      <p className="text-xs text-rose-800 mt-0.5">
+                        Please specify the reason for rejection. This explanation will be included in the formal notification dispatched to the customer.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Textarea
+                    label="Reason for Rejection (Required)"
+                    value={planNotes}
+                    onChange={(e) => setPlanNotes(e.target.value)}
+                    placeholder="e.g. Credit evaluation incomplete / Installment duration requested exceeds property policy guidelines..."
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              {/* SECTION A: Customer & Apartment Information */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
+                  <User className="w-4 h-4 text-amber-600" />
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                    A. Customer & Apartment Information
+                  </h4>
                 </div>
 
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Customer Name</p>
+                    <p className="font-extrabold text-slate-900 text-sm mt-0.5 truncate">
+                      {planActionTarget.customerName}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Customer Email</p>
+                    <p className="font-semibold text-slate-700 text-xs mt-0.5 truncate" title={planActionTarget.customerEmail}>
+                      {planActionTarget.customerEmail}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Apartment / Unit</p>
+                    <p className="font-extrabold text-slate-900 text-xs mt-0.5 truncate">
+                      {planActionTarget.apartmentNumber ? `Unit ${planActionTarget.apartmentNumber}` : planActionTarget.apartmentTitle}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Apartment / Project</p>
+                    <p className="font-semibold text-slate-700 text-xs mt-0.5 truncate">
+                      {planActionTarget.buildingName || planActionTarget.apartmentTitle || 'Skyline Living'}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Apartment Total Price</p>
+                    <p className="font-extrabold text-slate-900 text-xs mt-0.5">
+                      {formatCurrency(aptPrice)}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Reservation Date</p>
+                    <p className="font-semibold text-slate-700 text-xs mt-0.5">
+                      {formatPlanDate(planActionTarget.reservationDate || planActionTarget.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 col-span-2 sm:col-span-1 lg:col-span-2">
+                    <p className="text-[10px] uppercase font-bold text-emerald-700">Reservation Fee Already Paid</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="font-extrabold text-emerald-900 text-sm">
+                        {formatCurrency(resFee)}
+                      </span>
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Verified Paid
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-
-                <p className="text-[10px] uppercase font-bold text-slate-400">
-                  Plan Type
-                </p>
-
-                <p className="font-bold text-slate-900 text-sm mt-1">
-                  {
-                    planActionTarget.planType
-                  }
-                </p>
-
-              </div>
-
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-
-                <p className="text-[10px] uppercase font-bold text-slate-400">
-                  Payments
-                </p>
-
-                <p className="font-bold text-slate-900 text-sm mt-1">
-                  {
-                    planActionTarget.numberOfPayments
-                  }
-                </p>
-
-              </div>
-
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-
-                <p className="text-[10px] uppercase font-bold text-slate-400">
-                  Regular Amount
-                </p>
-
-                <p className="font-bold text-slate-900 text-sm mt-1">
-                  {formatCurrency(
-                    Number(
-                      planActionTarget.paymentAmount ||
-                        0
-                    )
-                  )}
-                </p>
-
-              </div>
-
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-
-                <p className="text-[10px] uppercase font-bold text-slate-400">
-                  Total Balance
-                </p>
-
-                <p className="font-bold text-slate-900 text-sm mt-1">
-                  {formatCurrency(
-                    Number(
-                      planActionTarget.totalPlanAmount ||
-                        0
-                    )
-                  )}
-                </p>
-
-              </div>
-
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 col-span-2">
-
-                <p className="text-[10px] uppercase font-bold text-slate-400">
-                  First Due Date
-                </p>
-
-                <div className="flex items-center gap-1.5 mt-1">
-
-                  <CalendarDays className="w-4 h-4 text-slate-400" />
-
-                  <p className="font-bold text-slate-900 text-sm">
-                    {formatPlanDate(
-                      planActionTarget.startDate
-                    )}
-                  </p>
-
+              {/* SECTION B: Requested Payment Plan */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Layers3 className="w-4 h-4 text-amber-600" />
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                      B. Requested Payment Plan
+                    </h4>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400">
+                      Request Date: {formatPlanDate(planActionTarget.createdAt)}
+                    </span>
+                    <span className={`inline-flex px-2 py-0.5 rounded-full border text-[11px] font-extrabold ${getPlanStatusClasses(planActionTarget.status)}`}>
+                      {planActionTarget.status}
+                    </span>
+                  </div>
                 </div>
 
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Payment Plan Type</p>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 mt-1">
+                      <Layers3 className="w-3 h-3" />
+                      {planActionTarget.planType}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Requested Installments / Parts</p>
+                    <p className="font-extrabold text-slate-900 text-sm mt-0.5">
+                      {planActionTarget.numberOfPayments} {isPartPayment ? 'Milestone Parts' : 'Installments'}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200">
+                    <p className="text-[10px] uppercase font-bold text-amber-800">Current Remaining Balance</p>
+                    <p className="font-extrabold text-amber-950 text-sm mt-0.5">
+                      {formatCurrency(principal)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Customer's requested terms */}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="font-bold text-slate-700">Customer's Requested Terms:</span>
+                    <span>Requested First Due: {formatPlanDate(planActionTarget.startDate)}</span>
+                  </div>
+                  <p className="text-slate-600 italic">
+                    {planActionTarget.customerNotes
+                      ? `"${planActionTarget.customerNotes}"`
+                      : 'Standard payment plan terms requested by customer.'}
+                  </p>
+                </div>
               </div>
 
+              {/* SECTION C: Admin/Manager Approval Terms */}
+              {planActionType === 'approve' && (
+                <div className={`rounded-2xl border-2 p-4 space-y-4 shadow-xs ${
+                  isInstallment ? 'border-blue-300 bg-blue-50/40' : 'border-indigo-300 bg-indigo-50/40'
+                }`}>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className={`w-4 h-4 ${isInstallment ? 'text-blue-700' : 'text-indigo-700'}`} />
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-900">
+                        C. Admin / Manager Approval Terms
+                      </h4>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {isAccepted ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                          <Lock className="w-3 h-3 text-amber-700" />
+                          Locked Terms
+                        </span>
+                      ) : (
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                          isInstallment ? 'bg-blue-100 text-blue-800' : 'bg-indigo-100 text-indigo-800'
+                        }`}>
+                          Values Approved / Added by Management
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Installment Plan Approval Terms */}
+                  {isInstallment && (
+                    <div className="space-y-3.5">
+                      {/* Annual Interest Rate Input or Locked View */}
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-slate-800">
+                            Annual Interest Rate (%) {isAccepted ? '(Approved & Locked)' : <span className="text-rose-500">*</span>}
+                          </label>
+                          {isAccepted && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                              <Lock className="w-3 h-3" /> Read-Only
+                            </span>
+                          )}
+                        </div>
+
+                        {isAccepted ? (
+                          <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-between">
+                            <span className="font-extrabold text-slate-900 text-base">{rate}%</span>
+                            <span className="text-xs text-slate-500">Agreed annual interest rate</span>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={adminInterestRate}
+                              onChange={(e) => setAdminInterestRate(e.target.value)}
+                              className="w-full px-3 py-2 pr-8 text-base font-extrabold text-slate-900 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                              placeholder="10.0"
+                            />
+                            <span className="absolute right-3.5 top-2.5 text-sm font-bold text-slate-400 pointer-events-none">%</span>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-slate-500">
+                          {isAccepted
+                            ? 'This rate was accepted by the customer and cannot be modified.'
+                            : 'Enter the annual interest rate to apply. All calculations update live below.'}
+                        </p>
+                      </div>
+
+                      {/* Required Terms Breakdown */}
+                      <div className="bg-white rounded-xl p-3.5 border border-slate-200 space-y-2 text-xs">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Approval Calculation Breakdown
+                        </p>
+                        <div className="space-y-1.5 text-slate-600">
+                          <div className="flex justify-between">
+                            <span>Principal / Remaining Balance after Reservation Fee:</span>
+                            <span className="font-bold text-slate-900">{formatCurrency(principal)}</span>
+                          </div>
+                          <div className="flex justify-between text-blue-700">
+                            <span>Annual Interest Rate (%):</span>
+                            <span className="font-bold">{rate}%</span>
+                          </div>
+                          <div className="flex justify-between text-blue-700">
+                            <span>Plan Tenor / Duration:</span>
+                            <span className="font-bold">{numPayments} installments ({durationYears.toFixed(2)} years)</span>
+                          </div>
+                          <div className="flex justify-between bg-blue-50/80 p-2 rounded-lg font-bold text-blue-900">
+                            <span>Interest Amount ({formatCurrency(principal)} × {rate}% × {durationYears.toFixed(2)} yrs):</span>
+                            <span>+{formatCurrency(calcInterest)}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-slate-200 pt-1.5 font-bold text-slate-900 text-sm">
+                            <span>Final Payable Amount:</span>
+                            <span className="text-amber-800 font-extrabold">{formatCurrency(calcTotal)}</span>
+                          </div>
+                          <div className="flex justify-between bg-emerald-50 border border-emerald-200 p-2 rounded-lg font-bold text-emerald-950 text-sm">
+                            <span>Amount per Installment ({formatCurrency(calcTotal)} ÷ {numPayments}):</span>
+                            <span className="text-emerald-700 font-extrabold">{formatCurrency(calcPeriodic)} / mo</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Live Metric Summary Cards */}
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="p-2.5 rounded-xl bg-white border border-blue-200 shadow-2xs">
+                          <p className="text-[9px] uppercase font-bold text-slate-400">Total Interest</p>
+                          <p className="font-extrabold text-blue-900 text-xs mt-0.5">{formatCurrency(calcInterest)}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white border border-blue-200 shadow-2xs">
+                          <p className="text-[9px] uppercase font-bold text-slate-400">Final Payable Amount</p>
+                          <p className="font-extrabold text-slate-900 text-xs mt-0.5">{formatCurrency(calcTotal)}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 shadow-2xs">
+                          <p className="text-[9px] uppercase font-bold text-emerald-800">Amount per Installment</p>
+                          <p className="font-extrabold text-emerald-700 text-xs mt-0.5">{formatCurrency(calcPeriodic)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Part Payment Approval Terms */}
+                  {isPartPayment && (
+                    <div className="space-y-3.5">
+                      {/* Additional Amount Input or Locked View */}
+                      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-slate-800">
+                            Additional Amount / Interest Fee (Rs.) {isAccepted ? '(Approved & Locked)' : null}
+                          </label>
+                          {isAccepted && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                              <Lock className="w-3 h-3" /> Read-Only
+                            </span>
+                          )}
+                        </div>
+
+                        {isAccepted ? (
+                          <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-between">
+                            <span className="font-extrabold text-slate-900 text-base">{formatCurrency(addAmount)}</span>
+                            <span className="text-xs text-slate-500">Agreed additional adjustment</span>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              value={adminAdditionalAmount}
+                              onChange={(e) => setAdminAdditionalAmount(e.target.value)}
+                              className="w-full px-3 py-2 text-base font-extrabold text-slate-900 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        )}
+                        <p className="text-[11px] text-slate-500">
+                          {isAccepted
+                            ? 'This adjustment was accepted by the customer and cannot be modified.'
+                            : 'Added to the remaining balance before dividing into milestone parts.'}
+                        </p>
+                      </div>
+
+                      {/* Required Part Payment Terms Breakdown */}
+                      <div className="bg-white rounded-xl p-3.5 border border-slate-200 space-y-2 text-xs">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Approval Calculation Breakdown
+                        </p>
+                        <div className="space-y-1.5 text-slate-600">
+                          <div className="flex justify-between">
+                            <span>Remaining Balance:</span>
+                            <span className="font-bold text-slate-900">{formatCurrency(principal)}</span>
+                          </div>
+                          <div className="flex justify-between text-indigo-700">
+                            <span>Additional Amount / Interest Fee:</span>
+                            <span className="font-bold">+{formatCurrency(addAmount)}</span>
+                          </div>
+                          <div className="flex justify-between text-indigo-700">
+                            <span>Number of Parts:</span>
+                            <span className="font-bold">{numPayments} milestone parts</span>
+                          </div>
+                          <div className="flex justify-between border-t border-slate-200 pt-1.5 font-bold text-slate-900 text-sm">
+                            <span>Final Payable Amount:</span>
+                            <span className="text-purple-900 font-extrabold">{formatCurrency(calcTotal)}</span>
+                          </div>
+                          <div className="flex justify-between bg-emerald-50 border border-emerald-200 p-2 rounded-lg font-bold text-emerald-950 text-sm">
+                            <span>Amount per Part ({formatCurrency(calcTotal)} ÷ {numPayments}):</span>
+                            <span className="text-emerald-700 font-extrabold">{formatCurrency(calcPeriodic)} / part</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Live Metric Summary Cards */}
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="p-2.5 rounded-xl bg-white border border-indigo-200 shadow-2xs">
+                          <p className="text-[9px] uppercase font-bold text-slate-400">Final Payable Amount</p>
+                          <p className="font-extrabold text-slate-900 text-xs mt-0.5">{formatCurrency(calcTotal)}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 shadow-2xs">
+                          <p className="text-[9px] uppercase font-bold text-emerald-800">Amount per Part</p>
+                          <p className="font-extrabold text-emerald-700 text-xs mt-0.5">{formatCurrency(calcPeriodic)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notes / Remarks */}
+                  {!isAccepted ? (
+                    <Textarea
+                      label="Admin Remarks / Proposal Notes (Optional)"
+                      value={planNotes}
+                      onChange={(e) => setPlanNotes(e.target.value)}
+                      placeholder="Add any specific approval notes or terms communicated to the customer..."
+                      rows={2}
+                    />
+                  ) : planActionTarget.adminNotes ? (
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs">
+                      <span className="font-bold text-slate-700">Admin Remarks: </span>
+                      <span className="text-slate-600">"{planActionTarget.adminNotes}"</span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
-
-            {planActionTarget.customerNotes && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-
-                <p className="text-[10px] uppercase font-bold text-blue-500 mb-1">
-                  Customer Notes
-                </p>
-
-                <p className="text-sm text-blue-950">
-                  {
-                    planActionTarget.customerNotes
-                  }
-                </p>
-
-              </div>
-            )}
-
-            <Textarea
-              label={
-                planActionType ===
-                'approve'
-                  ? 'Admin Notes (Optional)'
-                  : 'Reason for Rejection (Required)'
-              }
-              value={planNotes}
-              onChange={(e) =>
-                setPlanNotes(
-                  e.target.value
-                )
-              }
-              placeholder={
-                planActionType ===
-                'approve'
-                  ? 'Optional approval notes...'
-                  : 'Explain why this payment plan was rejected...'
-              }
-              rows={3}
-            />
-
-            {planActionType ===
-              'approve' && (
-              <div className="flex gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3">
-
-                <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-
-                <p className="text-xs text-amber-900 leading-relaxed">
-                  Approving this request will activate the customer payment schedule according to the approved plan.
-                </p>
-
-              </div>
-            )}
-
-          </div>
-        )}
-
+          );
+        })()}
       </Modal>
 
     </div>

@@ -31,14 +31,11 @@ class ApartmentServiceTest {
     @Mock
     private com.skyline.repository.SaleRepository saleRepository;
 
-    @Mock
-    private com.skyline.repository.OwnershipRecordRepository ownershipRecordRepository;
-
     private ApartmentService apartmentService;
 
     @BeforeEach
     void setUp() {
-        apartmentService = new ApartmentService(apartmentRepository, saleRepository, ownershipRecordRepository);
+        apartmentService = new ApartmentService(apartmentRepository, saleRepository);
     }
 
     @Test

@@ -30,7 +30,7 @@ import { useAuth } from '@/shared/contexts/AuthContext';
 import { useToast } from '@/shared/components/ui/Toast';
 import ConfirmDialog from '@/shared/components/ui/ConfirmDialog';
 import AppointmentRescheduleModal from '@/management/components/AppointmentRescheduleModal';
-import { formatDate } from '@/shared/utils/format';
+import { formatDate, getFriendlyErrorMessage } from '@/shared/utils/format';
 
 type AppointmentTab = 'all' | 'upcoming' | 'completed' | 'cancelled';
 
@@ -122,7 +122,7 @@ export default function AppointmentsPage() {
       } catch (err: any) {
         console.error('Error fetching appointments page data:', err);
         if (appts.length === 0) {
-          setError(err?.message || 'Error communicating with the viewing schedule server.');
+          setError(getFriendlyErrorMessage(err, 'Unable to communicate with the viewing schedule server.'));
         }
       } finally {
         setLoading(false);

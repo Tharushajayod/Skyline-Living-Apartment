@@ -9,11 +9,14 @@ import { formatDate } from '@/shared/utils/format';
 import type { UserRole } from '@/shared/types';
 import { apiClient } from '@/shared/services/api';
 
-const ROLE_LABELS: Record<UserRole, string> = {
+const ROLE_LABELS: Record<string, string> = {
   visitor: 'Visitor',
   customer: 'Customer',
   staff: 'Staff',
   admin: 'Administrator',
+  ADMIN: 'Administrator',
+  STAFF: 'Staff',
+  CUSTOMER: 'Customer',
 };
 
 export default function ProfilePage() {
@@ -140,10 +143,10 @@ export default function ProfilePage() {
         });
       }
 
-      toast('Profile details updated successfully in database!', 'success');
+      toast('Profile details updated successfully!', 'success');
     } catch (err: any) {
       console.error('Profile update error:', err);
-      toast(err.message || 'Failed to update database', 'error');
+      toast(err.message || 'Failed to update profile. Please try again.', 'error');
     } finally {
       setSaving(false);
     }

@@ -10,7 +10,6 @@ import com.skyline.enums.ReviewStatus;
 import com.skyline.enums.UserRole;
 import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ResourceNotFoundException;
-import com.skyline.repository.OwnershipRecordRepository;
 import com.skyline.repository.ReservationRepository;
 import com.skyline.repository.ReviewRepository;
 import com.skyline.repository.SaleRepository;
@@ -30,20 +29,17 @@ public class ReviewService {
     private final ApartmentService apartmentService;
     private final UserService userService;
     private final SaleRepository saleRepository;
-    private final OwnershipRecordRepository ownershipRecordRepository;
     private final ReservationRepository reservationRepository;
 
     public ReviewService(ReviewRepository reviewRepository,
                          ApartmentService apartmentService,
                          UserService userService,
                          SaleRepository saleRepository,
-                         OwnershipRecordRepository ownershipRecordRepository,
                          ReservationRepository reservationRepository) {
         this.reviewRepository = reviewRepository;
         this.apartmentService = apartmentService;
         this.userService = userService;
         this.saleRepository = saleRepository;
-        this.ownershipRecordRepository = ownershipRecordRepository;
         this.reservationRepository = reservationRepository;
     }
 
@@ -132,24 +128,6 @@ public class ReviewService {
             }
         }
 
-        // Check purchase via OwnershipRecord
-        Optional<OwnershipRecord> ownershipOpt = ownershipRecordRepository.findByApartmentId(apartmentId);
-        if (ownershipOpt.isPresent()) {
-            OwnershipRecord rec = ownershipOpt.get();
-            boolean isOwner = (rec.getCustomer() != null && rec.getCustomer().getId().equals(customerId)) ||
-                    (rec.getCustomer() != null && rec.getCustomer().getEmail() != null && rec.getCustomer().getEmail().equalsIgnoreCase(customerEmail));
-            if (isOwner) {
-                return ReviewEligibilityResponse.builder()
-                        .eligible(true)
-                        .relationshipType("PURCHASED")
-                        .relationshipLabel("Purchased")
-                        .hasReviewed(hasReviewed)
-                        .existingReviewId(existingReviewId)
-                        .existingReviewStatus(existingReviewStatus)
-                        .build();
-            }
-        }
-
         // Check reservation
         List<Reservation> rsvs = reservationRepository.findByApartmentId(apartmentId);
         for (Reservation r : rsvs) {
@@ -198,16 +176,7 @@ public class ReviewService {
             }
         }
 
-        // 2. Ownership Records
-        List<OwnershipRecord> ownershipRecords = ownershipRecordRepository.findByCustomerIdOrCustomerEmail(customerId, customerEmail);
-        for (OwnershipRecord record : ownershipRecords) {
-            if (record.getApartment() != null && record.getApartment().getId() != null) {
-                Apartment apt = record.getApartment();
-                eligibleMap.put(apt.getId(), toEligibleResponse(apt, "PURCHASED", "Purchased"));
-            }
-        }
-
-        // 3. Customer Reservations
+        // 2. Customer Reservations
         List<Reservation> reservations = new ArrayList<>(reservationRepository.findByCustomerIdOrderByCreatedAtDesc(customerId));
         if (customerEmail != null && !customerEmail.trim().isEmpty()) {
             List<Reservation> emailRsvs = reservationRepository.findByCustomerEmailOrderByCreatedAtDesc(customerEmail);
@@ -262,11 +231,14 @@ public class ReviewService {
                 ? apt.getImages().get(0).getUrl()
                 : (apt.getFloorPlanUrl() != null ? apt.getFloorPlanUrl() : "");
 
+        String aptIdStr = IdParser.formatId("APT", apt.getId());
         return EligibleApartmentResponse.builder()
-                .id(IdParser.formatId("APT", apt.getId()))
+                .id(aptIdStr)
+                .apartmentId(aptIdStr)
                 .numericId(apt.getId())
                 .apartmentNumber(apt.getApartmentNumber())
                 .title(apt.getTitle())
+                .apartmentTitle(apt.getTitle())
                 .buildingName(apt.getBuildingName())
                 .type(apt.getType() != null ? apt.getType().getDisplayValue() : "")
                 .price(apt.getPrice())
@@ -296,10 +268,10 @@ public class ReviewService {
         if (principal != null) {
             ReviewEligibilityResponse eligibility = checkReviewEligibility(aptId, principal);
             if (!eligibility.isEligible()) {
-                throw new BadRequestException("You can only write reviews for residences you have reserved or purchased.");
+                throw new BadRequestException("You can only review apartments you are eligible to review.");
             }
             if (eligibility.isHasReviewed()) {
-                throw new BadRequestException("You have already submitted a review for this residence.");
+                throw new BadRequestException("You have already reviewed this apartment.");
             }
         }
 

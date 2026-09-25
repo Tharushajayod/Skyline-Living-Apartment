@@ -10,7 +10,6 @@ import com.skyline.enums.ApartmentType;
 import com.skyline.exception.ConflictException;
 import com.skyline.exception.ResourceNotFoundException;
 import com.skyline.repository.ApartmentRepository;
-import com.skyline.repository.OwnershipRecordRepository;
 import com.skyline.repository.SaleRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
@@ -29,15 +28,12 @@ public class ApartmentService {
 
     private final ApartmentRepository apartmentRepository;
     private final SaleRepository saleRepository;
-    private final OwnershipRecordRepository ownershipRecordRepository;
 
     public ApartmentService(
             ApartmentRepository apartmentRepository,
-            SaleRepository saleRepository,
-            OwnershipRecordRepository ownershipRecordRepository) {
+            SaleRepository saleRepository) {
         this.apartmentRepository = apartmentRepository;
         this.saleRepository = saleRepository;
-        this.ownershipRecordRepository = ownershipRecordRepository;
     }
 
     // Dynamic combined search & filter
@@ -192,8 +188,7 @@ public class ApartmentService {
         Apartment existing = getApartmentEntityById(id);
 
         if (existing.getStatus() == ApartmentStatus.SOLD ||
-                saleRepository.findByApartmentId(id).isPresent() ||
-                ownershipRecordRepository.findByApartmentId(id).isPresent()) {
+                saleRepository.findByApartmentId(id).isPresent()) {
             throw new ConflictException("Sold apartments cannot be edited because they are part of completed sales records.");
         }
 
@@ -257,8 +252,7 @@ public class ApartmentService {
         if (apartment.getId() != null) {
             Apartment existing = apartmentRepository.findById(apartment.getId()).orElse(null);
             if (existing != null && (existing.getStatus() == ApartmentStatus.SOLD ||
-                    saleRepository.findByApartmentId(existing.getId()).isPresent() ||
-                    ownershipRecordRepository.findByApartmentId(existing.getId()).isPresent())) {
+                    saleRepository.findByApartmentId(existing.getId()).isPresent())) {
                 throw new ConflictException("Sold apartments cannot be edited because they are part of completed sales records.");
             }
         }
@@ -270,8 +264,7 @@ public class ApartmentService {
         Apartment apartment = getApartmentEntityById(id);
 
         if (apartment.getStatus() == ApartmentStatus.SOLD ||
-                saleRepository.findByApartmentId(id).isPresent() ||
-                ownershipRecordRepository.findByApartmentId(id).isPresent()) {
+                saleRepository.findByApartmentId(id).isPresent()) {
             throw new ConflictException("Sold apartments cannot be deleted because they are part of completed sales records.");
         }
 

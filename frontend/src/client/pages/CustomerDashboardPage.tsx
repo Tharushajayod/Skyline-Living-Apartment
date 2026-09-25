@@ -304,7 +304,7 @@ export default function CustomerDashboardPage() {
               (() => {
                 const aptObj = getApartmentDetail(featuredReservation.apartmentId, featuredReservation.apartmentTitle);
                 const cd = countdownTo(featuredReservation.expiresAt);
-                const aptImg = aptObj?.images?.[0]?.url || aptObj?.imageUrl || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                const aptImg = aptObj?.images?.[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
 
                 return (
                   <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-2xs relative overflow-hidden">

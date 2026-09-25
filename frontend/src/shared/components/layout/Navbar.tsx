@@ -29,7 +29,7 @@ export default function Navbar() {
   const isActive = (path: string) =>
     location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
 
-  const isStaffOrAdmin = user?.role === 'staff' || user?.role === 'admin' || user?.role === 'ADMIN';
+  const isStaffOrAdmin = (user?.role as string)?.toLowerCase() === 'staff' || (user?.role as string)?.toLowerCase() === 'admin';
 
   const handleLogout = () => {
     logout();

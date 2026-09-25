@@ -6,7 +6,7 @@ import {
   MessageSquare, Send, CheckCircle2, Lock, ArrowLeft, Eye, Clock,
   Sparkles, ShieldCheck, DollarSign, Award, ArrowRight
 } from 'lucide-react';
-import type { Apartment, Review, ReviewEligibility } from '@/shared/types';
+import type { Apartment, Appointment, Review, ReviewEligibility } from '@/shared/types';
 import { apartmentService } from '@/shared/services/apartmentService';
 import { reviewService } from '@/shared/services/reviewService';
 import { appointmentService } from '@/shared/services/appointmentService';
@@ -15,7 +15,7 @@ import { inquiryService } from '@/shared/services/inquiryService';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { useFavorites } from '@/shared/contexts/FavoritesContext';
 import { useToast } from '@/shared/components/ui/Toast';
-import { formatCurrency, formatDate } from '@/shared/utils/format';
+import { formatCurrency, formatDate, getTodayDateString, isPastDate, getAvailableTimeSlots, ALL_VIEWING_TIME_SLOTS, getFriendlyErrorMessage } from '@/shared/utils/format';
 import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
 import Tabs from '@/shared/components/ui/Tabs';
 import { Input, Textarea, Select } from '@/shared/components/ui/Form';
@@ -84,7 +84,7 @@ export default function ApartmentDetailsPage() {
   const [inquiryForm, setInquiryForm] = useState({ message: '' });
   const [submittingInquiry, setSubmittingInquiry] = useState(false);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
   const [bookingModal, setBookingModal] = useState(false);
   const [bookingDate, setBookingDate] = useState(todayStr);
   const [bookingTime, setBookingTime] = useState('10:00 AM - 11:00 AM');
@@ -148,25 +148,8 @@ export default function ApartmentDetailsPage() {
   ], []);
 
   const availableBookingSlots = useMemo(() => {
-    if (!bookingDate) return ALL_TIME_SLOTS;
-    if (bookingDate === todayStr) {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-
-      return ALL_TIME_SLOTS.filter((slot) => {
-        const startPart = slot.split('-')[0].trim();
-        const [timePart, modifier] = startPart.split(' ');
-        let [hours, minutes] = timePart.split(':').map(Number);
-        if (modifier === 'PM' && hours < 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
-        if (hours > currentHour) return true;
-        if (hours === currentHour && (minutes || 0) > currentMinute) return true;
-        return false;
-      });
-    }
-    return ALL_TIME_SLOTS;
-  }, [bookingDate, todayStr, ALL_TIME_SLOTS]);
+    return getAvailableTimeSlots(bookingDate, ALL_VIEWING_TIME_SLOTS);
+  }, [bookingDate]);
 
   useEffect(() => {
     if (availableBookingSlots.length > 0 && !availableBookingSlots.includes(bookingTime)) {
@@ -212,7 +195,11 @@ export default function ApartmentDetailsPage() {
   const submitBooking = async () => {
     if (!user || !apartment || isSold) return;
     if (!bookingDate) {
-      toast('Please select a viewing date', 'error');
+      toast('Please select an appointment date', 'error');
+      return;
+    }
+    if (isPastDate(bookingDate)) {
+      toast('Appointment date cannot be in the past.', 'error');
       return;
     }
     setSubmittingBooking(true);
@@ -231,7 +218,7 @@ export default function ApartmentDetailsPage() {
       setBookingModal(false);
       navigate('/appointments');
     } catch (err: any) {
-      toast(err.message || 'Failed to book viewing', 'error');
+      toast(getFriendlyErrorMessage(err, 'Unable to create the appointment. Please check the details and try again.'), 'error');
     } finally {
       setSubmittingBooking(false);
     }
@@ -937,7 +924,7 @@ export default function ApartmentDetailsPage() {
             type="date"
             name="bookingDate"
             value={bookingDate}
-            min={new Date().toISOString().split('T')[0]}
+            min={todayStr}
             onChange={(e) => setBookingDate(e.target.value)}
           />
           {availableBookingSlots.length === 0 ? (

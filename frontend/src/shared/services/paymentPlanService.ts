@@ -64,19 +64,24 @@ export const paymentPlanService = {
   },
 
   // =========================================================
-  // ADMIN / STAFF - APPROVE PAYMENT PLAN
+  // ADMIN / STAFF - APPROVE / PROPOSE PAYMENT PLAN TERMS
   // =========================================================
 
   async approve(
     id: string,
-    notes?: string
+    decisionOrNotes?: string | {
+      notes?: string;
+      annualInterestRate?: number;
+      additionalAmount?: number;
+    }
   ): Promise<PaymentPlan> {
+    const payload = typeof decisionOrNotes === 'string'
+      ? { notes: decisionOrNotes }
+      : decisionOrNotes || {};
 
     return apiClient.patch<PaymentPlan>(
       `/payment-plans/${id}/approve`,
-      {
-        notes: notes || '',
-      }
+      payload
     );
   },
 
@@ -94,6 +99,32 @@ export const paymentPlanService = {
       {
         notes: notes || '',
       }
+    );
+  },
+
+  // =========================================================
+  // CUSTOMER - ACCEPT PROPOSED PAYMENT TERMS
+  // =========================================================
+
+  async customerAccept(
+    id: string
+  ): Promise<PaymentPlan> {
+    return apiClient.patch<PaymentPlan>(
+      `/payment-plans/${id}/accept`,
+      {}
+    );
+  },
+
+  // =========================================================
+  // CUSTOMER - DECLINE PROPOSED PAYMENT TERMS
+  // =========================================================
+
+  async customerDecline(
+    id: string
+  ): Promise<PaymentPlan> {
+    return apiClient.patch<PaymentPlan>(
+      `/payment-plans/${id}/decline`,
+      {}
     );
   },
 };

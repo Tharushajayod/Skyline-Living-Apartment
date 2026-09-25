@@ -90,6 +90,34 @@ public class PaymentPlanController {
         );
     }
 
+    @PatchMapping("/{id}/accept")
+    public ResponseEntity<PaymentPlanResponse> acceptPlan(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+
+        return ResponseEntity.ok(
+                paymentPlanService.customerAcceptPlan(
+                        IdParser.parseId(id),
+                        principal
+                )
+        );
+    }
+
+    @PatchMapping("/{id}/decline")
+    public ResponseEntity<PaymentPlanResponse> declinePlan(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+
+        return ResponseEntity.ok(
+                paymentPlanService.customerDeclinePlan(
+                        IdParser.parseId(id),
+                        principal
+                )
+        );
+    }
+
     @PatchMapping("/{id}/reject")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<PaymentPlanResponse> rejectPlan(

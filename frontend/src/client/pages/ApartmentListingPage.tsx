@@ -479,7 +479,7 @@ export default function ApartmentListingPage() {
                 <p className="text-slate-500 text-xs mb-4">Please check your network connection and try again.</p>
                 <button
                   type="button"
-                  onClick={loadApartments}
+                  onClick={() => loadApartments()}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer shadow-sm"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />

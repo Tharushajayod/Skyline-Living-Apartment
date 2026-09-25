@@ -34,16 +34,28 @@ public class ReservationResponse {
     private String saleId;
     private boolean isFullyPaid;
 
+    private BigDecimal totalPaid;
+    private BigDecimal otherPaidAmount;
+    private BigDecimal refundableAmount;
+    private BigDecimal nonRefundableFee;
+
     public static ReservationResponse fromEntity(Reservation r) {
-        return fromEntity(r, false, null, false, null, false);
+        return fromEntity(r, false, null, false, null, false, null, null, null, null);
     }
 
     public static ReservationResponse fromEntity(Reservation r, boolean hasPaymentCommitment, String paymentCommitmentReason) {
-        return fromEntity(r, hasPaymentCommitment, paymentCommitmentReason, false, null, false);
+        return fromEntity(r, hasPaymentCommitment, paymentCommitmentReason, false, null, false, null, null, null, null);
     }
 
     public static ReservationResponse fromEntity(Reservation r, boolean hasPaymentCommitment, String paymentCommitmentReason,
                                                 boolean hasCompletedSale, String saleId, boolean isFullyPaid) {
+        return fromEntity(r, hasPaymentCommitment, paymentCommitmentReason, hasCompletedSale, saleId, isFullyPaid, null, null, null, null);
+    }
+
+    public static ReservationResponse fromEntity(Reservation r, boolean hasPaymentCommitment, String paymentCommitmentReason,
+                                                boolean hasCompletedSale, String saleId, boolean isFullyPaid,
+                                                BigDecimal totalPaid, BigDecimal otherPaidAmount,
+                                                BigDecimal refundableAmount, BigDecimal nonRefundableFee) {
         if (r == null) return null;
         return ReservationResponse.builder()
                 .id(IdParser.formatId("RSV", r.getId()))
@@ -61,6 +73,10 @@ public class ReservationResponse {
                 .hasCompletedSale(hasCompletedSale)
                 .saleId(saleId)
                 .isFullyPaid(isFullyPaid)
+                .totalPaid(totalPaid)
+                .otherPaidAmount(otherPaidAmount)
+                .refundableAmount(refundableAmount)
+                .nonRefundableFee(nonRefundableFee)
                 .build();
     }
 }

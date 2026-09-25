@@ -38,7 +38,7 @@ import Button from '@/shared/components/ui/Button';
 import Modal from '@/shared/components/ui/Modal';
 import EmptyState from '@/shared/components/ui/EmptyState';
 import { Input, Select, Textarea } from '@/shared/components/ui/Form';
-import { timeAgo, formatDate } from '@/shared/utils/format';
+import { timeAgo, formatDate, getFriendlyErrorMessage } from '@/shared/utils/format';
 
 type FilterTab = 'all' | 'Pending' | 'In Progress' | 'Resolved';
 
@@ -131,7 +131,7 @@ export default function InquiriesPage() {
     } catch (err: any) {
       console.error('Error fetching inquiries page data:', err);
       if (inquiries.length === 0) {
-        setError(err?.message || 'Error communicating with the inquiry service.');
+        setError(getFriendlyErrorMessage(err, 'Unable to communicate with the inquiry service.'));
       }
     } finally {
       setLoading(false);

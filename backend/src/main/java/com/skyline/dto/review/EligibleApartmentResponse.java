@@ -13,9 +13,11 @@ import java.math.BigDecimal;
 @Builder
 public class EligibleApartmentResponse {
     private String id;
+    private String apartmentId;
     private Long numericId;
     private String apartmentNumber;
     private String title;
+    private String apartmentTitle;
     private String buildingName;
     private String type;
     private BigDecimal price;

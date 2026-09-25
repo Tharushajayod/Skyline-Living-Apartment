@@ -22,7 +22,7 @@ import {
 import { useAuth } from '@/shared/contexts/AuthContext';
 import { apartmentService } from '@/shared/services/apartmentService';
 import type { PurchasedApartment } from '@/shared/types';
-import { formatCurrency, formatDate } from '@/shared/utils/format';
+import { formatCurrency, formatDate, getFriendlyErrorMessage } from '@/shared/utils/format';
 import Button from '@/shared/components/ui/Button';
 
 export default function MyApartmentsPage() {
@@ -47,7 +47,7 @@ export default function MyApartmentsPage() {
         if (isMounted) {
           console.error('Error fetching purchased apartments:', err);
           setError(
-            err?.message || 'Unable to load your purchased apartments. Please try again later.'
+            getFriendlyErrorMessage(err, 'Unable to load your purchased apartments. Please try again later.')
           );
         }
       })

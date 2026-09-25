@@ -24,7 +24,7 @@ import Modal from '@/shared/components/ui/Modal';
 import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
 import Button from '@/shared/components/ui/Button';
 import { reservationService } from '@/shared/services/reservationService';
-import { formatCurrency, formatDate } from '@/shared/utils/format';
+import { formatCurrency, formatDate, getFriendlyErrorMessage } from '@/shared/utils/format';
 import type { ReservationDetails } from '@/shared/types';
 
 interface ReservationDetailsModalProps {
@@ -71,7 +71,7 @@ export default function ReservationDetailsModal({
         if (isMounted) {
           console.error('Failed to load reservation details:', err);
           if (!cached) {
-            setError(err.message || 'Unable to retrieve complete reservation records.');
+            setError(getFriendlyErrorMessage(err, 'Unable to retrieve complete reservation records.'));
           }
         }
       })

@@ -36,7 +36,15 @@ export default function CustomerSidePanel({ isOpen, onClose }: CustomerSidePanel
     return location.pathname.startsWith(path);
   };
 
-  const navItems = [
+  interface NavItem {
+    label: string;
+    path: string;
+    icon: any;
+    count: number | null;
+    authOnly?: boolean;
+  }
+
+  const navItems: { group: string; items: NavItem[] }[] = [
     {
       group: 'EXPLORATION',
       items: [

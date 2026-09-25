@@ -49,7 +49,7 @@ const emptyForm: FormState = {
 
 export default function ManageApartmentsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin' || user?.role === 'ADMIN';
+  const isAdmin = (user?.role as string)?.toLowerCase() === 'admin';
   const { toast } = useToast();
 
   const cached = apartmentService.getCachedAll();

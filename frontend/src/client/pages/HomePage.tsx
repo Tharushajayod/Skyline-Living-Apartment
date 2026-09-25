@@ -95,7 +95,7 @@ export default function HomePage() {
       try {
         setLoading(true);
         const res = await apartmentService.getAll();
-        const data = Array.isArray(res) ? res : res?.data || res?.content || [];
+        const data = Array.isArray(res) ? res : [];
         const available = data.filter((a: any) => (a.status || '').toLowerCase() !== 'sold');
         setApartments(available.slice(0, 6)); // Display top 6 featured available residences
       } catch (error) {

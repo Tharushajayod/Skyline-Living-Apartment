@@ -24,4 +24,8 @@ public interface PaymentPlanItemRepository
     boolean existsByPaymentPlanId(
             Long paymentPlanId
     );
+
+    void deleteByPaymentPlanId(
+            Long paymentPlanId
+    );
 }
