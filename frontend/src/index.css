@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #fafbfe;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(254, 243, 199, 0.25) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(244, 246, 251, 0.7) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, rgba(254, 249, 231, 0.3) 0px, transparent 50%);
+    background-attachment: fixed;
+    color: #0f172a;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: -0.02em;
+    font-variant-numeric: lining-nums;
+  }
+}
+
+@layer utilities {
+  /* Luxury Light Glass Card */
+  .luxury-glass {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(226, 232, 240, 0.85);
+    box-shadow: 0 4px 25px -2px rgba(15, 23, 42, 0.03), 0 10px 40px -4px rgba(217, 119, 6, 0.03);
+  }
+
+  .luxury-glass-gold {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 252, 246, 0.9) 100%);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    box-shadow: 0 8px 30px -4px rgba(217, 119, 6, 0.08);
+  }
+
+  /* Gold Metallic Text Gradient */
+  .gold-gradient-text {
+    background: linear-gradient(135deg, #945d17 0%, #d49d2b 50%, #ba7e1c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .gold-metallic-badge {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fcd34d 100%);
+    border: 1px solid rgba(217, 119, 6, 0.35);
+    color: #78350f;
+  }
+
+  /* Smooth Luxury Hover Transition */
+  .luxury-card-hover {
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .luxury-card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.08), 0 10px 25px -5px rgba(217, 119, 6, 0.06);
+    border-color: rgba(217, 119, 6, 0.3);
+  }
+
+  /* Custom Slim Scrollbar for wide data grids */
+  .custom-scrollbar::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
