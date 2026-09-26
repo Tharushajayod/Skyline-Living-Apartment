@@ -23,8 +23,8 @@ public class DataInitializer implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(UserRepository userRepository,
-                           ApartmentRepository apartmentRepository,
-                           PasswordEncoder passwordEncoder) {
+            ApartmentRepository apartmentRepository,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.apartmentRepository = apartmentRepository;
         this.passwordEncoder = passwordEncoder;
@@ -107,26 +107,34 @@ public class DataInitializer implements CommandLineRunner {
                     .address("100 Galle Face Center Road")
                     .city("Colombo")
                     .district("Colombo 01")
-                    .description("Ultra-luxurious duplex penthouse with panoramic ocean views, private rooftop terrace, infinity plunge pool, and bespoke Italian kitchen finishings.")
+                    .description(
+                            "Ultra-luxurious duplex penthouse with panoramic ocean views, private rooftop terrace, infinity plunge pool, and bespoke Italian kitchen finishings.")
                     .yearBuilt(2025)
                     .floorPlanUrl("https://images.pexels.com/photos/8135492/pexels-photo-8135492.jpeg")
-                    .facilitiesList(Arrays.asList("Swimming Pool", "Gym & Fitness Center", "24/7 Security", "Concierge Service", "Smart Home System", "Rooftop Garden"))
+                    .facilitiesList(Arrays.asList("Swimming Pool", "Gym & Fitness Center", "24/7 Security",
+                            "Concierge Service", "Smart Home System", "Rooftop Garden"))
                     .latitude(6.9271)
                     .longitude(79.8612)
                     .featured(true)
                     .createdAt(LocalDateTime.now().minusMonths(4))
                     .build();
 
-            apt1.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/16110999/pexels-photo-16110999.jpeg").caption("Exterior View").build());
-            apt1.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/8135492/pexels-photo-8135492.jpeg").caption("Living Area").build());
-            apt1.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/7045356/pexels-photo-7045356.jpeg").caption("Kitchen").build());
+            apt1.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/16110999/pexels-photo-16110999.jpeg")
+                            .caption("Exterior View").build());
+            apt1.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/8135492/pexels-photo-8135492.jpeg")
+                            .caption("Living Area").build());
+            apt1.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/7045356/pexels-photo-7045356.jpeg")
+                            .caption("Kitchen").build());
 
             Apartment apt2 = Apartment.builder()
                     .apartmentNumber("APT-002")
                     .title("Marina View Executive Suite")
                     .buildingName("Skyline Marina Bay")
                     .type(ApartmentType.TWO_BEDROOM)
-                    .status(ApartmentStatus.RESERVED)
+                    .status(ApartmentStatus.AVAILABLE)
                     .price(new BigDecimal("18200000"))
                     .floor(22)
                     .size(128.0)
@@ -135,17 +143,23 @@ public class DataInitializer implements CommandLineRunner {
                     .address("45 Marine Drive")
                     .city("Colombo")
                     .district("Colombo 03")
-                    .description("Sophisticated 2-bedroom executive apartment featuring uninterrupted waterfront views, floor-to-ceiling double-glazed windows, and premium marble flooring.")
+                    .description(
+                            "Sophisticated 2-bedroom executive apartment featuring uninterrupted waterfront views, floor-to-ceiling double-glazed windows, and premium marble flooring.")
                     .yearBuilt(2024)
-                    .facilitiesList(Arrays.asList("Swimming Pool", "Gym & Fitness Center", "24/7 Security", "Underground Parking", "Central Air Conditioning"))
+                    .facilitiesList(Arrays.asList("Swimming Pool", "Gym & Fitness Center", "24/7 Security",
+                            "Underground Parking", "Central Air Conditioning"))
                     .latitude(6.9022)
                     .longitude(79.8540)
                     .featured(true)
                     .createdAt(LocalDateTime.now().minusMonths(3))
                     .build();
 
-            apt2.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/14998334/pexels-photo-14998334.jpeg").caption("Exterior View").build());
-            apt2.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/8135496/pexels-photo-8135496.jpeg").caption("Living Room").build());
+            apt2.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/14998334/pexels-photo-14998334.jpeg")
+                            .caption("Exterior View").build());
+            apt2.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/8135496/pexels-photo-8135496.jpeg")
+                            .caption("Living Room").build());
 
             Apartment apt3 = Apartment.builder()
                     .apartmentNumber("APT-003")
@@ -161,17 +175,23 @@ public class DataInitializer implements CommandLineRunner {
                     .address("12 Albert Crescent")
                     .city("Colombo")
                     .district("Colombo 07")
-                    .description("Charming 1-bedroom suite with a private landscaped terrace balcony, open-plan designer living, and quiet leafy courtyard surroundings.")
+                    .description(
+                            "Charming 1-bedroom suite with a private landscaped terrace balcony, open-plan designer living, and quiet leafy courtyard surroundings.")
                     .yearBuilt(2023)
-                    .facilitiesList(Arrays.asList("Gym & Fitness Center", "24/7 Security", "Elevator", "Bicycle Storage", "Private Balcony"))
+                    .facilitiesList(Arrays.asList("Gym & Fitness Center", "24/7 Security", "Elevator",
+                            "Bicycle Storage", "Private Balcony"))
                     .latitude(6.9110)
                     .longitude(79.8650)
                     .featured(false)
                     .createdAt(LocalDateTime.now().minusMonths(2))
                     .build();
 
-            apt3.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/31656167/pexels-photo-31656167.jpeg").caption("Terrace Suite").build());
-            apt3.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/6585598/pexels-photo-6585598.jpeg").caption("Interior Lounge").build());
+            apt3.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/31656167/pexels-photo-31656167.jpeg")
+                            .caption("Terrace Suite").build());
+            apt3.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/6585598/pexels-photo-6585598.jpeg")
+                            .caption("Interior Lounge").build());
 
             Apartment apt4 = Apartment.builder()
                     .apartmentNumber("APT-004")
@@ -187,19 +207,22 @@ public class DataInitializer implements CommandLineRunner {
                     .address("88 Nawala Road")
                     .city("Colombo")
                     .district("Rajagiriya")
-                    .description("Spacious 3-bedroom luxury residence with designer lighting, master walk-in wardrobe, and tranquil riverfront views.")
+                    .description(
+                            "Spacious 3-bedroom luxury residence with designer lighting, master walk-in wardrobe, and tranquil riverfront views.")
                     .yearBuilt(2024)
-                    .facilitiesList(Arrays.asList("Swimming Pool", "24/7 Security", "Children’s Playground", "Sauna & Spa", "EV Charging Stations"))
+                    .facilitiesList(Arrays.asList("Swimming Pool", "24/7 Security", "Children’s Playground",
+                            "Sauna & Spa", "EV Charging Stations"))
                     .latitude(6.9080)
                     .longitude(79.8920)
                     .featured(false)
                     .createdAt(LocalDateTime.now().minusMonths(5))
                     .build();
 
-            apt4.addImage(ApartmentImage.builder().url("https://images.pexels.com/photos/39485845/pexels-photo-39485845.jpeg").caption("Exterior").build());
+            apt4.addImage(
+                    ApartmentImage.builder().url("https://images.pexels.com/photos/39485845/pexels-photo-39485845.jpeg")
+                            .caption("Exterior").build());
 
             apartmentRepository.saveAll(Arrays.asList(apt1, apt2, apt3, apt4));
         }
     }
 }
-
