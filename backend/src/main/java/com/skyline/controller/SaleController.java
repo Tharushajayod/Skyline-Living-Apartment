@@ -30,6 +30,12 @@ public class SaleController {
         return ResponseEntity.ok(saleService.getAllSales());
     }
 
+    @GetMapping("/summary")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<com.skyline.dto.sale.SalesSummaryResponse> getSalesSummary() {
+        return ResponseEntity.ok(saleService.getSalesSummary());
+    }
+
     @GetMapping("/my-apartments")
     public ResponseEntity<List<com.skyline.dto.sale.PurchasedApartmentResponse>> getMyPurchasedApartments(
             @AuthenticationPrincipal UserPrincipal userPrincipal) {

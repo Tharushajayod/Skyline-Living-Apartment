@@ -26,7 +26,8 @@ public class DashboardController {
     }
 
     @GetMapping("/reports")
-    public ResponseEntity<ReportDataResponse> getDashboardReports() {
-        return ResponseEntity.ok(dashboardService.getReports());
+    public ResponseEntity<ReportDataResponse> getDashboardReports(
+            @org.springframework.web.bind.annotation.RequestParam(required = false, defaultValue = "6m") String range) {
+        return ResponseEntity.ok(dashboardService.getReports(range));
     }
 }

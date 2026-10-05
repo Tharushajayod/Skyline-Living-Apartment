@@ -39,29 +39,29 @@ export default function ReservationCancellationModal({
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Business Rules (Sections 16, 17, 18):
-  // 1. Reservation Fee is strictly non-refundable upon cancellation/expiration.
-  // 2. Only other verified payments (if any) can be refunded.
+  // Business Rules (Sections 1.B & 9):
+  // When Admin/Staff initiates cancellation, customer receives 100% refund (retained = 0).
+  // When mode is expiration, company retains non-refundable fee.
   const reservationFee = reservation
     ? Number(reservation.nonRefundableFee ?? reservation.reservationFee) || 0
     : 0;
   const totalPaid = reservation ? Number(reservation.totalPaid) || 0 : 0;
+  const depositPaid = totalPaid > 0 ? totalPaid : reservationFee;
   const otherPaidAmount = reservation
     ? Number(reservation.otherPaidAmount) || Math.max(0, totalPaid - reservationFee)
     : 0;
-  const maxRefundable = otherPaidAmount;
+  const maxRefundable = mode === 'cancellation' ? depositPaid : otherPaidAmount;
 
-  const refundAmount = Math.max(0, Number(refundAmountStr) || 0);
-  const basisAmount = totalPaid > 0 ? totalPaid : reservationFee;
-  const companyRetained = Math.max(0, basisAmount - refundAmount);
+  const refundAmount = mode === 'cancellation' ? depositPaid : Math.max(0, Number(refundAmountStr) || 0);
+  const companyRetained = mode === 'cancellation' ? 0 : Math.max(0, depositPaid - refundAmount);
 
   useEffect(() => {
     if (open && reservation) {
-      setRefundAmountStr('0');
+      setRefundAmountStr(mode === 'cancellation' ? depositPaid.toString() : '0');
       setReason(
         mode === 'expiration'
           ? 'Reservation expired after hold window. Non-refundable reservation deposit retained by company policy.'
-          : 'Customer requested cancellation of residence hold. Non-refundable reservation deposit retained.'
+          : 'Management-initiated reservation cancellation. 100% refund obligation created.'
       );
       setNotes('');
     }
@@ -69,8 +69,8 @@ export default function ReservationCancellationModal({
 
   if (!open || !reservation) return null;
 
-  const isRefundOverMax = refundAmount > maxRefundable;
-  const isRefundNegative = refundAmount < 0;
+  const isRefundOverMax = mode !== 'cancellation' && refundAmount > maxRefundable;
+  const isRefundNegative = mode !== 'cancellation' && refundAmount < 0;
   const isReasonEmpty = !reason.trim();
   const hasCompletedSale = Boolean(reservation.hasCompletedSale);
   const isValid = !hasCompletedSale && !isRefundOverMax && !isRefundNegative && !isReasonEmpty;
@@ -82,7 +82,7 @@ export default function ReservationCancellationModal({
     }
 
     if (!isValid) {
-      toast('Please verify all refund and retained amounts before proceeding', 'error');
+      toast('Please verify all details before proceeding', 'error');
       return;
     }
 
@@ -100,7 +100,7 @@ export default function ReservationCancellationModal({
         toast('Expired reservation settlement & retained fee recorded successfully', 'success');
       } else {
         await reservationService.cancelWithRefund(reservation.id, payload);
-        toast('Reservation cancelled and refund financial record created', 'success');
+        toast('Reservation cancelled. Full refund obligation created awaiting manual payment.', 'success');
       }
 
       onSuccess();
@@ -159,16 +159,28 @@ export default function ReservationCancellationModal({
           </div>
         )}
 
-        {/* Reservation Fee Policy Notice */}
-        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-3.5 flex items-start gap-2.5 text-xs">
-          <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-amber-950">Non-Refundable Reservation Fee Policy</p>
-            <p className="mt-0.5 text-[11px] text-amber-800 leading-relaxed">
-              The 10% reservation fee ({formatCurrency(reservationFee)}) is strictly non-refundable upon cancellation or expiration. If any other verified payments exist (e.g. installment payments), management may refund up to the other paid amount.
-            </p>
+        {/* Policy Notice */}
+        {mode === 'cancellation' ? (
+          <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-3.5 flex items-start gap-2.5 text-xs">
+            <Info className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-blue-950">Management Cancellation Policy (100% Full Refund)</p>
+              <p className="mt-0.5 text-[11px] text-blue-800 leading-relaxed">
+                When an Administrator or Staff member initiates reservation cancellation, company policy strictly mandates a <strong>100% refund</strong> of the reservation deposit ({formatCurrency(depositPaid)}). Company retained fee is Rs. 0. A refund obligation in status <strong>Awaiting Payment</strong> will be created, awaiting actual manual disbursement.
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-3.5 flex items-start gap-2.5 text-xs">
+            <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-950">Non-Refundable Reservation Fee Policy</p>
+              <p className="mt-0.5 text-[11px] text-amber-800 leading-relaxed">
+                The 10% reservation fee ({formatCurrency(reservationFee)}) is strictly non-refundable upon expiration. If any other verified payments exist, management may refund up to the other paid amount.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Hold Overview Card */}
         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2 text-xs">
@@ -194,97 +206,73 @@ export default function ReservationCancellationModal({
           </div>
         </div>
 
-        {/* Live Financial Breakdown Card (Sections 16, 17, 18) */}
-        <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-4 space-y-3">
+        {/* Financial Breakdown Card */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <Calculator className="w-4 h-4 text-amber-700" />
-            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+            <Calculator className="w-4 h-4 text-slate-700" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
               Financial Settlement Breakdown
             </h4>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center text-xs">
             <div className="bg-white rounded-xl p-2.5 border border-slate-200">
-              <span className="text-[9px] text-slate-400 font-bold block uppercase">Non-Refundable Fee</span>
+              <span className="text-[9px] text-slate-400 font-bold block uppercase">Original Paid Fee</span>
               <span className="font-bold text-slate-900 text-xs mt-0.5 block">
-                {formatCurrency(reservationFee)}
+                {formatCurrency(depositPaid)}
               </span>
             </div>
 
-            <div className="bg-white rounded-xl p-2.5 border border-slate-200">
-              <span className="text-[9px] text-slate-400 font-bold block uppercase">Total Paid</span>
-              <span className="font-bold text-slate-900 text-xs mt-0.5 block">
-                {formatCurrency(totalPaid)}
-              </span>
-            </div>
-
-            <div className="bg-white rounded-xl p-2.5 border border-blue-200">
-              <span className="text-[9px] text-blue-700 font-bold block uppercase">Other Paid Amount</span>
-              <span className="font-bold text-blue-900 text-xs mt-0.5 block">
-                {formatCurrency(otherPaidAmount)}
-              </span>
-            </div>
-
-            <div className="bg-white rounded-xl p-2.5 border border-emerald-200">
-              <span className="text-[9px] text-emerald-700 font-bold block uppercase">Max Refundable</span>
-              <span className="font-extrabold text-emerald-700 text-xs mt-0.5 block">
-                {formatCurrency(maxRefundable)}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-center text-xs pt-2 border-t border-amber-200/60">
-            <div className="bg-emerald-50 rounded-xl p-2 border border-emerald-200">
-              <span className="text-[10px] text-emerald-800 font-bold block uppercase">Customer Refund</span>
-              <span className="font-extrabold text-emerald-800 text-sm mt-0.5 block">
+            <div className="bg-emerald-50 rounded-xl p-2.5 border border-emerald-200">
+              <span className="text-[9px] text-emerald-700 font-bold block uppercase">Refund Due</span>
+              <span className="font-extrabold text-emerald-700 text-sm mt-0.5 block">
                 {formatCurrency(refundAmount)}
               </span>
             </div>
-            <div className="bg-purple-50 rounded-xl p-2 border border-purple-200">
-              <span className="text-[10px] text-purple-800 font-bold block uppercase">Company Retained</span>
+
+            <div className="bg-purple-50 rounded-xl p-2.5 border border-purple-200">
+              <span className="text-[9px] text-purple-700 font-bold block uppercase">Company Retained</span>
               <span className="font-extrabold text-purple-900 text-sm mt-0.5 block">
                 {formatCurrency(companyRetained)}
               </span>
             </div>
           </div>
-
-          <p className="text-[11px] text-slate-600 leading-relaxed font-normal">
-            Formula: Company retains the non-refundable reservation fee ({formatCurrency(reservationFee)}) plus any unrefunded balance. Total Retained: <strong className="text-purple-900">{formatCurrency(companyRetained)}</strong> will be recorded as retained income.
-          </p>
         </div>
 
         {/* Inputs */}
         <div className="space-y-4">
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <label className="block text-xs font-bold text-slate-700">
-                Refund Amount to Customer (Rs.) <span className="text-rose-500">*</span>
-              </label>
-              <span className="text-[11px] text-slate-500">
-                Max Refundable: <strong className="text-emerald-700">{formatCurrency(maxRefundable)}</strong>
-              </span>
+          {mode === 'expiration' && (
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Refund Amount to Customer (Rs.) <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[11px] text-slate-500">
+                  Max Refundable: <strong className="text-emerald-700">{formatCurrency(maxRefundable)}</strong>
+                </span>
+              </div>
+              <Input
+                type="number"
+                min="0"
+                max={maxRefundable.toString()}
+                value={refundAmountStr}
+                onChange={(e) => setRefundAmountStr(e.target.value)}
+                placeholder="0"
+              />
+              {isRefundOverMax && (
+                <p className="text-[11px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Refund amount cannot exceed other payments ({formatCurrency(maxRefundable)}).
+                </p>
+              )}
+              {isRefundNegative && (
+                <p className="text-[11px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Refund amount cannot be negative.
+                </p>
+              )}
             </div>
-            <Input
-              type="number"
-              min="0"
-              max={maxRefundable.toString()}
-              value={refundAmountStr}
-              onChange={(e) => setRefundAmountStr(e.target.value)}
-              placeholder="0"
-            />
-            {isRefundOverMax && (
-              <p className="text-[11px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Refund amount cannot exceed other payments ({formatCurrency(maxRefundable)}). The reservation fee is non-refundable.
-              </p>
-            )}
-            {isRefundNegative && (
-              <p className="text-[11px] text-rose-600 mt-1 font-semibold flex items-center gap-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Refund amount cannot be negative.
-              </p>
-            )}
-          </div>
+          )}
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">

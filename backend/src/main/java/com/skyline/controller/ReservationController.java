@@ -44,10 +44,45 @@ public class ReservationController {
         return ResponseEntity.ok(reservationService.getReservationDetails(numericId));
     }
 
+    @GetMapping("/{id}/refund-eligibility")
+    public ResponseEntity<com.skyline.dto.reservation.RefundEligibilityResponse> getRefundEligibility(@PathVariable String id) {
+        Long numericId = IdParser.parseId(id);
+        return ResponseEntity.ok(reservationService.getRefundEligibility(numericId));
+    }
+
     @GetMapping("/refunds")
     @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<List<com.skyline.dto.reservation.ReservationRefundResponse>> getAllRefunds() {
         return ResponseEntity.ok(reservationService.getAllRefunds());
+    }
+
+    @PostMapping("/refunds/{refundId}/process")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<com.skyline.dto.reservation.ReservationRefundResponse> processPendingRefund(
+            @PathVariable String refundId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long numericRefundId = IdParser.parseId(refundId);
+        return ResponseEntity.ok(reservationService.processPendingRefund(numericRefundId, userPrincipal));
+    }
+
+    @PostMapping("/refunds/{refundId}/review")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<com.skyline.dto.reservation.ReservationRefundResponse> reviewAndApproveSettlement(
+            @PathVariable String refundId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @Valid @RequestBody com.skyline.dto.reservation.RefundSettlementRequest request) {
+        Long numericRefundId = IdParser.parseId(refundId);
+        return ResponseEntity.ok(reservationService.reviewAndApproveSettlement(numericRefundId, request, userPrincipal));
+    }
+
+    @PostMapping("/refunds/{refundId}/complete-payment")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<com.skyline.dto.reservation.ReservationRefundResponse> recordRefundPayment(
+            @PathVariable String refundId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @Valid @RequestBody com.skyline.dto.reservation.RecordRefundPaymentRequest request) {
+        Long numericRefundId = IdParser.parseId(refundId);
+        return ResponseEntity.ok(reservationService.recordRefundPayment(numericRefundId, request, userPrincipal));
     }
 
     @PostMapping
@@ -62,7 +97,7 @@ public class ReservationController {
     public ResponseEntity<com.skyline.dto.reservation.ReservationRefundResponse> cancelReservationWithRefund(
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal userPrincipal,
-            @Valid @RequestBody com.skyline.dto.reservation.ReservationCancellationRequest request) {
+            @Valid @RequestBody(required = false) com.skyline.dto.reservation.ReservationCancellationRequest request) {
         Long numericId = IdParser.parseId(id);
         com.skyline.dto.reservation.ReservationRefundResponse response = reservationService.cancelReservationWithRefund(numericId, request, userPrincipal);
         return ResponseEntity.ok(response);

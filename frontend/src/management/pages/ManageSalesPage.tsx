@@ -13,6 +13,9 @@ import {
   User,
   AlertCircle,
   FileSpreadsheet,
+  Clock,
+  CreditCard,
+  FileText,
 } from 'lucide-react';
 import Badge from '@/shared/components/ui/Badge';
 import EmptyState from '@/shared/components/ui/EmptyState';
@@ -21,9 +24,11 @@ import { useToast } from '@/shared/components/ui/Toast';
 import { salesService, dashboardService } from '@/shared/services/managementService';
 import { reservationService } from '@/shared/services/reservationService';
 import { formatCurrency, formatDate } from '@/shared/utils/format';
-import type { Sale, ReportData, ReservationRefund } from '@/shared/types';
+import type { Sale, ReportData, ReservationRefund, SalesSummary } from '@/shared/types';
 import SaleDetailsModal from '../components/SaleDetailsModal';
 import ReservationDetailsModal from '../components/ReservationDetailsModal';
+import ReviewCancellationModal from '../components/ReviewCancellationModal';
+import RecordRefundPaymentModal from '../components/RecordRefundPaymentModal';
 
 export default function ManageSalesPage() {
   const { toast } = useToast();
@@ -32,6 +37,7 @@ export default function ManageSalesPage() {
   const [list, setList] = useState<Sale[]>(() => salesService.getCached() || []);
   const [refundList, setRefundList] = useState<ReservationRefund[]>([]);
   const [reportsData, setReportsData] = useState<ReportData | null>(() => dashboardService.getCachedReports());
+  const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(() => salesService.getCachedSummary());
   const [loading, setLoading] = useState(!salesService.getCached());
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -40,18 +46,22 @@ export default function ManageSalesPage() {
   // Modals state
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [selectedResDetailsId, setSelectedResDetailsId] = useState<string | null>(null);
+  const [reviewingRefund, setReviewingRefund] = useState<ReservationRefund | null>(null);
+  const [payingRefund, setPayingRefund] = useState<ReservationRefund | null>(null);
 
   const fetchData = async (showSpinner = false) => {
     try {
       if (showSpinner) setLoading(true);
-      const [salesData, repData, refundsData] = await Promise.all([
+      const [salesData, repData, refundsData, summaryData] = await Promise.all([
         salesService.getAll(),
         dashboardService.getReports().catch(() => null),
         reservationService.getAllRefunds().catch(() => []),
+        salesService.getSummary().catch(() => null),
       ]);
       setList(Array.isArray(salesData) ? salesData : []);
       if (repData) setReportsData(repData);
       setRefundList(Array.isArray(refundsData) ? refundsData : []);
+      if (summaryData) setSalesSummary(summaryData);
     } catch (err: any) {
       console.error(err);
       toast('Failed to load financial & sales records', 'error');
@@ -64,8 +74,24 @@ export default function ManageSalesPage() {
     fetchData(!salesService.getCached());
   }, []);
 
-  // Summary KPIs for Sales
+  // Summary KPIs for Sales (Authoritative from backend, with graceful client fallback)
   const kpis = useMemo(() => {
+    if (salesSummary) {
+      return {
+        count: salesSummary.totalSalesCount,
+        totalRevenue: salesSummary.totalSalesRevenue,
+        avgPrice: salesSummary.averageSalePrice,
+        thisMonthCount: salesSummary.thisMonthSalesCount,
+        thisMonthRevenue: salesSummary.thisMonthSalesRevenue,
+        totalRetainedIncome: salesSummary.totalRetainedFeeIncome,
+        totalCustomerRefunds: salesSummary.totalCustomerRefunds,
+        refundCount: salesSummary.totalRefundRecordsCount,
+        pendingReviewCount: salesSummary.pendingReviewRefundsCount,
+        awaitingPaymentCount: salesSummary.awaitingPaymentRefundsCount,
+        completedCount: salesSummary.completedRefundsCount,
+      };
+    }
+
     const count = list.length;
     const totalRevenue = list.reduce((sum, s) => sum + (Number(s.finalPrice) || 0), 0);
     const avgPrice = count > 0 ? totalRevenue / count : 0;
@@ -75,9 +101,47 @@ export default function ManageSalesPage() {
     const thisMonthSales = list.filter((s) => s.saleDate && s.saleDate.startsWith(nowPrefix));
     const thisMonthRevenue = thisMonthSales.reduce((sum, s) => sum + (Number(s.finalPrice) || 0), 0);
 
-    // Retained Income KPIs
-    const totalRetainedIncome = refundList.reduce((sum, r) => sum + (Number(r.companyRetainedAmount) || 0), 0);
-    const totalCustomerRefunds = refundList.reduce((sum, r) => sum + (Number(r.refundAmount) || 0), 0);
+    // Retained Income KPIs - Strictly adhere to financial settlement lifecycle
+    const isApprovedSettlement = (status?: string) =>
+      status === 'Awaiting Payment' ||
+      status === 'Approved' ||
+      status === 'Processed' ||
+      status === 'Completed' ||
+      status === 'PENDING_PAYMENT' ||
+      status === 'APPROVED' ||
+      status === 'PROCESSED' ||
+      status === 'COMPLETED';
+
+    const isCompletedRefund = (status?: string) =>
+      status === 'Completed' ||
+      status === 'COMPLETED' ||
+      status === 'Processed' ||
+      status === 'PROCESSED';
+
+    const isPendingReviewStatus = (status?: string) =>
+      status === 'Pending Review' ||
+      status === 'PENDING_REVIEW' ||
+      status === 'Pending' ||
+      status === 'PENDING';
+
+    const isAwaitingPaymentStatus = (status?: string) =>
+      status === 'Awaiting Payment' ||
+      status === 'PENDING_PAYMENT' ||
+      status === 'Approved' ||
+      status === 'APPROVED';
+
+    const totalRetainedIncome = refundList
+      .filter((r) => isApprovedSettlement(r.refundStatus))
+      .reduce((sum, r) => sum + (Number(r.companyRetainedAmount) || 0), 0);
+
+    // CRITICAL: Total Refunded to Customers must ONLY sum completed refunds actually disbursed
+    const totalCustomerRefunds = refundList
+      .filter((r) => isCompletedRefund(r.refundStatus))
+      .reduce((sum, r) => sum + (Number(r.refundAmount) || 0), 0);
+
+    const pendingReviewCount = refundList.filter((r) => isPendingReviewStatus(r.refundStatus)).length;
+    const awaitingPaymentCount = refundList.filter((r) => isAwaitingPaymentStatus(r.refundStatus)).length;
+    const completedCount = refundList.filter((r) => isCompletedRefund(r.refundStatus)).length;
 
     return {
       count,
@@ -88,8 +152,11 @@ export default function ManageSalesPage() {
       totalRetainedIncome,
       totalCustomerRefunds,
       refundCount: refundList.length,
+      pendingReviewCount,
+      awaitingPaymentCount,
+      completedCount,
     };
-  }, [list, refundList]);
+  }, [salesSummary, list, refundList]);
 
   // Filtering & Sorting for Property Sales
   const filteredSales = useMemo(() => {
@@ -376,7 +443,7 @@ export default function ManageSalesPage() {
               <h3 className="text-2xl font-extrabold text-purple-900 tracking-tight mt-0.5">
                 {formatCurrency(kpis.totalRetainedIncome)}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Company retained cancellation & expiry fees</p>
+              <p className="text-[11px] text-slate-400 mt-1">Approved & finalized company retained fees</p>
             </div>
           </div>
 
@@ -386,7 +453,7 @@ export default function ManageSalesPage() {
                 <Receipt className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
-                Refunds
+                Completed Refunds
               </span>
             </div>
             <div>
@@ -394,7 +461,7 @@ export default function ManageSalesPage() {
               <h3 className="text-2xl font-extrabold text-emerald-700 tracking-tight mt-0.5">
                 {formatCurrency(kpis.totalCustomerRefunds)}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Settled return of deposits</p>
+              <p className="text-[11px] text-slate-400 mt-1">Disbursed manual returns only</p>
             </div>
           </div>
 
@@ -404,7 +471,7 @@ export default function ManageSalesPage() {
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                Ledger
+                Settlements Lifecycle
               </span>
             </div>
             <div>
@@ -412,7 +479,21 @@ export default function ManageSalesPage() {
               <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">
                 {kpis.refundCount}
               </h3>
-              <p className="text-[11px] text-slate-400 mt-1">Audited financial records</p>
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[10px] font-bold">
+                {kpis.pendingReviewCount > 0 && (
+                  <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    {kpis.pendingReviewCount} Review
+                  </span>
+                )}
+                {kpis.awaitingPaymentCount > 0 && (
+                  <span className="text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    {kpis.awaitingPaymentCount} Awaiting
+                  </span>
+                )}
+                <span className="text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  {kpis.completedCount} Completed
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -599,82 +680,163 @@ export default function ManageSalesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredRefunds.map((r) => (
-                    <tr
-                      key={r.id}
-                      onClick={() => setSelectedResDetailsId(r.reservationId)}
-                      className="hover:bg-slate-50/60 transition-colors cursor-pointer group"
-                    >
-                      {/* 1. Settlement Ref */}
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            #{r.id}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                          Hold: #{r.reservationId}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          {formatDate(r.createdAt)}
-                        </p>
-                      </td>
+                  {filteredRefunds.map((r) => {
+                    const isPendingReview =
+                      r.refundStatus === 'Pending Review' ||
+                      r.refundStatus === 'PENDING_REVIEW' ||
+                      r.refundStatus === 'Pending' ||
+                      r.refundStatus === 'PENDING';
 
-                      {/* 2. Customer & Residence */}
-                      <td className="px-5 py-3.5">
-                        <p className="font-extrabold text-slate-900 text-sm">
-                          {r.customerName}
-                        </p>
-                        <p className="text-xs text-amber-700 font-semibold flex items-center gap-1 mt-0.5 truncate max-w-[200px]">
-                          <Building2 className="w-3.5 h-3.5 shrink-0" />
-                          {r.apartmentTitle || 'Apartment'}
-                        </p>
-                      </td>
+                    const isAwaitingPayment =
+                      r.refundStatus === 'Awaiting Payment' ||
+                      r.refundStatus === 'PENDING_PAYMENT' ||
+                      r.refundStatus === 'Approved' ||
+                      r.refundStatus === 'APPROVED';
 
-                      {/* 3. Fee Breakdown */}
-                      <td className="px-5 py-3.5">
-                        <p className="text-xs font-extrabold text-slate-900">
-                          Total Fee: {formatCurrency(r.originalFee)}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1 text-[11px] flex-wrap">
-                          <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                            Refund: {formatCurrency(r.refundAmount)}
-                          </span>
-                          <span className="text-purple-700 font-bold bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
-                            Retained: {formatCurrency(r.companyRetainedAmount)}
-                          </span>
-                        </div>
-                      </td>
+                    const isCompleted =
+                      r.refundStatus === 'Completed' ||
+                      r.refundStatus === 'COMPLETED' ||
+                      r.refundStatus === 'Processed' ||
+                      r.refundStatus === 'PROCESSED';
 
-                      {/* 4. Status & Reason */}
-                      <td className="px-5 py-3.5">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase bg-purple-50 text-purple-900 border border-purple-300 px-2 py-0.5 rounded-md">
-                          <Receipt className="w-3 h-3 text-purple-700" />
-                          RETAINED
-                        </span>
-                        {r.reason && (
-                          <p className="text-[11px] text-slate-500 mt-1 italic truncate max-w-[180px]">
-                            "{r.reason}"
+                    return (
+                      <tr
+                        key={r.id}
+                        onClick={() => setSelectedResDetailsId(r.reservationId)}
+                        className="hover:bg-slate-50/60 transition-colors cursor-pointer group"
+                      >
+                        {/* 1. Settlement Ref */}
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                              #{r.id}
+                            </span>
+                            {r.initiatedByRole && (
+                              <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                {r.initiatedByRole}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            Hold: #{r.reservationId}
                           </p>
-                        )}
-                      </td>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {formatDate(r.createdAt)}
+                          </p>
+                        </td>
 
-                      {/* 5. Actions */}
-                      <td className="px-5 py-3.5 text-right">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedResDetailsId(r.reservationId);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-amber-500 hover:text-slate-950 transition cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Hold Details</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        {/* 2. Customer & Residence */}
+                        <td className="px-5 py-3.5">
+                          <p className="font-extrabold text-slate-900 text-sm">
+                            {r.customerName}
+                          </p>
+                          <p className="text-xs text-amber-700 font-semibold flex items-center gap-1 mt-0.5 truncate max-w-[200px]">
+                            <Building2 className="w-3.5 h-3.5 shrink-0" />
+                            {r.apartmentTitle || 'Apartment'}
+                          </p>
+                        </td>
+
+                        {/* 3. Fee Breakdown */}
+                        <td className="px-5 py-3.5">
+                          <p className="text-xs font-extrabold text-slate-900">
+                            Total Fee: {formatCurrency(r.originalFee)}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] flex-wrap">
+                            {isPendingReview ? (
+                              <>
+                                <span className="text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 italic">
+                                  Refund: Pending Review
+                                </span>
+                                <span className="text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200 italic">
+                                  Retained: Pending Review
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                  Refund: {formatCurrency(r.refundAmount || 0)}
+                                </span>
+                                <span className="text-purple-700 font-bold bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                  Retained: {formatCurrency(r.companyRetainedAmount || 0)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 4. Status & Reason */}
+                        <td className="px-5 py-3.5">
+                          {isPendingReview ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase bg-amber-50 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              PENDING REVIEW
+                            </span>
+                          ) : isAwaitingPayment ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase bg-blue-50 text-blue-900 border border-blue-300 px-2 py-0.5 rounded-md">
+                              <CreditCard className="w-3 h-3 text-blue-600" />
+                              REFUND PENDING
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase bg-emerald-50 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded-md">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              COMPLETED
+                            </span>
+                          )}
+                          {r.reason && (
+                            <p className="text-[11px] text-slate-500 mt-1 italic truncate max-w-[180px]">
+                              "{r.reason}"
+                            </p>
+                          )}
+                        </td>
+
+                        {/* 5. Actions */}
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isPendingReview && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReviewingRefund(r);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-400 hover:bg-amber-500 transition cursor-pointer shadow-xs"
+                                title="Review Customer Cancellation and Determine Retained Fee"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>Review Cancellation</span>
+                              </button>
+                            )}
+                            {isAwaitingPayment && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPayingRefund(r);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition cursor-pointer shadow-xs"
+                                title="Record Manual Refund Payment"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Record Payment</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedResDetailsId(r.reservationId);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+                              title="View Full Reservation Audit Details"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Details</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -694,6 +856,28 @@ export default function ManageSalesPage() {
         open={!!selectedResDetailsId}
         onClose={() => setSelectedResDetailsId(null)}
         reservationId={selectedResDetailsId}
+      />
+
+      {/* Review Cancellation Modal */}
+      <ReviewCancellationModal
+        open={!!reviewingRefund}
+        onClose={() => setReviewingRefund(null)}
+        refund={reviewingRefund}
+        onSuccess={() => {
+          setReviewingRefund(null);
+          fetchData();
+        }}
+      />
+
+      {/* Record Refund Payment Modal */}
+      <RecordRefundPaymentModal
+        open={!!payingRefund}
+        onClose={() => setPayingRefund(null)}
+        refund={payingRefund}
+        onSuccess={() => {
+          setPayingRefund(null);
+          fetchData();
+        }}
       />
     </div>
   );

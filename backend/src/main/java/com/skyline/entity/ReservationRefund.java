@@ -9,13 +9,18 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "reservation_refunds", indexes = {
-    @Index(name = "idx_refund_res_id", columnList = "reservation_id"),
-    @Index(name = "idx_refund_cust_id", columnList = "customer_id"),
-    @Index(name = "idx_refund_apt_id", columnList = "apartment_id"),
-    @Index(name = "idx_refund_status", columnList = "refundStatus"),
-    @Index(name = "idx_refund_created_at", columnList = "createdAt")
-})
+@Table(name = "reservation_refunds", 
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_refund_res_id", columnNames = "reservation_id")
+    },
+    indexes = {
+        @Index(name = "idx_refund_res_id", columnList = "reservation_id"),
+        @Index(name = "idx_refund_cust_id", columnList = "customer_id"),
+        @Index(name = "idx_refund_apt_id", columnList = "apartment_id"),
+        @Index(name = "idx_refund_status", columnList = "refundStatus"),
+        @Index(name = "idx_refund_created_at", columnList = "createdAt")
+    }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -46,16 +51,16 @@ public class ReservationRefund {
     @Column(nullable = false, precision = 18, scale = 2)
     private BigDecimal originalFee;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(precision = 18, scale = 2)
     private BigDecimal refundAmount;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(precision = 18, scale = 2)
     private BigDecimal companyRetainedAmount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private RefundStatus refundStatus = RefundStatus.PROCESSED;
+    private RefundStatus refundStatus = RefundStatus.PENDING_REVIEW;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -65,9 +70,44 @@ public class ReservationRefund {
     @Column(length = 1000)
     private String reason;
 
+    // Cancellation Initiator Audit Fields
+    @Column(name = "initiated_by_role", length = 50)
+    private String initiatedByRole; // CUSTOMER, STAFF, ADMIN
+
+    @Column(name = "initiated_by_user_id")
+    private Long initiatedByUserId;
+
+    @Column(name = "initiated_by_name")
+    private String initiatedByName;
+
+    @Column(name = "requested_at")
+    private LocalDateTime requestedAt;
+
+    // Administrative Settlement Review Fields
+    @Column(name = "reviewed_by")
+    private String reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "settlement_note", length = 1000)
+    private String settlementNote;
+
+    // Manual Refund Disbursement Fields
+    @Column(name = "processed_by")
     private String processedBy;
 
+    @Column(name = "processed_at")
     private LocalDateTime processedAt;
+
+    @Column(name = "refund_method", length = 100)
+    private String refundMethod; // Bank Transfer, Cash, Other
+
+    @Column(name = "transaction_reference")
+    private String transactionReference;
+
+    @Column(name = "proof_url", length = 1000)
+    private String proofUrl;
 
     @Column(length = 1000)
     private String notes;

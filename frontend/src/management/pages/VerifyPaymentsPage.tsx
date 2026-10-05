@@ -29,6 +29,7 @@ import { useAuth } from '@/shared/contexts/AuthContext';
 
 import { paymentService } from '@/shared/services/paymentService';
 import { paymentPlanService } from '@/shared/services/paymentPlanService';
+import { dashboardService } from '@/shared/services/managementService';
 
 import {
   formatCurrency,
@@ -101,6 +102,13 @@ export default function VerifyPaymentsPage() {
 
   const [notes, setNotes] =
     useState('');
+
+  const [stats, setStats] =
+    useState<any>(() => dashboardService.getCachedStats());
+
+  useEffect(() => {
+    dashboardService.getStats().then(setStats).catch(() => {});
+  }, []);
 
   // ==========================================================
   // PAYMENT PLAN STATE
@@ -814,13 +822,13 @@ export default function VerifyPaymentsPage() {
             </div>
 
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
-              Settled
+              Verified Inflow
             </span>
 
           </div>
 
           <p className="text-xs font-semibold text-slate-400">
-            Total Verified Volume
+            Total Verified Incoming Payments
           </p>
 
           <h3 className="text-2xl font-extrabold text-emerald-600 tracking-tight mt-0.5">
@@ -829,14 +837,39 @@ export default function VerifyPaymentsPage() {
             )}
           </h3>
 
-          <p className="text-[11px] text-slate-400 mt-1">
-            {counts.Verified}{' '}
-            payments verified
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+            <span>{counts.Verified} payments verified</span>
+            {stats && stats.completedRefundOutflow > 0 && (
+              <span className="text-amber-700 font-bold" title="Completed customer refunds disbursed">
+                Refunds: −{formatCurrency(stats.completedRefundOutflow)}
+              </span>
+            )}
+          </div>
 
         </div>
 
       </div>
+
+      {/* Net Realized Cash Summary Banner */}
+      {stats && (
+        <div className="bg-slate-900 text-white rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-md border border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-bold text-amber-400 uppercase tracking-wider text-[11px]">Net Cash Accounting:</span>
+            <span className="text-slate-300">
+              Gross Inflow <strong>{formatCurrency(stats.grossVerifiedInflow ?? verifiedAmount)}</strong>
+              {' − '}
+              Completed Refunds <strong>{formatCurrency(stats.completedRefundOutflow ?? 0)}</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Net Realized Cash:</span>
+            <span className="font-extrabold text-emerald-400 text-sm">
+              {formatCurrency(stats.netRealizedCash ?? verifiedAmount)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ======================================================
           MAIN PAYMENT / PLAN SWITCH

@@ -52,6 +52,9 @@ class SaleServiceTest {
     @Mock
     private com.skyline.observer.NotificationSubject notificationSubject;
 
+    @Mock
+    private FinancialAnalyticsService financialAnalyticsService;
+
     private SaleService saleService;
 
     @BeforeEach
@@ -64,7 +67,8 @@ class SaleServiceTest {
                 paymentPlanRepository,
                 paymentPlanItemRepository,
                 userService,
-                notificationSubject
+                notificationSubject,
+                financialAnalyticsService
         );
     }
 

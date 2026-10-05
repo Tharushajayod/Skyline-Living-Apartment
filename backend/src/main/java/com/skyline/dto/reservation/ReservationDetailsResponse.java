@@ -24,4 +24,13 @@ public class ReservationDetailsResponse {
     private PaymentResponse payment;
     private List<PaymentResponse> allPayments;
     private ReservationRefundResponse refund;
+
+    // Refund Eligibility Fields (authoritative backend calculations)
+    private Boolean refundEligible;
+    private String refundDeadline;
+    private java.math.BigDecimal refundAmount;
+    private String refundStatus;
+    private Long remainingRefundSeconds;
+    private String successfulPaymentTime;
+    private Boolean cancellationAllowed;
 }

@@ -17,15 +17,12 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class ReservationCancellationRequest {
 
-    @NotNull(message = "Refund amount is required")
     @PositiveOrZero(message = "Refund amount must be zero or positive")
     private BigDecimal refundAmount;
 
-    @NotNull(message = "Company retained amount is required")
     @PositiveOrZero(message = "Company retained amount must be zero or positive")
     private BigDecimal companyRetainedAmount;
 
-    @NotBlank(message = "Cancellation reason is required")
     @Size(max = 1000, message = "Reason cannot exceed 1000 characters")
     private String reason;
 

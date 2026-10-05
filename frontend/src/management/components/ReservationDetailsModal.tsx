@@ -26,6 +26,8 @@ import Button from '@/shared/components/ui/Button';
 import { reservationService } from '@/shared/services/reservationService';
 import { formatCurrency, formatDate, getFriendlyErrorMessage } from '@/shared/utils/format';
 import type { ReservationDetails } from '@/shared/types';
+import { useAuth } from '@/shared/contexts/AuthContext';
+import CustomerReservationCancelModal from '@/client/components/CustomerReservationCancelModal';
 
 interface ReservationDetailsModalProps {
   open: boolean;
@@ -40,9 +42,15 @@ export default function ReservationDetailsModal({
   reservationId,
   onCancelRequest,
 }: ReservationDetailsModalProps) {
+  const { user } = useAuth();
+  const isStaffOrAdmin = user?.role === 'staff' || user?.role === 'admin';
+
   const [details, setDetails] = useState<ReservationDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [countdown, setCountdown] = useState<string>('');
+  const [isRefundExpired, setIsRefundExpired] = useState<boolean>(false);
 
   useEffect(() => {
     if (!open || !reservationId) {
@@ -86,6 +94,41 @@ export default function ReservationDetailsModal({
     };
   }, [open, reservationId]);
 
+  useEffect(() => {
+    if (!details?.refundDeadline || details.refundEligible === false) {
+      setCountdown('');
+      setIsRefundExpired(true);
+      return;
+    }
+
+    const targetTime = new Date(details.refundDeadline).getTime();
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = targetTime - now;
+
+      if (diff <= 0) {
+        setCountdown('0h 0m');
+        setIsRefundExpired(true);
+        return;
+      }
+
+      setIsRefundExpired(false);
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      if (hours > 0) {
+        setCountdown(`${hours}h ${minutes}m remaining`);
+      } else {
+        setCountdown(`${minutes}m ${seconds}s remaining`);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [details?.refundDeadline, details?.refundEligible]);
+
   if (!open) return null;
 
   const res = details?.reservation;
@@ -110,29 +153,64 @@ export default function ReservationDetailsModal({
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Authenticated Reservation Record & Audit Trail</span>
           </div>
           <div className="flex items-center gap-2">
-            {res && (res.status === 'Pending' || res.status === 'Confirmed') && onCancelRequest && (
-              res.hasPaymentCommitment ? (
-                <span
-                  className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1.5"
-                  title="Reservations with payments or active payment plans cannot be cancelled through the normal cancellation flow."
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>Cancellation unavailable ({res.paymentCommitmentReason || 'payment commitment active'})</span>
-                </span>
+            {/* If reservation is cancelled or already has a refund, do NOT show cancellation button */}
+            {res && !refund && res.status !== 'Cancelled' && (
+              isStaffOrAdmin ? (
+                res.hasPaymentCommitment ? (
+                  <span
+                    className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1.5"
+                    title="Reservations with payments or active payment plans cannot be cancelled through the normal cancellation flow."
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>Cancellation unavailable ({res.paymentCommitmentReason || 'payment commitment active'})</span>
+                  </span>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      onClose();
+                      onCancelRequest?.(res.id);
+                    }}
+                    className="text-rose-600 border-rose-200 hover:bg-rose-50"
+                  >
+                    Cancel & Settle Refund
+                  </Button>
+                )
               ) : (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    onClose();
-                    onCancelRequest(res.id);
-                  }}
-                  className="text-rose-600 border-rose-200 hover:bg-rose-50"
-                >
-                  Cancel & Settle Refund
-                </Button>
+                res.status === 'Confirmed' && (
+                  res.hasPaymentCommitment ? (
+                    <span
+                      className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1.5"
+                      title="Reservations with payments or active payment plans cannot be cancelled through the customer workflow."
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Cancellation unavailable ({res.paymentCommitmentReason || 'payment commitment active'})</span>
+                    </span>
+                  ) : details?.refundEligible && !isRefundExpired ? (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowCancelModal(true)}
+                        className="text-rose-600 border-rose-200 hover:bg-rose-50 font-semibold"
+                      >
+                        Cancel & Settle Refund
+                      </Button>
+                    </div>
+                  ) : (
+                    <span
+                      className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1.5"
+                      title={details?.refundDeadline ? `Refund deadline was ${formatDate(details.refundDeadline)}` : 'The 48-hour refund window has expired.'}
+                    >
+                      <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>
+                        48-hour refund period expired
+                        {details?.refundDeadline ? ` (${formatDate(details.refundDeadline)})` : ''}
+                      </span>
+                    </span>
+                  )
+                )
               )
             )}
             <Button variant="outline" onClick={onClose} className="border-slate-300">
@@ -484,11 +562,10 @@ export default function ReservationDetailsModal({
               </div>
               {pmt && (
                 <span
-                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                    pmt.status === 'Verified' || (pmt.status as any) === 'VERIFIED'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${pmt.status === 'Verified' || (pmt.status as any) === 'VERIFIED'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}
                 >
                   {pmt.status}
                 </span>
@@ -549,63 +626,182 @@ export default function ReservationDetailsModal({
           </div>
 
           {/* Section 6: Cancellation & Refund Settlement (If cancelled/refunded) */}
-          {refund && (
-            <div className="bg-purple-50/50 border border-purple-200 rounded-2xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-purple-200/70">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-800">
-                    <Receipt className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
-                      Financial Settlement & Refund Audit Record
-                    </h4>
-                    <p className="text-[11px] text-purple-700">Permanent financial record of fee resolution</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
-                  {refund.refundType} • {refund.refundStatus}
-                </span>
-              </div>
+          {refund && (() => {
+            const isPendingReview =
+              refund.refundStatus === 'Pending Review' ||
+              refund.refundStatus === 'PENDING_REVIEW' ||
+              refund.refundStatus === 'Pending' ||
+              refund.refundStatus === 'PENDING';
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <div className="bg-white rounded-xl p-3 border border-purple-200">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Original Fee
-                  </span>
-                  <p className="font-bold text-slate-900 mt-0.5">{formatCurrency(refund.originalFee)}</p>
-                </div>
-                <div className="bg-white rounded-xl p-3 border border-purple-200">
-                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
-                    Refund to Customer
-                  </span>
-                  <p className="font-extrabold text-emerald-700 mt-0.5">
-                    {formatCurrency(refund.refundAmount)}
-                  </p>
-                </div>
-                <div className="bg-white rounded-xl p-3 border border-purple-200">
-                  <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">
-                    Company Retained Fee
-                  </span>
-                  <p className="font-extrabold text-purple-900 mt-0.5">
-                    {formatCurrency(refund.companyRetainedAmount)}
-                  </p>
-                </div>
-              </div>
+            const isAwaitingPayment =
+              refund.refundStatus === 'Awaiting Payment' ||
+              refund.refundStatus === 'PENDING_PAYMENT' ||
+              refund.refundStatus === 'Approved' ||
+              refund.refundStatus === 'APPROVED';
 
-              <div className="bg-white rounded-xl p-3 border border-purple-200 text-xs space-y-1">
-                <p className="text-slate-500 font-medium">
-                  <strong className="text-slate-700">Reason:</strong> {refund.reason}
-                </p>
-                <p className="text-slate-500 font-medium">
-                  <strong className="text-slate-700">Processed By:</strong> {refund.processedBy} on{' '}
-                  {formatDate(refund.processedAt || refund.createdAt)}
-                </p>
+            const isCompleted =
+              refund.refundStatus === 'Completed' ||
+              refund.refundStatus === 'COMPLETED' ||
+              refund.refundStatus === 'Processed' ||
+              refund.refundStatus === 'PROCESSED';
+
+            const statusBadgeColor = isCompleted
+              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+              : isAwaitingPayment
+                ? 'bg-blue-100 text-blue-800 border-blue-300'
+                : 'bg-amber-100 text-amber-800 border-amber-300';
+
+            const statusTitle = isCompleted
+              ? 'Cancellation • Completed'
+              : isAwaitingPayment
+                ? 'Cancellation • Refund Awaiting Payment'
+                : 'Cancellation • Pending Review';
+
+            return (
+              <div className="bg-purple-50/50 border border-purple-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between pb-3 border-b border-purple-200/70">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-800">
+                      <Receipt className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                        Financial Settlement & Refund Audit Record
+                      </h4>
+                      <p className="text-[11px] text-purple-700">Permanent financial record of fee resolution</p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${statusBadgeColor}`}>
+                    {statusTitle}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="bg-white rounded-xl p-3 border border-purple-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Original Reservation Fee
+                    </span>
+                    <p className="font-bold text-slate-900 mt-0.5">{formatCurrency(refund.originalFee)}</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-purple-200">
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                      Refund to Customer
+                    </span>
+                    <p className="font-extrabold text-emerald-700 mt-0.5">
+                      {isPendingReview ? (
+                        <span className="text-amber-700 font-semibold italic text-xs">Pending Review</span>
+                      ) : (
+                        formatCurrency(refund.refundAmount || 0)
+                      )}
+                    </p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-purple-200">
+                    <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">
+                      Company Retained Fee
+                    </span>
+                    <p className="font-extrabold text-purple-900 mt-0.5">
+                      {isPendingReview ? (
+                        <span className="text-slate-600 font-semibold italic text-xs">Pending Review</span>
+                      ) : (
+                        formatCurrency(refund.companyRetainedAmount || 0)
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl p-3 border border-purple-200 text-xs space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600">
+                    <p>
+                      <strong className="text-slate-800">Initiated By:</strong>{' '}
+                      {refund.initiatedByRole || 'Customer'}
+                      {refund.initiatedByName ? ` (${refund.initiatedByName})` : ''}
+                    </p>
+                    <p>
+                      <strong className="text-slate-800">Requested:</strong>{' '}
+                      {formatDate(refund.requestedAt || refund.createdAt)}
+                    </p>
+                  </div>
+                  {refund.reason && (
+                    <p className="text-slate-600 font-medium">
+                      <strong className="text-slate-800">Reason:</strong> "{refund.reason}"
+                    </p>
+                  )}
+
+                  {isPendingReview && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2 text-xs">
+                      <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span>
+                        Your cancellation request is awaiting administrative review. The final refund amount will be determined after review.
+                      </span>
+                    </div>
+                  )}
+
+                  {isAwaitingPayment && (
+                    <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                        <span>Settlement Approved • Awaiting Manual Payment Disbursement</span>
+                      </div>
+                      {refund.reviewedBy && (
+                        <p className="text-slate-600 text-[11px]">
+                          <strong>Approved By:</strong> {refund.reviewedBy} on {formatDate(refund.reviewedAt || '')}
+                        </p>
+                      )}
+                      {refund.settlementNote && (
+                        <p className="text-slate-600 text-[11px]">
+                          <strong>Settlement Note:</strong> {refund.settlementNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {isCompleted && (
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Refund Paid & Permanently Finalized</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 text-[11px]">
+                        <p><strong>Disbursement Method:</strong> {refund.refundMethod || 'Direct Transfer'}</p>
+                        {refund.transactionReference && (
+                          <p><strong>Reference / Slip:</strong> <span className="font-mono">{refund.transactionReference}</span></p>
+                        )}
+                        <p><strong>Refunded By:</strong> {refund.processedBy || 'Management'}</p>
+                        <p><strong>Payment Date:</strong> {formatDate(refund.processedAt || refund.createdAt)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       ) : null}
+
+      {/* Customer Cancellation & Refund Modal */}
+      {showCancelModal && details && (
+        <CustomerReservationCancelModal
+          open={showCancelModal}
+          onClose={() => setShowCancelModal(false)}
+          details={details}
+          onSuccess={() => {
+            setShowCancelModal(false);
+            if (reservationId) {
+              reservationService
+                .getDetails(reservationId)
+                .then((freshDetails) => {
+                  setDetails(freshDetails);
+                })
+                .catch((err) => {
+                  console.error('Failed to reload details after cancellation:', err);
+                });
+            }
+            if (res) {
+              onCancelRequest?.(res.id);
+            }
+          }}
+        />
+      )}
     </Modal>
   );
 }

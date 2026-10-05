@@ -23,9 +23,29 @@ public interface ReservationRefundRepository extends JpaRepository<ReservationRe
 
     boolean existsByReservationId(Long reservationId);
 
-    @Query("SELECT COALESCE(SUM(r.companyRetainedAmount), 0) FROM ReservationRefund r")
+    @Query("SELECT COALESCE(SUM(r.companyRetainedAmount), 0) FROM ReservationRefund r WHERE r.refundStatus IN (com.skyline.enums.RefundStatus.PENDING_PAYMENT, com.skyline.enums.RefundStatus.APPROVED, com.skyline.enums.RefundStatus.PROCESSED, com.skyline.enums.RefundStatus.COMPLETED)")
     BigDecimal sumTotalCompanyRetained();
 
     @Query("SELECT COALESCE(SUM(r.refundAmount), 0) FROM ReservationRefund r WHERE r.refundStatus = :status")
-    BigDecimal sumTotalRefundByStatus(RefundStatus status);
+    BigDecimal sumTotalRefundByStatus(@org.springframework.data.repository.query.Param("status") RefundStatus status);
+
+    @Query("SELECT COALESCE(SUM(r.refundAmount), 0) FROM ReservationRefund r WHERE r.refundStatus = :status AND r.processedAt >= :start AND r.processedAt <= :end")
+    BigDecimal sumRefundAmountByStatusAndProcessedAtBetween(
+            @org.springframework.data.repository.query.Param("status") RefundStatus status,
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end
+    );
+
+    @Query("SELECT r FROM ReservationRefund r WHERE r.refundStatus = :status AND r.processedAt >= :start AND r.processedAt <= :end ORDER BY r.processedAt ASC")
+    List<ReservationRefund> findByRefundStatusAndProcessedAtBetween(
+            @org.springframework.data.repository.query.Param("status") RefundStatus status,
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDateTime start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDateTime end
+    );
+
+    List<ReservationRefund> findByRefundStatus(RefundStatus status);
+
+    long countByRefundStatus(RefundStatus status);
+
+    long countByRefundStatusIn(java.util.Collection<RefundStatus> statuses);
 }

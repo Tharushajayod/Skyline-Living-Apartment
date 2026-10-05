@@ -67,11 +67,13 @@ export default function ManagementDashboardPage() {
       activeReservations: stats?.activeReservations ?? 0,
       pendingPayments: stats?.pendingPayments ?? 0,
       pendingAmount: stats?.pendingAmount ?? 0,
-      monthRevenue: stats?.monthRevenue ?? 0,
-      realizedRevenue: stats?.realizedRevenue ?? stats?.totalRevenue ?? 0,
-      monthSalesCount: stats?.totalSalesCount ?? 0,
+      totalSalesCount: stats?.totalSalesCount ?? 0,
+      totalSalesValue: stats?.totalSalesValue ?? stats?.totalRevenue ?? 0,
+      grossVerifiedInflow: stats?.grossVerifiedInflow ?? stats?.realizedRevenue ?? 0,
+      completedRefundOutflow: stats?.completedRefundOutflow ?? 0,
+      netRealizedCash: stats?.netRealizedCash ?? stats?.realizedRevenue ?? 0,
+      monthNetCashflow: stats?.monthNetCashflow ?? stats?.monthRevenue ?? 0,
       totalUsers: stats?.totalUsers ?? 0,
-      totalRevenue: stats?.totalRevenue ?? 0,
     };
   }, [stats]);
 
@@ -86,9 +88,9 @@ export default function ManagementDashboardPage() {
       return stats.monthlySalesTrend;
     }
     return [
-      { label: 'Verified Volume', value: kpis.realizedRevenue }
+      { label: 'Net Cashflow', value: kpis.netRealizedCash }
     ];
-  }, [stats, kpis.realizedRevenue]);
+  }, [stats, kpis.netRealizedCash]);
 
   const inquiryTrend: ChartDataPoint[] = useMemo(() => {
     return [
@@ -154,7 +156,7 @@ export default function ManagementDashboardPage() {
         />
         <ModernKPICard
           title="Total Sales Value"
-          value={formatCurrency(kpis.totalRevenue > 0 ? kpis.totalRevenue : kpis.realizedRevenue)}
+          value={formatCurrency(kpis.totalSalesValue)}
           subtitle="Finalized contract sales"
           icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
           to="/management/sales"
@@ -183,13 +185,13 @@ export default function ManagementDashboardPage() {
           <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-lg border border-slate-700/50 flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-xs uppercase tracking-wider font-bold text-amber-400">Total Realized Revenue</p>
+                <p className="text-xs uppercase tracking-wider font-bold text-amber-400">Net Realized Cash</p>
                 <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md">
-                  Verified Inflow
+                  Net Inflow
                 </span>
               </div>
-              <h3 className="text-3xl font-extrabold mt-1">{formatCurrency(kpis.realizedRevenue)}</h3>
-              <p className="text-xs text-slate-400 mt-1">Total verified cash receipts to date</p>
+              <h3 className="text-3xl font-extrabold mt-1">{formatCurrency(kpis.netRealizedCash)}</h3>
+              <p className="text-xs text-slate-400 mt-1">Verified receipts less completed refunds</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400">
               <TrendingUp className="w-6 h-6" />
@@ -206,7 +208,7 @@ export default function ManagementDashboardPage() {
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
             <div>
               <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Monthly Verified Cashflow</h2>
-              <p className="text-xs text-slate-400">Verified payment volume across all projects</p>
+              <p className="text-xs text-slate-400">Verified receipts less completed refunds per month</p>
             </div>
             <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60">
               Last 6 Months

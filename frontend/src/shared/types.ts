@@ -139,7 +139,19 @@ export interface PurchasedApartment {
   staffName?: string;
 }
 
-export type RefundStatus = 'Pending' | 'Approved' | 'Processed';
+export type RefundStatus =
+  | 'Pending Review'
+  | 'Awaiting Payment'
+  | 'Pending'
+  | 'Approved'
+  | 'Processed'
+  | 'Completed'
+  | 'PENDING_REVIEW'
+  | 'PENDING_PAYMENT'
+  | 'APPROVED'
+  | 'PROCESSED'
+  | 'COMPLETED'
+  | 'PENDING';
 export type RefundType = 'Cancellation' | 'Expiration';
 
 export interface ReservationRefund {
@@ -152,15 +164,42 @@ export interface ReservationRefund {
   customerEmail: string;
   paymentId?: string;
   originalFee: number;
-  refundAmount: number;
-  companyRetainedAmount: number;
+  refundAmount?: number | null;
+  companyRetainedAmount?: number | null;
   refundStatus: RefundStatus;
   refundType: RefundType;
   reason: string;
-  processedBy: string;
+  initiatedByRole?: string;
+  initiatedByUserId?: string;
+  initiatedByName?: string;
+  requestedAt?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  settlementNote?: string;
+  refundMethod?: string;
+  transactionReference?: string;
+  proofUrl?: string;
+  processedBy?: string;
   processedAt?: string;
   notes?: string;
   createdAt: string;
+  reservationStatus?: string;
+  refundEligible?: boolean;
+  refundRequestedAt?: string;
+  message?: string;
+}
+
+export interface RefundEligibility {
+  reservationId: string;
+  eligible: boolean;
+  cancellable: boolean;
+  refundAmount: number;
+  reservationFee: number;
+  successfulPaymentTime?: string;
+  refundDeadline?: string;
+  remainingSeconds: number;
+  refundStatus?: string;
+  reason?: string;
 }
 
 export interface ReservationDetails {
@@ -171,6 +210,13 @@ export interface ReservationDetails {
   payment: Payment | null;
   allPayments: Payment[];
   refund: ReservationRefund | null;
+  refundEligible?: boolean;
+  refundDeadline?: string | null;
+  refundAmount?: number;
+  refundStatus?: string;
+  remainingRefundSeconds?: number;
+  successfulPaymentTime?: string | null;
+  cancellationAllowed?: boolean;
 }
 
 export type PaymentType =
@@ -432,6 +478,30 @@ export interface DistrictStat {
   revenue: number;
 }
 
+export interface MonthlyCashflowPoint {
+  label: string;
+  yearMonth: string;
+  grossInflow: number;
+  refundOutflow: number;
+  netCashflow: number;
+  contractSales: number;
+  salesCount: number;
+}
+
+export interface SalesSummary {
+  totalSalesCount: number;
+  totalSalesRevenue: number;
+  averageSalePrice: number;
+  thisMonthSalesCount: number;
+  thisMonthSalesRevenue: number;
+  totalRetainedFeeIncome: number;
+  totalCustomerRefunds: number;
+  pendingReviewRefundsCount: number;
+  awaitingPaymentRefundsCount: number;
+  completedRefundsCount: number;
+  totalRefundRecordsCount: number;
+}
+
 export interface DashboardStats {
   totalApartments: number;
   availableApartments: number;
@@ -444,21 +514,38 @@ export interface DashboardStats {
   totalCustomers: number;
   totalUsers: number;
   totalSalesCount: number;
+  totalSalesValue?: number;
   totalRevenue: number;
+  grossVerifiedInflow?: number;
+  completedRefundOutflow?: number;
+  netRealizedCash?: number;
   realizedRevenue: number;
+  retainedFeeIncome?: number;
+  monthGrossInflow?: number;
+  monthRefundOutflow?: number;
+  monthNetCashflow?: number;
   monthRevenue: number;
   monthlySalesTrend?: ChartDataPoint[];
+  monthlyCashflow?: MonthlyCashflowPoint[];
 }
 
 export interface ReportData {
   statusDistribution: ChartDataPoint[];
   monthlySales: ChartDataPoint[];
   monthlyRevenue: ChartDataPoint[];
+  monthlyCashflow?: MonthlyCashflowPoint[];
   inquiryCategories: ChartDataPoint[];
   paymentTypes: ChartDataPoint[];
   districtStats: DistrictStat[];
+  grossVerifiedInflow?: number;
+  completedRefundOutflow?: number;
+  netRealizedCash?: number;
+  totalContractSales?: number;
   totalRevenue: number;
+  apartmentsSold?: number;
   avgSalePrice: number;
+  retainedFeeIncome?: number;
   totalPaidAmount: number;
   totalApartmentsListed: number;
 }
+

@@ -23,4 +23,14 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     @Query("SELECT COALESCE(SUM(s.finalPrice), 0) FROM Sale s")
     BigDecimal sumTotalSalesRevenue();
+
+    @Query("SELECT COALESCE(SUM(s.finalPrice), 0) FROM Sale s WHERE s.saleDate >= :start AND s.saleDate <= :end")
+    BigDecimal sumFinalPriceBySaleDateBetween(
+            @org.springframework.data.repository.query.Param("start") java.time.LocalDate start,
+            @org.springframework.data.repository.query.Param("end") java.time.LocalDate end
+    );
+
+    long countBySaleDateBetween(java.time.LocalDate start, java.time.LocalDate end);
+
+    List<Sale> findBySaleDateBetween(java.time.LocalDate start, java.time.LocalDate end);
 }

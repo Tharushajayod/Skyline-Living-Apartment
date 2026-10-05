@@ -32,13 +32,43 @@ public class ReservationRefundResponse {
     private RefundStatus refundStatus;
     private RefundType refundType;
     private String reason;
+
+    // Initiator Audit Fields
+    private String initiatedByRole;
+    private Long initiatedByUserId;
+    private String initiatedByName;
+    private String requestedAt;
+
+    // Review / Settlement Audit Fields
+    private String reviewedBy;
+    private String reviewedAt;
+    private String settlementNote;
+
+    // Payment Audit Fields
     private String processedBy;
     private String processedAt;
+    private String refundMethod;
+    private String transactionReference;
+    private String proofUrl;
+
     private String notes;
     private String createdAt;
 
+    // Additional fields for cancellation response
+    private String reservationStatus;
+    private Boolean refundEligible;
+    private String refundRequestedAt;
+    private String message;
+
     public static ReservationRefundResponse fromEntity(ReservationRefund r) {
         if (r == null) return null;
+        String reqAt = r.getRequestedAt() != null 
+                ? r.getRequestedAt().format(DateTimeFormatter.ISO_DATE_TIME) 
+                : (r.getCreatedAt() != null ? r.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null);
+        String revAt = r.getReviewedAt() != null ? r.getReviewedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+        String procAt = r.getProcessedAt() != null ? r.getProcessedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+        String createAt = r.getCreatedAt() != null ? r.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+
         return ReservationRefundResponse.builder()
                 .id(IdParser.formatId("REF", r.getId()))
                 .reservationId(r.getReservation() != null ? IdParser.formatId("RSV", r.getReservation().getId()) : "")
@@ -54,10 +84,24 @@ public class ReservationRefundResponse {
                 .refundStatus(r.getRefundStatus())
                 .refundType(r.getRefundType())
                 .reason(r.getReason())
+                .initiatedByRole(r.getInitiatedByRole())
+                .initiatedByUserId(r.getInitiatedByUserId())
+                .initiatedByName(r.getInitiatedByName())
+                .requestedAt(reqAt)
+                .refundRequestedAt(reqAt)
+                .reviewedBy(r.getReviewedBy())
+                .reviewedAt(revAt)
+                .settlementNote(r.getSettlementNote())
                 .processedBy(r.getProcessedBy())
-                .processedAt(r.getProcessedAt() != null ? r.getProcessedAt().format(DateTimeFormatter.ISO_DATE_TIME) : "")
+                .processedAt(procAt)
+                .refundMethod(r.getRefundMethod())
+                .transactionReference(r.getTransactionReference())
+                .proofUrl(r.getProofUrl())
                 .notes(r.getNotes())
-                .createdAt(r.getCreatedAt() != null ? r.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : "")
+                .createdAt(createAt)
+                .reservationStatus(r.getReservation() != null && r.getReservation().getStatus() != null ? r.getReservation().getStatus().name() : null)
+                .refundEligible(true)
+                .message("Reservation refund record loaded.")
                 .build();
     }
 }

@@ -24,8 +24,17 @@ public class DashboardStatsResponse {
     private long totalCustomers;
     private long totalUsers;
     private long totalSalesCount;
-    private BigDecimal totalRevenue;
-    private BigDecimal realizedRevenue;
-    private BigDecimal monthRevenue;
+    private BigDecimal totalSalesValue;
+    private BigDecimal totalRevenue; // Alias for totalSalesValue
+    private BigDecimal grossVerifiedInflow;
+    private BigDecimal completedRefundOutflow;
+    private BigDecimal netRealizedCash;
+    private BigDecimal realizedRevenue; // Alias for netRealizedCash
+    private BigDecimal retainedFeeIncome;
+    private BigDecimal monthGrossInflow;
+    private BigDecimal monthRefundOutflow;
+    private BigDecimal monthNetCashflow;
+    private BigDecimal monthRevenue; // Alias for monthNetCashflow
     private List<ChartPointDto> monthlySalesTrend;
+    private List<MonthlyCashflowPointDto> monthlyCashflow;
 }

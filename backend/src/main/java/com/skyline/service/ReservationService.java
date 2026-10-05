@@ -26,7 +26,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -42,6 +45,15 @@ public class ReservationService {
     private final SaleRepository saleRepository;
     private final UserService userService;
     private final NotificationSubject notificationSubject;
+    private Clock clock = Clock.systemDefaultZone();
+
+    public void setClock(Clock clock) {
+        this.clock = clock;
+    }
+
+    public LocalDateTime getCurrentDateTime() {
+        return LocalDateTime.now(this.clock);
+    }
 
     public ReservationService(ReservationRepository reservationRepository,
                               ApartmentRepository apartmentRepository,
@@ -387,9 +399,11 @@ public class ReservationService {
         PaymentResponse paymentDto = primaryPayment != null ? PaymentResponse.fromEntity(primaryPayment) : null;
 
         // Refund record if exists
-        ReservationRefundResponse refundDto = reservationRefundRepository.findByReservationId(reservation.getId())
-                .map(ReservationRefundResponse::fromEntity)
+        ReservationRefund refundEntity = reservationRefundRepository.findByReservationId(reservation.getId())
                 .orElse(null);
+        ReservationRefundResponse refundDto = refundEntity != null ? ReservationRefundResponse.fromEntity(refundEntity) : null;
+
+        RefundEligibilityResponse eligibility = computeRefundEligibility(reservation, primaryPayment, refundEntity);
 
         return ReservationDetailsResponse.builder()
                 .reservation(resDto)
@@ -399,7 +413,130 @@ public class ReservationService {
                 .payment(paymentDto)
                 .allPayments(allPaymentResponses)
                 .refund(refundDto)
+                .refundEligible(eligibility != null ? eligibility.isEligible() : false)
+                .refundDeadline(eligibility != null ? eligibility.getRefundDeadline() : null)
+                .refundAmount(eligibility != null ? eligibility.getRefundAmount() : null)
+                .refundStatus(refundEntity != null ? refundEntity.getRefundStatus().getDisplayValue() : (eligibility != null ? eligibility.getRefundStatus() : null))
+                .remainingRefundSeconds(eligibility != null ? eligibility.getRemainingSeconds() : 0L)
+                .successfulPaymentTime(eligibility != null ? eligibility.getSuccessfulPaymentTime() : null)
+                .cancellationAllowed(eligibility != null ? eligibility.isCancellable() : false)
                 .build();
+    }
+
+    public RefundEligibilityResponse computeRefundEligibility(Reservation reservation, Payment primaryPayment, ReservationRefund existingRefund) {
+        if (reservation == null) return null;
+
+        String rsvId = IdParser.formatId("RSV", reservation.getId());
+        BigDecimal fee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
+
+        // 1. If refund record already exists:
+        if (existingRefund != null) {
+            return RefundEligibilityResponse.builder()
+                    .reservationId(rsvId)
+                    .eligible(false)
+                    .cancellable(false)
+                    .refundAmount(existingRefund.getRefundAmount())
+                    .reservationFee(fee)
+                    .successfulPaymentTime(existingRefund.getPayment() != null && existingRefund.getPayment().getVerifiedAt() != null 
+                            ? existingRefund.getPayment().getVerifiedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null)
+                    .refundDeadline(null)
+                    .remainingSeconds(0L)
+                    .refundStatus(existingRefund.getRefundStatus() != null ? existingRefund.getRefundStatus().getDisplayValue() : null)
+                    .reason("Refund has already been recorded for this reservation (" + existingRefund.getRefundStatus() + ").")
+                    .build();
+        }
+
+        // 2. If reservation is already cancelled:
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            return RefundEligibilityResponse.builder()
+                    .reservationId(rsvId)
+                    .eligible(false)
+                    .cancellable(false)
+                    .refundAmount(BigDecimal.ZERO)
+                    .reservationFee(fee)
+                    .remainingSeconds(0L)
+                    .refundStatus("Already Cancelled")
+                    .reason("This reservation has already been cancelled.")
+                    .build();
+        }
+
+        // 3. If apartment has completed sale:
+        if (reservation.getApartment() != null && saleRepository.findByApartmentId(reservation.getApartment().getId()).isPresent()) {
+            return RefundEligibilityResponse.builder()
+                    .reservationId(rsvId)
+                    .eligible(false)
+                    .cancellable(false)
+                    .refundAmount(BigDecimal.ZERO)
+                    .reservationFee(fee)
+                    .remainingSeconds(0L)
+                    .refundStatus("Sale Completed")
+                    .reason("A completed sale deed is already registered for this apartment.")
+                    .build();
+        }
+
+        // 4. If financial commitment exists (full payment, active plan, part payment):
+        if (hasFinancialCommitment(reservation)) {
+            String commReason = getFinancialCommitmentReason(reservation);
+            return RefundEligibilityResponse.builder()
+                    .reservationId(rsvId)
+                    .eligible(false)
+                    .cancellable(false)
+                    .refundAmount(BigDecimal.ZERO)
+                    .reservationFee(fee)
+                    .remainingSeconds(0L)
+                    .refundStatus("Commitment Active")
+                    .reason("Reservation has an active financial commitment: " + (commReason != null ? commReason : "Active payment commitment"))
+                    .build();
+        }
+
+        // 5. Must have verified reservation payment:
+        if (primaryPayment == null || primaryPayment.getStatus() != PaymentStatus.VERIFIED) {
+            return RefundEligibilityResponse.builder()
+                    .reservationId(rsvId)
+                    .eligible(false)
+                    .cancellable(false)
+                    .refundAmount(BigDecimal.ZERO)
+                    .reservationFee(fee)
+                    .remainingSeconds(0L)
+                    .refundStatus("Unverified Payment")
+                    .reason("Reservation deposit payment has not been verified yet.")
+                    .build();
+        }
+
+        // 6. Determine successful payment time:
+        LocalDateTime paymentTime = primaryPayment.getVerifiedAt() != null 
+                ? primaryPayment.getVerifiedAt() 
+                : primaryPayment.getUploadedAt();
+        if (paymentTime == null) {
+            paymentTime = reservation.getCreatedAt();
+        }
+
+        LocalDateTime deadline = paymentTime.plusHours(48);
+        LocalDateTime now = getCurrentDateTime();
+        boolean isEligible = !now.isAfter(deadline);
+        long remainingSeconds = isEligible ? Math.max(0, Duration.between(now, deadline).getSeconds()) : 0L;
+        BigDecimal authoritativeRefundAmount = primaryPayment.getAmount() != null ? primaryPayment.getAmount() : fee;
+
+        return RefundEligibilityResponse.builder()
+                .reservationId(rsvId)
+                .eligible(isEligible)
+                .cancellable(isEligible && reservation.getStatus() == ReservationStatus.CONFIRMED)
+                .refundAmount(authoritativeRefundAmount)
+                .reservationFee(fee)
+                .successfulPaymentTime(paymentTime.format(DateTimeFormatter.ISO_DATE_TIME))
+                .refundDeadline(deadline.format(DateTimeFormatter.ISO_DATE_TIME))
+                .remainingSeconds(remainingSeconds)
+                .refundStatus(isEligible ? "Eligible" : "Expired")
+                .reason(isEligible ? "Eligible for full deposit refund within 48 hours of payment" : "48-hour refund period expired")
+                .build();
+    }
+
+    public RefundEligibilityResponse getRefundEligibility(Long reservationId) {
+        Reservation reservation = getReservationEntityById(reservationId);
+        Payment payment = findAssociatedReservationPayment(reservation.getId(), 
+                reservation.getApartment() != null ? reservation.getApartment().getId() : null);
+        ReservationRefund refund = reservationRefundRepository.findByReservationId(reservation.getId()).orElse(null);
+        return computeRefundEligibility(reservation, payment, refund);
     }
 
     public List<ReservationRefundResponse> getAllRefunds() {
@@ -517,42 +654,115 @@ public class ReservationService {
     public ReservationRefundResponse cancelReservationWithRefund(Long id, ReservationCancellationRequest request, UserPrincipal principal) {
         Reservation reservation = getReservationEntityById(id);
 
+        // 1. Authorization check: logged-in customer must own the reservation (unless staff or admin)
+        boolean isStaffOrAdmin = principal != null && (
+                principal.getUser().getRole() == UserRole.STAFF ||
+                principal.getUser().getRole() == UserRole.ADMIN
+        );
+
+        if (!isStaffOrAdmin) {
+            if (principal == null || reservation.getCustomer() == null ||
+                !reservation.getCustomer().getId().equals(principal.getId())) {
+                throw new ForbiddenException("You are not authorized to cancel this reservation.");
+            }
+        }
+
+        // 2. Already cancelled check
         if (reservation.getStatus() == ReservationStatus.CANCELLED) {
             throw new BadRequestException("This reservation is already cancelled.");
         }
 
+        // 3. Completed sale deed check
         if (reservation.getApartment() != null && reservation.getApartment().getId() != null) {
             if (saleRepository.findByApartmentId(reservation.getApartment().getId()).isPresent()) {
                 throw new BadRequestException("Reservation cannot be cancelled because a completed sale deed is already registered for this apartment.");
             }
         }
 
+        // 4. Financial commitment check (full payment, part payment, active payment plan)
+        if (hasFinancialCommitment(reservation)) {
+            String commReason = getFinancialCommitmentReason(reservation);
+            throw new BadRequestException("Reservation cannot be cancelled because a payment or active payment plan is associated with this reservation."
+                    + (commReason != null ? " (" + commReason + ")" : ""));
+        }
+
+        // 5. Duplicate refund check
         if (reservationRefundRepository.existsByReservationId(reservation.getId())) {
             throw new ConflictException("A refund/financial record has already been processed for this reservation.");
         }
 
-        // Financial calculation: Reservation Fee is strictly non-refundable
-        List<Payment> payments = paymentRepository.findByReservationId(reservation.getId());
-        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
-            payments = paymentRepository.findByApartmentId(reservation.getApartment().getId());
+        // 6. Payment record check
+        Payment payment = findAssociatedReservationPayment(reservation.getId(), 
+                reservation.getApartment() != null ? reservation.getApartment().getId() : null);
+
+        if (payment == null || payment.getStatus() != PaymentStatus.VERIFIED) {
+            throw new BadRequestException("Reservation payment was not found or has not been successfully verified.");
         }
-        BigDecimal totalVerifiedPaid = payments.stream()
-                .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
-                .map(Payment::getAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal reservationFee = reservation.getReservationFee() != null ? reservation.getReservationFee() : BigDecimal.ZERO;
-        BigDecimal otherPaidAmount = totalVerifiedPaid.compareTo(reservationFee) > 0
-                ? totalVerifiedPaid.subtract(reservationFee)
-                : BigDecimal.ZERO;
+        if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
+            throw new BadRequestException("Only confirmed reservations with verified deposits can be cancelled with a refund.");
+        }
 
-        BigDecimal refundAmount = request.getRefundAmount();
-        BigDecimal companyRetained = request.getCompanyRetainedAmount();
+        // 7. 48-Hour Refund Period check
+        // Start timestamp is the successful reservation payment time (verifiedAt, or fallback uploadedAt)
+        LocalDateTime paymentTime = payment.getVerifiedAt() != null 
+                ? payment.getVerifiedAt() 
+                : payment.getUploadedAt();
+        if (paymentTime == null) {
+            paymentTime = reservation.getCreatedAt();
+        }
 
-        validateRefundCalculation(totalVerifiedPaid, reservationFee, otherPaidAmount, refundAmount, companyRetained);
+        LocalDateTime refundDeadline = paymentTime.plusHours(48);
+        LocalDateTime now = getCurrentDateTime();
 
-        // Cancel any active or pending payment plans for this reservation
+        // 8. Distinguish Initiator and Business Logic
+        BigDecimal depositAmount = payment.getAmount() != null ? payment.getAmount() : reservation.getReservationFee();
+        BigDecimal refundAmount;
+        BigDecimal companyRetained;
+        RefundStatus initialStatus;
+        String initiatorRole;
+        Long initiatedByUserId = principal != null ? principal.getId() : null;
+        String initiatedByName = principal != null ? principal.getUser().getName() : "Customer";
+        String notifTitle;
+        String notifBody;
+        String message;
+
+        String aptTitle = reservation.getApartment() != null ? reservation.getApartment().getTitle() : "the residence";
+
+        if (isStaffOrAdmin) {
+            // =========================================================================
+            // SCENARIO B: ADMIN OR STAFF INITIATES CANCELLATION
+            // Rule: Customer MUST receive a 100% refund (companyRetained = 0, refundAmount = originalFee).
+            // Backend enforced. Since there is no automatic gateway, status is PENDING_PAYMENT.
+            // =========================================================================
+            initiatorRole = principal.getUser().getRole().name();
+            companyRetained = BigDecimal.ZERO;
+            refundAmount = depositAmount;
+            initialStatus = RefundStatus.PENDING_PAYMENT;
+            notifTitle = "Reservation Cancelled by Management";
+            notifBody = "Your reservation for " + aptTitle + " has been cancelled by management. A full refund obligation of Rs. "
+                    + refundAmount + " has been created and is awaiting manual payment disbursement.";
+            message = "Reservation cancelled by management. Full refund obligation of Rs. " + refundAmount + " recorded and awaiting disbursement.";
+        } else {
+            // =========================================================================
+            // SCENARIO A: CUSTOMER INITIATES CANCELLATION
+            // Rule: Customer can request cancellation ONLY within 48h from successful payment.
+            // 48h eligibility does NOT mean automatic full refund. It means request is PENDING_REVIEW.
+            // Refund amount and company retained amount remain UNSET / PENDING DECISION until review.
+            // =========================================================================
+            if (now.isAfter(refundDeadline)) {
+                throw new BadRequestException("REFUND_WINDOW_EXPIRED: The 48-hour refund period has expired for this reservation. Refund deadline was: " + refundDeadline);
+            }
+            initiatorRole = "CUSTOMER";
+            companyRetained = null; // Unset / pending review
+            refundAmount = null;    // Unset / pending review
+            initialStatus = RefundStatus.PENDING_REVIEW;
+            notifTitle = "Reservation Cancellation Requested";
+            notifBody = "Your cancellation request for " + aptTitle + " has been submitted and is awaiting administrative review. The final refund amount will be determined upon review.";
+            message = "Cancellation request submitted successfully. Awaiting administrative review.";
+        }
+
+        // 9. Cancel any active or pending payment plans for this reservation
         List<PaymentPlan> plans = paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId());
         for (PaymentPlan p : plans) {
             if (p.getStatus() == PaymentPlanStatus.PENDING || p.getStatus() == PaymentPlanStatus.AWAITING_CUSTOMER || p.getStatus() == PaymentPlanStatus.APPROVED) {
@@ -561,51 +771,180 @@ public class ReservationService {
             }
         }
 
-        // Update reservation status
+        // 10. Update reservation status
         reservation.setStatus(ReservationStatus.CANCELLED);
         Reservation savedReservation = reservationRepository.save(reservation);
 
-        // Update apartment availability safely if eligible
+        // 11. Update apartment availability safely if eligible
         if (reservation.getApartment() != null) {
             updateApartmentAvailabilityAfterReservationChange(reservation.getApartment().getId());
         }
 
-        // Find associated payment
-        Payment payment = findAssociatedReservationPayment(reservation.getId(), reservation.getApartment().getId());
-
-        String processorName = principal != null ? principal.getUser().getName() : "Management Staff";
-        BigDecimal recordedBasis = totalVerifiedPaid.compareTo(BigDecimal.ZERO) > 0 ? totalVerifiedPaid : reservationFee;
+        // 12. Create and save refund record
+        String reasonText = request != null && request.getReason() != null && !request.getReason().trim().isEmpty()
+                ? request.getReason().trim()
+                : (isStaffOrAdmin ? "Management initiated cancellation" : "Customer cancellation within 48-hour refund window");
 
         ReservationRefund refundRecord = ReservationRefund.builder()
                 .reservation(savedReservation)
                 .customer(savedReservation.getCustomer())
                 .apartment(savedReservation.getApartment())
                 .payment(payment)
-                .originalFee(recordedBasis)
+                .originalFee(depositAmount)
                 .refundAmount(refundAmount)
                 .companyRetainedAmount(companyRetained)
-                .refundStatus(RefundStatus.PROCESSED)
+                .refundStatus(initialStatus)
                 .refundType(RefundType.CANCELLATION)
-                .reason(request.getReason())
-                .notes(request.getNotes())
-                .processedBy(processorName)
-                .processedAt(LocalDateTime.now())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .reason(reasonText)
+                .initiatedByRole(initiatorRole)
+                .initiatedByUserId(initiatedByUserId)
+                .initiatedByName(initiatedByName)
+                .requestedAt(now)
+                .notes(request != null ? request.getNotes() : null)
+                .createdAt(now)
+                .updatedAt(now)
                 .build();
 
         ReservationRefund savedRefund = reservationRefundRepository.save(refundRecord);
 
-        // Notify customer
+        // 13. Notify customer
         notificationSubject.notifyObservers(new NotificationEvent(
                 reservation.getCustomer(),
                 NotificationType.RESERVATION,
-                "Reservation Cancelled & Refund Processed",
-                "Your reservation for " + reservation.getApartment().getTitle() + " has been cancelled. Non-refundable reservation fee: "
-                        + reservationFee + ", Customer refund: " + refundAmount + ", Company retained: " + companyRetained + "."
+                notifTitle,
+                notifBody
         ));
 
-        return ReservationRefundResponse.fromEntity(savedRefund);
+        ReservationRefundResponse response = ReservationRefundResponse.fromEntity(savedRefund);
+        response.setReservationStatus("CANCELLED");
+        response.setRefundEligible(true);
+        response.setRefundRequestedAt(now.format(DateTimeFormatter.ISO_DATE_TIME));
+        response.setMessage(message);
+        return response;
+    }
+
+    @Transactional
+    public ReservationRefundResponse reviewAndApproveSettlement(Long refundId, RefundSettlementRequest request, UserPrincipal principal) {
+        boolean isStaffOrAdmin = principal != null && (
+                principal.getUser().getRole() == UserRole.STAFF ||
+                principal.getUser().getRole() == UserRole.ADMIN
+        );
+        if (!isStaffOrAdmin) {
+            throw new ForbiddenException("Only management staff or admin can review and settle cancellation refunds.");
+        }
+
+        ReservationRefund refund = reservationRefundRepository.findById(refundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund record not found with id: " + refundId));
+
+        if (refund.getRefundStatus() == RefundStatus.COMPLETED) {
+            throw new BadRequestException("This refund has already been completed and settlement cannot be modified.");
+        }
+
+        if (refund.getRefundStatus() != RefundStatus.PENDING_REVIEW && refund.getRefundStatus() != RefundStatus.PENDING) {
+            throw new BadRequestException("Only cancellation requests pending review can be reviewed and approved.");
+        }
+
+        if (request == null || request.getCompanyRetainedAmount() == null) {
+            throw new BadRequestException("Company retained amount is required.");
+        }
+
+        BigDecimal retained = request.getCompanyRetainedAmount();
+        if (retained.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestException("Company retained amount cannot be negative.");
+        }
+
+        BigDecimal originalFee = refund.getOriginalFee();
+        if (retained.compareTo(originalFee) > 0) {
+            throw new BadRequestException("Company retained amount (Rs. " + retained + ") cannot exceed original reservation fee (Rs. " + originalFee + ").");
+        }
+
+        BigDecimal calculatedRefund = originalFee.subtract(retained);
+        LocalDateTime now = getCurrentDateTime();
+        String reviewerName = principal.getUser().getName();
+
+        refund.setCompanyRetainedAmount(retained);
+        refund.setRefundAmount(calculatedRefund);
+        refund.setReviewedBy(reviewerName);
+        refund.setReviewedAt(now);
+        refund.setSettlementNote(request.getSettlementNote());
+        refund.setRefundStatus(RefundStatus.PENDING_PAYMENT);
+        refund.setUpdatedAt(now);
+
+        ReservationRefund saved = reservationRefundRepository.save(refund);
+
+        notificationSubject.notifyObservers(new NotificationEvent(
+                saved.getCustomer(),
+                NotificationType.RESERVATION,
+                "Cancellation Settlement Approved",
+                "Your reservation cancellation has been reviewed: Company retained Rs. " + retained
+                        + ", Approved refund Rs. " + calculatedRefund + ". Refund is awaiting manual payment disbursement."
+        ));
+
+        ReservationRefundResponse resp = ReservationRefundResponse.fromEntity(saved);
+        resp.setMessage("Cancellation settlement approved successfully. Refund is awaiting payment.");
+        return resp;
+    }
+
+    @Transactional
+    public ReservationRefundResponse recordRefundPayment(Long refundId, RecordRefundPaymentRequest request, UserPrincipal principal) {
+        boolean isStaffOrAdmin = principal != null && (
+                principal.getUser().getRole() == UserRole.STAFF ||
+                principal.getUser().getRole() == UserRole.ADMIN
+        );
+        if (!isStaffOrAdmin) {
+            throw new ForbiddenException("Only management staff or admin can record refund payments.");
+        }
+
+        ReservationRefund refund = reservationRefundRepository.findById(refundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund record not found with id: " + refundId));
+
+        if (refund.getRefundStatus() == RefundStatus.COMPLETED) {
+            throw new BadRequestException("This refund has already been completed.");
+        }
+
+        if (refund.getRefundStatus() == RefundStatus.PENDING_REVIEW || refund.getRefundStatus() == RefundStatus.PENDING) {
+            throw new BadRequestException("This cancellation request is still pending review and must be approved before payment can be recorded.");
+        }
+
+        if (request == null || request.getRefundMethod() == null || request.getRefundMethod().trim().isEmpty()) {
+            throw new BadRequestException("Refund payment method is required (e.g. Bank Transfer, Cash, Other).");
+        }
+
+        LocalDateTime now = getCurrentDateTime();
+        String processorName = principal.getUser().getName();
+
+        refund.setRefundStatus(RefundStatus.COMPLETED);
+        refund.setProcessedBy(processorName);
+        refund.setProcessedAt(now);
+        refund.setRefundMethod(request.getRefundMethod().trim());
+        refund.setTransactionReference(request.getTransactionReference() != null ? request.getTransactionReference().trim() : null);
+        refund.setNotes(request.getInternalNote());
+        refund.setProofUrl(request.getProofUrl());
+        refund.setUpdatedAt(now);
+
+        ReservationRefund saved = reservationRefundRepository.save(refund);
+
+        notificationSubject.notifyObservers(new NotificationEvent(
+                saved.getCustomer(),
+                NotificationType.PAYMENT,
+                "Refund Payment Completed",
+                "Your refund of Rs. " + saved.getRefundAmount() + " has been paid via "
+                        + saved.getRefundMethod() + (saved.getTransactionReference() != null ? " (Ref: " + saved.getTransactionReference() + ")" : "") + "."
+        ));
+
+        ReservationRefundResponse resp = ReservationRefundResponse.fromEntity(saved);
+        resp.setMessage("Refund payment has been recorded and marked as completed.");
+        return resp;
+    }
+
+    @Transactional
+    public ReservationRefundResponse processPendingRefund(Long refundId, UserPrincipal principal) {
+        RecordRefundPaymentRequest req = RecordRefundPaymentRequest.builder()
+                .refundMethod("Bank Transfer")
+                .transactionReference("REF-PAY-" + System.currentTimeMillis())
+                .internalNote("Administrative manual settlement")
+                .build();
+        return recordRefundPayment(refundId, req, principal);
     }
 
     @Transactional

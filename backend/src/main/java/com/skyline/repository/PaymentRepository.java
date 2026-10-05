@@ -64,6 +64,32 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("status") PaymentStatus status
     );
 
+    @Query("""
+        SELECT COALESCE(SUM(p.amount), 0)
+        FROM Payment p
+        WHERE p.status = :status
+          AND p.verifiedAt >= :start
+          AND p.verifiedAt <= :end
+    """)
+    BigDecimal sumAmountByStatusAndVerifiedAtBetween(
+            @Param("status") PaymentStatus status,
+            @Param("start") java.time.LocalDateTime start,
+            @Param("end") java.time.LocalDateTime end
+    );
+
+    @Query("""
+        SELECT p FROM Payment p
+        WHERE p.status = :status
+          AND p.verifiedAt >= :start
+          AND p.verifiedAt <= :end
+        ORDER BY p.verifiedAt ASC
+    """)
+    List<Payment> findByStatusAndVerifiedAtBetween(
+            @Param("status") PaymentStatus status,
+            @Param("start") java.time.LocalDateTime start,
+            @Param("end") java.time.LocalDateTime end
+    );
+
     List<Payment> findByReservationIdInOrApartmentIdIn(
             java.util.Collection<Long> reservationIds,
             java.util.Collection<Long> apartmentIds

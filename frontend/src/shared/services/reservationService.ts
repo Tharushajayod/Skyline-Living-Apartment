@@ -1,6 +1,6 @@
 import { apiClient } from './api';
 import { fastCache } from './cache';
-import type { Reservation, ReservationDetails, ReservationRefund, ReservationStatus } from '@/shared/types';
+import type { Reservation, ReservationDetails, ReservationRefund, ReservationStatus, RefundEligibility } from '@/shared/types';
 
 export const reservationService = {
   getCachedAll(): Reservation[] | null {
@@ -55,6 +55,62 @@ export const reservationService = {
     const res = await apiClient.post<Reservation>('/reservations', reservation);
     fastCache.invalidate('reservations');
     fastCache.invalidate('dashboard');
+    return res;
+  },
+  async cancelReservation(
+    id: string,
+    payload?: {
+      reason?: string;
+    }
+  ): Promise<ReservationRefund> {
+    const res = await apiClient.post<ReservationRefund>(`/reservations/${id}/cancel`, payload || {});
+    fastCache.invalidate('reservations');
+    fastCache.invalidate('dashboard');
+    fastCache.invalidate(`reservation_details_${id}`);
+    fastCache.invalidate('sales');
+    fastCache.invalidate('apartments');
+    return res;
+  },
+
+  async getRefundEligibility(id: string): Promise<RefundEligibility> {
+    return apiClient.get<RefundEligibility>(`/reservations/${id}/refund-eligibility`);
+  },
+
+  async settleRefund(refundId: string): Promise<ReservationRefund> {
+    const res = await apiClient.post<ReservationRefund>(`/reservations/refunds/${refundId}/process`, {});
+    fastCache.invalidate('reservations');
+    fastCache.invalidate('dashboard');
+    fastCache.invalidate('sales');
+    return res;
+  },
+
+  async reviewSettlement(
+    refundId: string,
+    payload: {
+      companyRetainedAmount: number;
+      settlementNote?: string;
+    }
+  ): Promise<ReservationRefund> {
+    const res = await apiClient.post<ReservationRefund>(`/reservations/refunds/${refundId}/review`, payload);
+    fastCache.invalidate('reservations');
+    fastCache.invalidate('dashboard');
+    fastCache.invalidate('sales');
+    return res;
+  },
+
+  async recordRefundPayment(
+    refundId: string,
+    payload: {
+      refundMethod: string;
+      transactionReference?: string;
+      settlementNote?: string;
+      proofUrl?: string;
+    }
+  ): Promise<ReservationRefund> {
+    const res = await apiClient.post<ReservationRefund>(`/reservations/refunds/${refundId}/complete-payment`, payload);
+    fastCache.invalidate('reservations');
+    fastCache.invalidate('dashboard');
+    fastCache.invalidate('sales');
     return res;
   },
 

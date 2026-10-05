@@ -3,11 +3,9 @@ package com.skyline.service;
 import com.skyline.dto.dashboard.ChartPointDto;
 import com.skyline.dto.dashboard.DashboardStatsResponse;
 import com.skyline.dto.dashboard.DistrictStatDto;
+import com.skyline.dto.dashboard.MonthlyCashflowPointDto;
 import com.skyline.dto.dashboard.ReportDataResponse;
-import com.skyline.entity.Apartment;
-import com.skyline.entity.ApartmentStatus;
-import com.skyline.entity.Payment;
-import com.skyline.entity.Sale;
+import com.skyline.entity.*;
 import com.skyline.enums.*;
 import com.skyline.repository.*;
 import org.springframework.stereotype.Service;
@@ -16,11 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional(readOnly = true)
 public class DashboardService {
 
     private final ApartmentRepository apartmentRepository;
@@ -30,6 +28,8 @@ public class DashboardService {
     private final InquiryRepository inquiryRepository;
     private final UserRepository userRepository;
     private final SaleRepository saleRepository;
+    private final ReservationRefundRepository reservationRefundRepository;
+    private final FinancialAnalyticsService financialAnalyticsService;
 
     public DashboardService(ApartmentRepository apartmentRepository,
                             AppointmentRepository appointmentRepository,
@@ -37,7 +37,9 @@ public class DashboardService {
                             PaymentRepository paymentRepository,
                             InquiryRepository inquiryRepository,
                             UserRepository userRepository,
-                            SaleRepository saleRepository) {
+                            SaleRepository saleRepository,
+                            ReservationRefundRepository reservationRefundRepository,
+                            FinancialAnalyticsService financialAnalyticsService) {
         this.apartmentRepository = apartmentRepository;
         this.appointmentRepository = appointmentRepository;
         this.reservationRepository = reservationRepository;
@@ -45,57 +47,52 @@ public class DashboardService {
         this.inquiryRepository = inquiryRepository;
         this.userRepository = userRepository;
         this.saleRepository = saleRepository;
+        this.reservationRefundRepository = reservationRefundRepository;
+        this.financialAnalyticsService = financialAnalyticsService;
     }
 
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public DashboardStatsResponse getStats() {
         long totalApts = apartmentRepository.count();
         long availableApts = apartmentRepository.countByStatus(ApartmentStatus.AVAILABLE);
         long soldApts = apartmentRepository.countByStatus(ApartmentStatus.SOLD);
 
-        // Calculate active reservations with single DB count query (Pending or Confirmed)
         long activeReservations = reservationRepository.countByStatusIn(List.of(ReservationStatus.CONFIRMED, ReservationStatus.PENDING));
 
         long pendingAppts = appointmentRepository.countByStatus(AppointmentStatus.PENDING);
         long pendingPayments = paymentRepository.countByStatus(PaymentStatus.PENDING);
         BigDecimal pendingAmount = paymentRepository.sumAmountByStatus(PaymentStatus.PENDING);
+        if (pendingAmount == null) pendingAmount = BigDecimal.ZERO;
 
         long unresolvedInq = inquiryRepository.countByStatusNot(InquiryStatus.RESOLVED);
         long totalCustomers = userRepository.countByRole(UserRole.CUSTOMER);
         long totalUsers = userRepository.count();
 
-        long salesCount = saleRepository.count();
-        BigDecimal totalRevenue = saleRepository.sumTotalSalesRevenue();
-        if (totalRevenue == null || totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
-            totalRevenue = apartmentRepository.sumPriceByStatus(ApartmentStatus.SOLD);
-        }
+        // Authoritative Financial Figures from FinancialAnalyticsService
+        long salesCount = financialAnalyticsService.getCompletedSalesCount();
+        BigDecimal totalSalesValue = financialAnalyticsService.getTotalContractSalesValue();
+        BigDecimal grossInflow = financialAnalyticsService.getGrossVerifiedInflow();
+        BigDecimal refundOutflow = financialAnalyticsService.getCompletedRefundOutflow();
+        BigDecimal netRealizedCash = financialAnalyticsService.getNetRealizedCash();
+        BigDecimal retainedFeeIncome = financialAnalyticsService.getRetainedFeeIncome();
 
-        BigDecimal realizedRevenue = paymentRepository.sumAmountByStatus(PaymentStatus.VERIFIED);
-        if (realizedRevenue == null) realizedRevenue = BigDecimal.ZERO;
+        // Monthly cashflow trend for last 6 months
+        List<MonthlyCashflowPointDto> monthlyCashflow = financialAnalyticsService.getMonthlyCashflowTrend(6);
 
-        List<Payment> verifiedPayments = paymentRepository.findByStatus(PaymentStatus.VERIFIED);
-
-        // Calculate this month's revenue (from verified payments)
+        // Current month figures
         YearMonth thisMonth = YearMonth.now();
-        BigDecimal monthRevenue = verifiedPayments.stream()
-                .filter(p -> p.getVerifiedAt() != null && YearMonth.from(p.getVerifiedAt()).equals(thisMonth))
-                .map(Payment::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        MonthlyCashflowPointDto thisMonthPoint = monthlyCashflow.stream()
+                .filter(p -> p.getYearMonth() != null && p.getYearMonth().equals(thisMonth.toString()))
+                .findFirst()
+                .orElse(null);
 
-        // Monthly sales trend (last 6 months)
-        DateTimeFormatter monthFmt = DateTimeFormatter.ofPattern("MMM");
-        List<ChartPointDto> monthlySalesTrend = new ArrayList<>();
-        YearMonth current = YearMonth.now();
+        BigDecimal monthGrossInflow = thisMonthPoint != null ? thisMonthPoint.getGrossInflow() : BigDecimal.ZERO;
+        BigDecimal monthRefundOutflow = thisMonthPoint != null ? thisMonthPoint.getRefundOutflow() : BigDecimal.ZERO;
+        BigDecimal monthNetCashflow = thisMonthPoint != null ? thisMonthPoint.getNetCashflow() : BigDecimal.ZERO;
 
-        for (int i = 5; i >= 0; i--) {
-            YearMonth targetMonth = current.minusMonths(i);
-            String label = targetMonth.format(monthFmt);
-            long amount = verifiedPayments.stream()
-                    .filter(p -> p.getVerifiedAt() != null && YearMonth.from(p.getVerifiedAt()).equals(targetMonth))
-                    .map(p -> p.getAmount().longValue())
-                    .reduce(0L, Long::sum);
-            monthlySalesTrend.add(new ChartPointDto(label, amount));
-        }
+        // Legacy chart compatibility: maps net cashflow to long value
+        List<ChartPointDto> monthlySalesTrend = monthlyCashflow.stream()
+                .map(p -> new ChartPointDto(p.getLabel(), p.getNetCashflow().longValue()))
+                .collect(Collectors.toList());
 
         return DashboardStatsResponse.builder()
                 .totalApartments(totalApts)
@@ -104,20 +101,35 @@ public class DashboardService {
                 .soldApartments(soldApts)
                 .pendingAppointments(pendingAppts)
                 .pendingPayments(pendingPayments)
-                .pendingAmount(pendingAmount != null ? pendingAmount : BigDecimal.ZERO)
+                .pendingAmount(pendingAmount)
                 .unresolvedInquiries(unresolvedInq)
                 .totalCustomers(totalCustomers)
                 .totalUsers(totalUsers)
                 .totalSalesCount(salesCount > 0 ? salesCount : soldApts)
-                .totalRevenue(totalRevenue != null ? totalRevenue : BigDecimal.ZERO)
-                .realizedRevenue(realizedRevenue)
-                .monthRevenue(monthRevenue)
+                .totalSalesValue(totalSalesValue)
+                .totalRevenue(totalSalesValue)
+                .grossVerifiedInflow(grossInflow)
+                .completedRefundOutflow(refundOutflow)
+                .netRealizedCash(netRealizedCash)
+                .realizedRevenue(netRealizedCash)
+                .retainedFeeIncome(retainedFeeIncome)
+                .monthGrossInflow(monthGrossInflow)
+                .monthRefundOutflow(monthRefundOutflow)
+                .monthNetCashflow(monthNetCashflow)
+                .monthRevenue(monthNetCashflow)
                 .monthlySalesTrend(monthlySalesTrend)
+                .monthlyCashflow(monthlyCashflow)
                 .build();
     }
 
-    @Transactional(readOnly = true)
     public ReportDataResponse getReports() {
+        return getReports("6m");
+    }
+
+    public ReportDataResponse getReports(String range) {
+        int monthCount = financialAnalyticsService.getMonthCountForRange(range);
+        List<MonthlyCashflowPointDto> monthlyCashflow = financialAnalyticsService.getMonthlyCashflowTrend(monthCount);
+
         // 1. Status distribution
         long activeReserved = reservationRepository.countByStatusIn(List.of(ReservationStatus.CONFIRMED, ReservationStatus.PENDING));
 
@@ -141,59 +153,53 @@ public class DashboardService {
                 .map(pt -> new ChartPointDto(pt.getDisplayValue(), payMap.getOrDefault(pt, 0L)))
                 .collect(Collectors.toList());
 
-        // 4. Monthly sales count & monthly revenue (last 6 months)
-        DateTimeFormatter monthFmt = DateTimeFormatter.ofPattern("MMM");
-        List<ChartPointDto> monthlySales = new ArrayList<>();
-        List<ChartPointDto> monthlyRevenue = new ArrayList<>();
-        YearMonth current = YearMonth.now();
-        List<Sale> allSales = saleRepository.findAll();
-        List<Payment> allVerified = paymentRepository.findByStatus(PaymentStatus.VERIFIED);
+        // 4. Aggregates across the selected window
+        BigDecimal grossInflow = monthlyCashflow.stream()
+                .map(MonthlyCashflowPointDto::getGrossInflow)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        for (int i = 5; i >= 0; i--) {
-            YearMonth targetMonth = current.minusMonths(i);
-            String label = targetMonth.format(monthFmt);
+        BigDecimal refundOutflow = monthlyCashflow.stream()
+                .map(MonthlyCashflowPointDto::getRefundOutflow)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            long saleCount = allSales.stream()
-                    .filter(s -> s.getSaleDate() != null && YearMonth.from(s.getSaleDate()).equals(targetMonth))
-                    .count();
+        BigDecimal netRealizedCash = grossInflow.subtract(refundOutflow);
 
-            // If sales table has no records for this month yet, count distinct verified apartments
-            if (saleCount == 0) {
-                saleCount = allVerified.stream()
-                        .filter(p -> p.getVerifiedAt() != null && YearMonth.from(p.getVerifiedAt()).equals(targetMonth))
-                        .map(p -> p.getApartment() != null ? p.getApartment().getId() : null)
-                        .filter(id -> id != null)
-                        .distinct()
-                        .count();
-            }
+        BigDecimal totalContractSales = monthlyCashflow.stream()
+                .map(MonthlyCashflowPointDto::getContractSales)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            long rev = allVerified.stream()
-                    .filter(p -> p.getVerifiedAt() != null && YearMonth.from(p.getVerifiedAt()).equals(targetMonth))
-                    .map(p -> p.getAmount().longValue())
-                    .reduce(0L, Long::sum);
+        long apartmentsSold = monthlyCashflow.stream()
+                .mapToLong(MonthlyCashflowPointDto::getSalesCount)
+                .sum();
 
-            monthlySales.add(new ChartPointDto(label, saleCount));
-            monthlyRevenue.add(new ChartPointDto(label, rev));
-        }
-
-        BigDecimal totalRevenue = saleRepository.sumTotalSalesRevenue();
-        if (totalRevenue == null || totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
-            totalRevenue = apartmentRepository.sumPriceByStatus(ApartmentStatus.SOLD);
-            if (totalRevenue == null) {
-                totalRevenue = BigDecimal.ZERO;
+        // If all-time or window includes all sales, ensure minimum aligns with actual DB
+        if ("all".equalsIgnoreCase(range) || totalContractSales.compareTo(BigDecimal.ZERO) == 0) {
+            BigDecimal allSalesTotal = financialAnalyticsService.getTotalContractSalesValue();
+            long allSalesCount = financialAnalyticsService.getCompletedSalesCount();
+            if (totalContractSales.compareTo(BigDecimal.ZERO) == 0 && allSalesTotal.compareTo(BigDecimal.ZERO) > 0) {
+                totalContractSales = allSalesTotal;
+                apartmentsSold = allSalesCount;
             }
         }
-
-        BigDecimal totalPaid = paymentRepository.sumAmountByStatus(PaymentStatus.VERIFIED);
-        if (totalPaid == null) totalPaid = BigDecimal.ZERO;
-
-        long saleCount = saleRepository.count();
-        if (saleCount == 0) saleCount = apartmentRepository.countByStatus(ApartmentStatus.SOLD);
 
         BigDecimal avgPrice = BigDecimal.ZERO;
-        if (saleCount > 0 && totalRevenue != null) {
-            avgPrice = totalRevenue.divide(BigDecimal.valueOf(saleCount), 0, RoundingMode.HALF_UP);
+        if (apartmentsSold > 0 && totalContractSales.compareTo(BigDecimal.ZERO) > 0) {
+            avgPrice = totalContractSales.divide(BigDecimal.valueOf(apartmentsSold), 0, RoundingMode.HALF_UP);
+        } else if (financialAnalyticsService.getCompletedSalesCount() > 0) {
+            avgPrice = financialAnalyticsService.getAverageSalePrice();
         }
+
+        BigDecimal retainedFeeIncome = financialAnalyticsService.getRetainedFeeIncome();
+
+        // Monthly sales volume chart (deeds count)
+        List<ChartPointDto> monthlySales = monthlyCashflow.stream()
+                .map(p -> new ChartPointDto(p.getLabel(), p.getSalesCount()))
+                .collect(Collectors.toList());
+
+        // Monthly net cashflow chart (inflow - outflow)
+        List<ChartPointDto> monthlyRevenue = monthlyCashflow.stream()
+                .map(p -> new ChartPointDto(p.getLabel(), p.getNetCashflow().longValue()))
+                .collect(Collectors.toList());
 
         // 5. District stats from live apartments
         List<DistrictStatDto> districtStats = apartmentRepository.findAll().stream()
@@ -220,12 +226,19 @@ public class DashboardService {
                 .statusDistribution(statusDist)
                 .monthlySales(monthlySales)
                 .monthlyRevenue(monthlyRevenue)
+                .monthlyCashflow(monthlyCashflow)
                 .inquiryCategories(inquiryCategories)
                 .paymentTypes(paymentTypes)
                 .districtStats(districtStats)
-                .totalRevenue(totalRevenue)
+                .grossVerifiedInflow(grossInflow)
+                .completedRefundOutflow(refundOutflow)
+                .netRealizedCash(netRealizedCash)
+                .totalContractSales(totalContractSales)
+                .totalRevenue(totalContractSales)
+                .apartmentsSold(apartmentsSold)
                 .avgSalePrice(avgPrice)
-                .totalPaidAmount(totalPaid)
+                .retainedFeeIncome(retainedFeeIncome)
+                .totalPaidAmount(grossInflow)
                 .totalApartmentsListed(totalApartmentsListed)
                 .build();
     }

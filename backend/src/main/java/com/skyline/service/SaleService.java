@@ -45,6 +45,7 @@ public class SaleService {
     private final PaymentPlanItemRepository paymentPlanItemRepository;
     private final UserService userService;
     private final NotificationSubject notificationSubject;
+    private final FinancialAnalyticsService financialAnalyticsService;
 
     public SaleService(SaleRepository saleRepository,
                        ApartmentRepository apartmentRepository,
@@ -53,7 +54,8 @@ public class SaleService {
                        PaymentPlanRepository paymentPlanRepository,
                        PaymentPlanItemRepository paymentPlanItemRepository,
                        UserService userService,
-                       NotificationSubject notificationSubject) {
+                       NotificationSubject notificationSubject,
+                       FinancialAnalyticsService financialAnalyticsService) {
         this.saleRepository = saleRepository;
         this.apartmentRepository = apartmentRepository;
         this.reservationRepository = reservationRepository;
@@ -62,6 +64,11 @@ public class SaleService {
         this.paymentPlanItemRepository = paymentPlanItemRepository;
         this.userService = userService;
         this.notificationSubject = notificationSubject;
+        this.financialAnalyticsService = financialAnalyticsService;
+    }
+
+    public com.skyline.dto.sale.SalesSummaryResponse getSalesSummary() {
+        return financialAnalyticsService.getSalesSummary();
     }
 
     public List<SaleResponse> getAllSales() {

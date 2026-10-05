@@ -16,11 +16,18 @@ public class ReportDataResponse {
     private List<ChartPointDto> statusDistribution;
     private List<ChartPointDto> monthlySales;
     private List<ChartPointDto> monthlyRevenue;
+    private List<MonthlyCashflowPointDto> monthlyCashflow;
     private List<ChartPointDto> inquiryCategories;
     private List<ChartPointDto> paymentTypes;
     private List<DistrictStatDto> districtStats;
-    private BigDecimal totalRevenue;
+    private BigDecimal grossVerifiedInflow;
+    private BigDecimal completedRefundOutflow;
+    private BigDecimal netRealizedCash;
+    private BigDecimal totalContractSales;
+    private BigDecimal totalRevenue; // Alias for totalContractSales
+    private long apartmentsSold;
     private BigDecimal avgSalePrice;
-    private BigDecimal totalPaidAmount;
+    private BigDecimal retainedFeeIncome;
+    private BigDecimal totalPaidAmount; // Alias for grossVerifiedInflow
     private long totalApartmentsListed;
 }

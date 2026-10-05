@@ -1,10 +1,14 @@
 import { apiClient } from './api';
 import { fastCache } from './cache';
-import type { Sale, SaleDetails, User } from '@/shared/types';
+import type { Sale, SaleDetails, User, SalesSummary, DashboardStats, ReportData } from '@/shared/types';
 
 export const salesService = {
   getCached(): Sale[] | null {
     return fastCache.get<Sale[]>('sales_all');
+  },
+
+  getCachedSummary(): SalesSummary | null {
+    return fastCache.get<SalesSummary>('sales_summary');
   },
 
   getCachedDetails(id: string): SaleDetails | null {
@@ -15,6 +19,14 @@ export const salesService = {
     const data = await apiClient.get<Sale[]>('/sales');
     if (Array.isArray(data)) {
       fastCache.set('sales_all', data);
+    }
+    return data;
+  },
+
+  async getSummary(): Promise<SalesSummary> {
+    const data = await apiClient.get<SalesSummary>('/sales/summary');
+    if (data) {
+      fastCache.set('sales_summary', data);
     }
     return data;
   },
@@ -36,26 +48,26 @@ export const salesService = {
 };
 
 export const dashboardService = {
-  getCachedStats(): any | null {
-    return fastCache.get<any>('dashboard_stats');
+  getCachedStats(): DashboardStats | null {
+    return fastCache.get<DashboardStats>('dashboard_stats');
   },
 
-  getCachedReports(): any | null {
-    return fastCache.get<any>('dashboard_reports');
+  getCachedReports(range = '6m'): ReportData | null {
+    return fastCache.get<ReportData>(`dashboard_reports_${range}`);
   },
 
-  async getStats(): Promise<any> {
-    const data = await apiClient.get<any>('/dashboard/stats');
+  async getStats(): Promise<DashboardStats> {
+    const data = await apiClient.get<DashboardStats>('/dashboard/stats');
     if (data) {
       fastCache.set('dashboard_stats', data);
     }
     return data;
   },
 
-  async getReports(): Promise<any> {
-    const data = await apiClient.get<any>('/dashboard/reports');
+  async getReports(range = '6m'): Promise<ReportData> {
+    const data = await apiClient.get<ReportData>(`/dashboard/reports?range=${encodeURIComponent(range)}`);
     if (data) {
-      fastCache.set('dashboard_reports', data);
+      fastCache.set(`dashboard_reports_${range}`, data);
     }
     return data;
   },
