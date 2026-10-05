@@ -40,6 +40,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -166,11 +167,21 @@ public class PaymentPlanService {
             );
         }
 
+        if (reservation.getStatus() == ReservationStatus.CANCELLED ||
+            reservation.getStatus() == ReservationStatus.EXPIRED) {
+            throw new BadRequestException("Cannot create a payment plan for a cancelled or expired reservation.");
+        }
+
         boolean reservationFeeApproved = paymentRepository.existsByReservationIdAndTypeAndStatus(
                 reservation.getId(),
                 PaymentType.RESERVATION_FEE,
                 PaymentStatus.VERIFIED
-        ) || reservation.getStatus() == ReservationStatus.CONFIRMED;
+        ) || (reservation.getStatus() == ReservationStatus.CONFIRMED &&
+              paymentRepository.existsByReservationIdAndTypeAndStatus(
+                      reservation.getId(),
+                      PaymentType.RESERVATION_FEE,
+                      PaymentStatus.VERIFIED
+              ));
 
         if (!reservationFeeApproved) {
             throw new BadRequestException(
@@ -242,14 +253,12 @@ public class PaymentPlanService {
             }
         }
 
-        BigDecimal paymentAmount = request.getPaymentAmount();
-        if (paymentAmount == null || paymentAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            paymentAmount = outstanding.divide(
-                    BigDecimal.valueOf(request.getNumberOfPayments()),
-                    2,
-                    RoundingMode.HALF_UP
-            );
-        }
+        // Authoritative backend calculation: always compute paymentAmount from outstanding balance
+        BigDecimal paymentAmount = outstanding.divide(
+                BigDecimal.valueOf(request.getNumberOfPayments()),
+                2,
+                RoundingMode.HALF_UP
+        );
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Colombo"));
         if (request.getStartDate() != null && request.getStartDate().isBefore(today)) {
@@ -277,7 +286,7 @@ public class PaymentPlanService {
                 )
 
                 .paymentAmount(
-                        request.getPaymentAmount()
+                        paymentAmount
                 )
 
                 .totalPlanAmount(outstanding)
@@ -360,13 +369,17 @@ public class PaymentPlanService {
                 ? plan.getApartment().getPrice()
                 : BigDecimal.ZERO;
 
-        BigDecimal reservationFee = plan.getReservation() != null && plan.getReservation().getReservationFee() != null
-                ? plan.getReservation().getReservationFee()
+        BigDecimal verifiedPaid = plan.getReservation() != null
+                ? paymentRepository.findByReservationId(plan.getReservation().getId()).stream()
+                    .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
+                    .map(Payment::getAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
                 : BigDecimal.ZERO;
 
-        BigDecimal principalAmount = apartmentPrice.subtract(reservationFee);
+        BigDecimal principalAmount = apartmentPrice.subtract(verifiedPaid);
         if (principalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            principalAmount = plan.getRemainingAmount();
+            principalAmount = plan.getRemainingAmount() != null ? plan.getRemainingAmount() : BigDecimal.ZERO;
         }
 
         int numberOfPayments = plan.getNumberOfPayments();

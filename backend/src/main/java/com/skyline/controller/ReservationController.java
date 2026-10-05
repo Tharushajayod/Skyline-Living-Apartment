@@ -85,6 +85,22 @@ public class ReservationController {
         return ResponseEntity.ok(reservationService.recordRefundPayment(numericRefundId, request, userPrincipal));
     }
 
+    @PostMapping("/refunds/{refundId}/confirm-receipt")
+    public ResponseEntity<com.skyline.dto.reservation.ReservationRefundResponse> confirmRefundReceipt(
+            @PathVariable String refundId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long numericRefundId = IdParser.parseId(refundId);
+        return ResponseEntity.ok(reservationService.confirmRefundReceipt(numericRefundId, userPrincipal));
+    }
+
+    @PostMapping("/{id}/confirm-refund")
+    public ResponseEntity<com.skyline.dto.reservation.ReservationRefundResponse> confirmRefundReceiptByReservation(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        Long numericId = IdParser.parseId(id);
+        return ResponseEntity.ok(reservationService.confirmRefundReceiptByReservationId(numericId, userPrincipal));
+    }
+
     @PostMapping
     public ResponseEntity<ReservationResponse> createReservation(
             @AuthenticationPrincipal UserPrincipal userPrincipal,

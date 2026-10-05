@@ -343,7 +343,7 @@ export default function ManageApartmentsPage() {
         setList(prev => prev.map(a => a.id === editing.id ? updated : a));
         toast('Apartment updated successfully', 'success');
       } else {
-        const created = await apartmentService.create({ ...base, images });
+        const created = await apartmentService.create({ ...base, images, status: 'Available' });
         setList(prev => [created, ...prev]);
         toast('Apartment created successfully', 'success');
       }

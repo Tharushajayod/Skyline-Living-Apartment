@@ -112,6 +112,16 @@ public class ReservationRefund {
     @Column(length = 1000)
     private String notes;
 
+    // Customer Refund Confirmation / Acknowledgement Fields
+    @Column(name = "customer_confirmed_at")
+    private LocalDateTime customerConfirmedAt;
+
+    @Column(name = "customer_confirmed_by")
+    private String customerConfirmedBy;
+
+    @Column(name = "customer_confirmed_user_id")
+    private Long customerConfirmedUserId;
+
     @Column(nullable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

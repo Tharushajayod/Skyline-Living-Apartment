@@ -54,6 +54,12 @@ public class ReservationRefundResponse {
     private String notes;
     private String createdAt;
 
+    // Customer Refund Confirmation / Acknowledgement Fields
+    private String customerConfirmedAt;
+    private String customerConfirmedBy;
+    private Long customerConfirmedUserId;
+    private Boolean canCustomerConfirm;
+
     // Additional fields for cancellation response
     private String reservationStatus;
     private Boolean refundEligible;
@@ -67,7 +73,9 @@ public class ReservationRefundResponse {
                 : (r.getCreatedAt() != null ? r.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null);
         String revAt = r.getReviewedAt() != null ? r.getReviewedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
         String procAt = r.getProcessedAt() != null ? r.getProcessedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+        String confAt = r.getCustomerConfirmedAt() != null ? r.getCustomerConfirmedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
         String createAt = r.getCreatedAt() != null ? r.getCreatedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+        boolean canConfirm = r.getRefundStatus() == RefundStatus.PROCESSED;
 
         return ReservationRefundResponse.builder()
                 .id(IdParser.formatId("REF", r.getId()))
@@ -97,6 +105,10 @@ public class ReservationRefundResponse {
                 .refundMethod(r.getRefundMethod())
                 .transactionReference(r.getTransactionReference())
                 .proofUrl(r.getProofUrl())
+                .customerConfirmedAt(confAt)
+                .customerConfirmedBy(r.getCustomerConfirmedBy())
+                .customerConfirmedUserId(r.getCustomerConfirmedUserId())
+                .canCustomerConfirm(canConfirm)
                 .notes(r.getNotes())
                 .createdAt(createAt)
                 .reservationStatus(r.getReservation() != null && r.getReservation().getStatus() != null ? r.getReservation().getStatus().name() : null)

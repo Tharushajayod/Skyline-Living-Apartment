@@ -115,7 +115,7 @@ class PaymentVerificationStrategyTest {
                 .customer(customer)
                 .build();
 
-        when(paymentRepository.sumAmountByApartmentAndStatus(100L, PaymentStatus.VERIFIED))
+        when(paymentRepository.sumAmountByReservationAndStatus(reservation.getId(), PaymentStatus.VERIFIED))
                 .thenReturn(new BigDecimal("2500000"));
 
         assertTrue(reservationFeeStrategy.supports(PaymentType.RESERVATION_FEE));
@@ -212,7 +212,7 @@ class PaymentVerificationStrategyTest {
                 .customer(customer)
                 .build();
 
-        when(paymentRepository.sumAmountByApartmentAndStatus(100L, PaymentStatus.VERIFIED))
+        when(paymentRepository.sumAmountByReservationAndStatus(reservation.getId(), PaymentStatus.VERIFIED))
                 .thenReturn(new BigDecimal("2500000"));
 
         context.executePostVerification(payment, staffPrincipal, "Finance Officer");

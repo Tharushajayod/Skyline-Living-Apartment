@@ -192,43 +192,54 @@ export default function ReservationsPage() {
 
   // Helper for status badge colors
   const getStatusBadge = (rsv: Reservation) => {
-    const status = rsv.status;
+    const apt = aptMap.get(rsv.apartmentId);
+    const isCancelled = rsv.status === 'Cancelled';
+    const isExpired = rsv.status === 'Expired';
+    const isSoldOrPurchased = !isCancelled && !isExpired && Boolean(rsv.hasCompletedSale || rsv.isFullyPaid || apt?.status === 'Sold');
+
     return (
       <div className="flex items-center gap-1.5 flex-wrap">
-        {status === 'Confirmed' && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Confirmed
+        {isSoldOrPurchased ? (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            {rsv.hasCompletedSale || apt?.status === 'Sold' ? 'Fully Paid • Purchased' : 'Fully Paid • Completion Pending'}
           </span>
+        ) : (
+          <>
+            {rsv.status === 'Confirmed' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Confirmed
+              </span>
+            )}
+            {rsv.status === 'Pending' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Pending 48h Hold
+              </span>
+            )}
+            {rsv.status === 'Expired' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                Expired
+              </span>
+            )}
+            {rsv.status === 'Cancelled' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                {rsv.refundStatus === 'COMPLETED' || rsv.refundStatus === 'Completed'
+                  ? 'Cancelled • Refund Completed'
+                  : (rsv.refundStatus === 'PROCESSED' || rsv.refundStatus === 'SENT' || rsv.refundStatus === 'Payment Sent – Awaiting Confirmation')
+                    ? 'Cancelled • Refund Sent'
+                    : 'Cancelled'}
+              </span>
+            )}
+          </>
         )}
-        {status === 'Pending' && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-            Pending 48h Hold
-          </span>
-        )}
-        {status === 'Expired' && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-            Expired
-          </span>
-        )}
-        {status === 'Cancelled' && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-            Cancelled
-          </span>
-        )}
-        {rsv.hasPaymentCommitment && (
+        {rsv.hasPaymentCommitment && !isSoldOrPurchased && (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs">
             <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
             <span>{rsv.paymentCommitmentReason || 'Payment Commitment'}</span>
-          </span>
-        )}
-        {(rsv.hasCompletedSale || rsv.isFullyPaid || aptMap.get(rsv.apartmentId)?.status === 'Sold') && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500 text-slate-950 shadow-2xs">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Purchased / Sold
           </span>
         )}
       </div>
@@ -572,9 +583,12 @@ export default function ReservationsPage() {
             <div className="space-y-5">
               {filteredReservations.map((rsv) => {
                 const apt = aptMap.get(rsv.apartmentId);
-                const isSoldOrPurchased = Boolean(rsv.hasCompletedSale || rsv.isFullyPaid || apt?.status === 'Sold');
+                const isCancelled = rsv.status === 'Cancelled';
+                const isExpired = rsv.status === 'Expired';
+                const isSoldOrPurchased = !isCancelled && !isExpired && Boolean(rsv.hasCompletedSale || rsv.isFullyPaid || apt?.status === 'Sold');
+                const isClosed = !isSoldOrPurchased && (isCancelled || isExpired || Boolean(rsv.financiallyClosed));
                 const cd = countdownTo(rsv.expiresAt);
-                const showCountdown = !isSoldOrPurchased && (rsv.status === 'Pending' || rsv.status === 'Confirmed');
+                const showCountdown = !isSoldOrPurchased && !isClosed && (rsv.status === 'Pending' || rsv.status === 'Confirmed');
                 const apartmentImg =
                   apt?.images && apt.images.length > 0
                     ? apt.images[0].url
@@ -704,7 +718,12 @@ export default function ReservationsPage() {
                             <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 col-span-2 sm:col-span-1">
                               <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Commitment Lifecycle</p>
                               <p className="text-xs font-bold text-slate-900 mt-0.5 flex items-center gap-1 truncate">
-                                {rsv.hasPaymentCommitment ? (
+                                {isClosed ? (
+                                  <span className="text-slate-500 font-semibold flex items-center gap-1">
+                                    <XCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    Closed
+                                  </span>
+                                ) : rsv.hasPaymentCommitment ? (
                                   <span className="text-emerald-700 font-bold flex items-center gap-1">
                                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                     {rsv.paymentCommitmentReason || 'Payment Active'}
@@ -734,7 +753,7 @@ export default function ReservationsPage() {
 
                             <Link
                               to={`/apartments/${rsv.apartmentId}`}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition cursor-pointer"
                             >
                               <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                               <span>Apartment Specs</span>
@@ -758,7 +777,7 @@ export default function ReservationsPage() {
                                 <CreditCard className="w-3.5 h-3.5 text-blue-700" />
                                 <span>View Payment Plan / Ledger</span>
                               </Link>
-                            ) : rsv.status === 'Pending' && !cd.expired ? (
+                            ) : !isClosed && rsv.status === 'Pending' && !cd.expired ? (
                               <Link
                                 to="/payments"
                                 state={{ autoPayReservationId: rsv.id }}

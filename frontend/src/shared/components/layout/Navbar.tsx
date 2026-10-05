@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Building2, Heart, Bell, User, LogOut, Menu, X,
@@ -9,6 +9,7 @@ import { useAuth } from '@/shared/contexts/AuthContext';
 import { useFavorites } from '@/shared/contexts/FavoritesContext';
 import { useNotifications } from '@/shared/contexts/NotificationsContext';
 import { initials } from '@/shared/utils/format';
+import SignOutConfirmModal from '@/shared/components/auth/SignOutConfirmModal';
 
 const mainNavLinks = [
   { label: 'Home', path: '/' },
@@ -25,15 +26,23 @@ export default function Navbar() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [signOutModalOpen, setSignOutModalOpen] = useState(false);
+  const signOutTriggerRef = useRef<HTMLButtonElement>(null);
 
   const isActive = (path: string) =>
     location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
 
   const isStaffOrAdmin = (user?.role as string)?.toLowerCase() === 'staff' || (user?.role as string)?.toLowerCase() === 'admin';
 
-  const handleLogout = () => {
-    logout();
+  const openSignOutModal = () => {
     setUserMenuOpen(false);
+    setMobileOpen(false);
+    setSignOutModalOpen(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setSignOutModalOpen(false);
+    logout();
     navigate('/');
   };
 
@@ -258,8 +267,9 @@ export default function Navbar() {
                           )}
 
                           <button
+                            ref={signOutTriggerRef}
                             type="button"
-                            onClick={handleLogout}
+                            onClick={openSignOutModal}
                             className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                           >
                             <LogOut className="w-4 h-4 text-rose-500" />
@@ -388,7 +398,7 @@ export default function Navbar() {
 
                   <button
                     type="button"
-                    onClick={() => { handleLogout(); setMobileOpen(false); }}
+                    onClick={openSignOutModal}
                     className="text-left px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
                   >
                     Sign Out
@@ -404,6 +414,14 @@ export default function Navbar() {
           </div>
         )}
       </div>
+
+      {/* Customer Sign-Out Confirmation Dialog */}
+      <SignOutConfirmModal
+        open={signOutModalOpen}
+        onClose={() => setSignOutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        triggerRef={signOutTriggerRef}
+      />
     </header>
   );
 }

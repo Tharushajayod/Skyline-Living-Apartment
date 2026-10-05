@@ -112,6 +112,22 @@ export interface Reservation {
   otherPaidAmount?: number;
   refundableAmount?: number;
   nonRefundableFee?: number;
+
+  // Authoritative financial lifecycle fields
+  reservationFeePaid?: boolean;
+  verifiedPaid?: number;
+  remainingBalance?: number;
+  refundStatus?: string;
+  refundAmount?: number;
+  companyRetainedAmount?: number;
+  refundProcessedAt?: string;
+  customerConfirmedAt?: string;
+  financiallyClosed?: boolean;
+  canPayReservationFee?: boolean;
+  canRequestSettlement?: boolean;
+  canConfirmRefund?: boolean;
+  settlementProgress?: number;
+  displayStatus?: string;
 }
 
 export interface PurchasedApartment {
@@ -146,10 +162,12 @@ export type RefundStatus =
   | 'Approved'
   | 'Processed'
   | 'Completed'
+  | 'Payment Sent – Awaiting Confirmation'
   | 'PENDING_REVIEW'
   | 'PENDING_PAYMENT'
   | 'APPROVED'
   | 'PROCESSED'
+  | 'SENT'
   | 'COMPLETED'
   | 'PENDING';
 export type RefundType = 'Cancellation' | 'Expiration';
@@ -181,6 +199,10 @@ export interface ReservationRefund {
   proofUrl?: string;
   processedBy?: string;
   processedAt?: string;
+  customerConfirmedAt?: string;
+  customerConfirmedBy?: string;
+  customerConfirmedUserId?: string | number;
+  canCustomerConfirm?: boolean;
   notes?: string;
   createdAt: string;
   reservationStatus?: string;

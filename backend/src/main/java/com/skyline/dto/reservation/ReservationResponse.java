@@ -39,6 +39,22 @@ public class ReservationResponse {
     private BigDecimal refundableAmount;
     private BigDecimal nonRefundableFee;
 
+    // Authoritative Reservation Financial Status
+    private boolean reservationFeePaid;
+    private BigDecimal verifiedPaid;
+    private BigDecimal remainingBalance;
+    private String refundStatus;
+    private BigDecimal refundAmount;
+    private BigDecimal companyRetainedAmount;
+    private String refundProcessedAt;
+    private String customerConfirmedAt;
+    private boolean financiallyClosed;
+    private boolean canPayReservationFee;
+    private boolean canRequestSettlement;
+    private boolean canConfirmRefund;
+    private Integer settlementProgress;
+    private String displayStatus;
+
     public static ReservationResponse fromEntity(Reservation r) {
         return fromEntity(r, false, null, false, null, false, null, null, null, null);
     }
@@ -56,6 +72,42 @@ public class ReservationResponse {
                                                 boolean hasCompletedSale, String saleId, boolean isFullyPaid,
                                                 BigDecimal totalPaid, BigDecimal otherPaidAmount,
                                                 BigDecimal refundableAmount, BigDecimal nonRefundableFee) {
+        return fromEntity(r, hasPaymentCommitment, paymentCommitmentReason, hasCompletedSale, saleId, isFullyPaid,
+                totalPaid, otherPaidAmount, refundableAmount, nonRefundableFee,
+                false, totalPaid, null, null, null, null, null, null, false, false, false, false, 0);
+    }
+
+    public static ReservationResponse fromEntity(Reservation r, boolean hasPaymentCommitment, String paymentCommitmentReason,
+                                                boolean hasCompletedSale, String saleId, boolean isFullyPaid,
+                                                BigDecimal totalPaid, BigDecimal otherPaidAmount,
+                                                BigDecimal refundableAmount, BigDecimal nonRefundableFee,
+                                                boolean reservationFeePaid, BigDecimal verifiedPaid, BigDecimal remainingBalance,
+                                                String refundStatus, BigDecimal refundAmount, BigDecimal companyRetainedAmount,
+                                                String refundProcessedAt, String customerConfirmedAt,
+                                                boolean financiallyClosed, boolean canPayReservationFee,
+                                                boolean canRequestSettlement, boolean canConfirmRefund,
+                                                Integer settlementProgress) {
+        return fromEntity(r, hasPaymentCommitment, paymentCommitmentReason,
+                hasCompletedSale, saleId, isFullyPaid,
+                totalPaid, otherPaidAmount, refundableAmount, nonRefundableFee,
+                reservationFeePaid, verifiedPaid, remainingBalance,
+                refundStatus, refundAmount, companyRetainedAmount,
+                refundProcessedAt, customerConfirmedAt,
+                financiallyClosed, canPayReservationFee,
+                canRequestSettlement, canConfirmRefund,
+                settlementProgress, null);
+    }
+
+    public static ReservationResponse fromEntity(Reservation r, boolean hasPaymentCommitment, String paymentCommitmentReason,
+                                                boolean hasCompletedSale, String saleId, boolean isFullyPaid,
+                                                BigDecimal totalPaid, BigDecimal otherPaidAmount,
+                                                BigDecimal refundableAmount, BigDecimal nonRefundableFee,
+                                                boolean reservationFeePaid, BigDecimal verifiedPaid, BigDecimal remainingBalance,
+                                                String refundStatus, BigDecimal refundAmount, BigDecimal companyRetainedAmount,
+                                                String refundProcessedAt, String customerConfirmedAt,
+                                                boolean financiallyClosed, boolean canPayReservationFee,
+                                                boolean canRequestSettlement, boolean canConfirmRefund,
+                                                Integer settlementProgress, String displayStatus) {
         if (r == null) return null;
         return ReservationResponse.builder()
                 .id(IdParser.formatId("RSV", r.getId()))
@@ -77,6 +129,20 @@ public class ReservationResponse {
                 .otherPaidAmount(otherPaidAmount)
                 .refundableAmount(refundableAmount)
                 .nonRefundableFee(nonRefundableFee)
+                .reservationFeePaid(reservationFeePaid)
+                .verifiedPaid(verifiedPaid != null ? verifiedPaid : BigDecimal.ZERO)
+                .remainingBalance(remainingBalance != null ? remainingBalance : BigDecimal.ZERO)
+                .refundStatus(refundStatus)
+                .refundAmount(refundAmount)
+                .companyRetainedAmount(companyRetainedAmount)
+                .refundProcessedAt(refundProcessedAt)
+                .customerConfirmedAt(customerConfirmedAt)
+                .financiallyClosed(financiallyClosed)
+                .canPayReservationFee(canPayReservationFee)
+                .canRequestSettlement(canRequestSettlement)
+                .canConfirmRefund(canConfirmRefund)
+                .settlementProgress(settlementProgress != null ? settlementProgress : 0)
+                .displayStatus(displayStatus)
                 .build();
     }
 }

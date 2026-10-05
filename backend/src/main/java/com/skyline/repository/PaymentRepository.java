@@ -90,6 +90,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("end") java.time.LocalDateTime end
     );
 
+    List<Payment> findByReservationIdIn(
+            java.util.Collection<Long> reservationIds
+    );
+
     List<Payment> findByReservationIdInOrApartmentIdIn(
             java.util.Collection<Long> reservationIds,
             java.util.Collection<Long> apartmentIds

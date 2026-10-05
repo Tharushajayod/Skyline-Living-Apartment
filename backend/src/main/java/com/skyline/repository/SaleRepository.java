@@ -19,6 +19,8 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     Optional<Sale> findByApartmentId(Long apartmentId);
 
+    Optional<Sale> findByReservationId(Long reservationId);
+
     List<Sale> findByApartmentIdIn(java.util.Collection<Long> apartmentIds);
 
     @Query("SELECT COALESCE(SUM(s.finalPrice), 0) FROM Sale s")

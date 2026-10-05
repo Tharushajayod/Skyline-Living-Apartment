@@ -21,6 +21,8 @@ public interface ReservationRefundRepository extends JpaRepository<ReservationRe
 
     Optional<ReservationRefund> findByReservationId(Long reservationId);
 
+    List<ReservationRefund> findByReservationIdIn(java.util.Collection<Long> reservationIds);
+
     boolean existsByReservationId(Long reservationId);
 
     @Query("SELECT COALESCE(SUM(r.companyRetainedAmount), 0) FROM ReservationRefund r WHERE r.refundStatus IN (com.skyline.enums.RefundStatus.PENDING_PAYMENT, com.skyline.enums.RefundStatus.APPROVED, com.skyline.enums.RefundStatus.PROCESSED, com.skyline.enums.RefundStatus.COMPLETED)")

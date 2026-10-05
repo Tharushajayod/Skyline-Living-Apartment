@@ -110,6 +110,34 @@ BEGIN TRY
         PRINT 'Added proof_url column';
     END
 
+    -- Customer Refund Confirmation / Acknowledgement Columns
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'reservation_refunds' AND COLUMN_NAME = 'customer_confirmed_at'
+    )
+    BEGIN
+        ALTER TABLE reservation_refunds ADD customer_confirmed_at DATETIME2 NULL;
+        PRINT 'Added customer_confirmed_at column';
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'reservation_refunds' AND COLUMN_NAME = 'customer_confirmed_by'
+    )
+    BEGIN
+        ALTER TABLE reservation_refunds ADD customer_confirmed_by NVARCHAR(255) NULL;
+        PRINT 'Added customer_confirmed_by column';
+    END
+
+    IF NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'reservation_refunds' AND COLUMN_NAME = 'customer_confirmed_user_id'
+    )
+    BEGIN
+        ALTER TABLE reservation_refunds ADD customer_confirmed_user_id BIGINT NULL;
+        PRINT 'Added customer_confirmed_user_id column';
+    END
+
     -- 4. Drop existing refund_status check constraint and recreate with new statuses
     DECLARE @StatusConstraint NVARCHAR(256);
     SELECT @StatusConstraint = name 
@@ -124,7 +152,7 @@ BEGIN TRY
     END
 
     ALTER TABLE reservation_refunds ADD CONSTRAINT CK_reservation_refunds_status 
-        CHECK (refund_status IN ('PENDING_REVIEW', 'PENDING_PAYMENT', 'APPROVED', 'PROCESSED', 'COMPLETED', 'PENDING'));
+        CHECK (refund_status IN ('PENDING_REVIEW', 'PENDING_PAYMENT', 'APPROVED', 'PROCESSED', 'SENT', 'COMPLETED', 'PENDING'));
     PRINT 'Added CK_reservation_refunds_status constraint';
 
     -- 5. Add unique constraint on reservation_id if not exists

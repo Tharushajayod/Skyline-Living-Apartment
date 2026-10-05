@@ -108,7 +108,9 @@ export default function CustomerDashboardPage() {
   }, [appointments]);
 
   const pendingReservations = useMemo(() => {
-    return reservations.filter((r) => ['Pending', 'Confirmed'].includes(r.status)).length;
+    return reservations.filter(
+      (r) => ['Pending', 'Confirmed'].includes(r.status) && !r.isFullyPaid && !r.hasCompletedSale && !r.financiallyClosed
+    ).length;
   }, [reservations]);
 
   const outstandingBalance = useMemo(() => {
@@ -119,7 +121,9 @@ export default function CustomerDashboardPage() {
 
   // Primary active reservation spotlight
   const featuredReservation = useMemo(() => {
-    const active = reservations.filter((r) => ['Pending', 'Confirmed'].includes(r.status));
+    const active = reservations.filter(
+      (r) => ['Pending', 'Confirmed'].includes(r.status) && !r.isFullyPaid && !r.hasCompletedSale && !r.financiallyClosed
+    );
     if (active.length === 0) return null;
     // Pick the most urgent hold (closest to expiration)
     return [...active].sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime())[0];
@@ -139,7 +143,9 @@ export default function CustomerDashboardPage() {
 
   const activeReservationsList = useMemo(() => {
     return reservations
-      .filter((r) => ['Pending', 'Confirmed'].includes(r.status))
+      .filter(
+        (r) => ['Pending', 'Confirmed'].includes(r.status) && !r.isFullyPaid && !r.hasCompletedSale && !r.financiallyClosed
+      )
       .slice(0, 3);
   }, [reservations]);
 

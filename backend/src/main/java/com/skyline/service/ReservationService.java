@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -130,16 +132,10 @@ public class ReservationService {
         if (reservation.getId() != null) {
             plans.addAll(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId()));
         }
-        if (reservation.getApartment() != null && reservation.getApartment().getId() != null) {
-            plans.addAll(paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(reservation.getApartment().getId()));
-        }
 
         List<Payment> payments = new ArrayList<>();
         if (reservation.getId() != null) {
             payments.addAll(paymentRepository.findByReservationId(reservation.getId()));
-        }
-        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
-            payments.addAll(paymentRepository.findByApartmentId(reservation.getApartment().getId()));
         }
 
         return hasFinancialCommitment(reservation, plans, payments);
@@ -181,16 +177,10 @@ public class ReservationService {
         if (reservation.getId() != null) {
             plans.addAll(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId()));
         }
-        if (reservation.getApartment() != null && reservation.getApartment().getId() != null) {
-            plans.addAll(paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(reservation.getApartment().getId()));
-        }
 
         List<Payment> payments = new ArrayList<>();
         if (reservation.getId() != null) {
             payments.addAll(paymentRepository.findByReservationId(reservation.getId()));
-        }
-        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
-            payments.addAll(paymentRepository.findByApartmentId(reservation.getApartment().getId()));
         }
 
         return getFinancialCommitmentReason(reservation, plans, payments);
@@ -259,17 +249,24 @@ public class ReservationService {
 
     public ReservationResponse toResponseWithCommitment(Reservation r) {
         if (r == null) return null;
-        boolean hasCommitment = hasFinancialCommitment(r);
-        String reason = hasCommitment ? getFinancialCommitmentReason(r) : null;
-
+        Long rId = r.getId();
         Long aId = r.getApartment() != null ? r.getApartment().getId() : null;
-        Sale sale = aId != null ? saleRepository.findByApartmentId(aId).orElse(null) : null;
-        boolean isAptSold = r.getApartment() != null && r.getApartment().getStatus() == ApartmentStatus.SOLD;
-        boolean hasCompletedSale = sale != null || isAptSold;
 
-        List<Payment> payments = new ArrayList<>();
-        if (r.getId() != null) payments.addAll(paymentRepository.findByReservationId(r.getId()));
-        if (aId != null) payments.addAll(paymentRepository.findByApartmentId(aId));
+        List<PaymentPlan> plans = rId != null ? paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(rId) : List.of();
+        List<Payment> payments = rId != null ? paymentRepository.findByReservationId(rId) : List.of();
+
+        boolean hasCommitment = hasFinancialCommitment(r, plans, payments);
+        String reason = hasCommitment ? getFinancialCommitmentReason(r, plans, payments) : null;
+
+        Sale sale = aId != null ? saleRepository.findByApartmentId(aId).orElse(null) : null;
+        boolean saleBelongsToThisRes = sale != null && (sale.getReservation() == null || (rId != null && rId.equals(sale.getReservation().getId())));
+        boolean isAptSold = r.getApartment() != null && r.getApartment().getStatus() == ApartmentStatus.SOLD;
+        boolean isCancelled = r.getStatus() == ReservationStatus.CANCELLED;
+        boolean isExpired = r.getStatus() == ReservationStatus.EXPIRED;
+        boolean isConfirmed = r.getStatus() == ReservationStatus.CONFIRMED;
+        boolean isPending = r.getStatus() == ReservationStatus.PENDING;
+
+        boolean hasCompletedSale = !isCancelled && !isExpired && ((sale != null && saleBelongsToThisRes) || (isAptSold && saleBelongsToThisRes));
 
         BigDecimal totalVerified = payments.stream()
                 .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
@@ -282,15 +279,76 @@ public class ReservationService {
         boolean isFullPayment = (aptPrice.compareTo(BigDecimal.ZERO) > 0 && totalVerified.compareTo(aptPrice) >= 0)
                 || payments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.VERIFIED && p.getType() == PaymentType.FULL_PAYMENT);
 
-        boolean isFullyPaid = isFullPayment || hasCompletedSale;
-        String saleId = sale != null ? IdParser.formatId("SAL", sale.getId()) : null;
+        boolean isFullyPaid = !isCancelled && !isExpired && (isFullPayment || hasCompletedSale);
+        String saleId = (hasCompletedSale && sale != null) ? IdParser.formatId("SAL", sale.getId()) : null;
 
         BigDecimal fee = r.getReservationFee() != null ? r.getReservationFee() : BigDecimal.ZERO;
         BigDecimal nonRefundable = fee;
         BigDecimal otherPaid = totalVerified.compareTo(fee) > 0 ? totalVerified.subtract(fee) : BigDecimal.ZERO;
         BigDecimal refundable = otherPaid;
 
-        return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid, totalVerified, otherPaid, refundable, nonRefundable);
+        // Refund for this reservation
+        ReservationRefund refund = rId != null ? reservationRefundRepository.findByReservationId(rId).orElse(null) : null;
+
+        boolean reservationFeePaid = payments.stream().anyMatch(p ->
+                p.getStatus() == PaymentStatus.VERIFIED && p.getType() == PaymentType.RESERVATION_FEE
+        ) || (isConfirmed && !isCancelled && !isExpired);
+
+        BigDecimal remainingBalance = (isCancelled || isExpired || isFullyPaid)
+                ? BigDecimal.ZERO
+                : (aptPrice.compareTo(BigDecimal.ZERO) > 0 ? aptPrice.subtract(totalVerified).max(BigDecimal.ZERO) : BigDecimal.ZERO);
+
+        boolean refundCompleted = refund != null && refund.getRefundStatus() == RefundStatus.COMPLETED;
+        boolean refundProcessed = refund != null && refund.getRefundStatus() == RefundStatus.PROCESSED;
+        boolean financiallyClosed = (isCancelled || isExpired || refundCompleted) && !isFullyPaid && !hasCompletedSale;
+
+        boolean canPayReservationFee = isPending && !reservationFeePaid && !isCancelled && !isExpired;
+        boolean canRequestSettlement = !financiallyClosed && !isCancelled && !isExpired && reservationFeePaid && !isFullyPaid && remainingBalance.compareTo(BigDecimal.ZERO) > 0;
+        boolean canConfirmRefund = refundProcessed;
+
+        Integer settlementProgress = (isCancelled || isExpired)
+                ? 0
+                : (isFullyPaid
+                        ? 100
+                        : ((aptPrice.compareTo(BigDecimal.ZERO) > 0)
+                                ? Math.min(100, totalVerified.multiply(new BigDecimal(100)).divide(aptPrice, 0, RoundingMode.HALF_UP).intValue())
+                                : 0));
+
+        String displayStatus;
+        if (!isCancelled && !isExpired && isFullyPaid && hasCompletedSale) {
+            displayStatus = "FULLY PAID • PURCHASED";
+        } else if (!isCancelled && !isExpired && isFullyPaid) {
+            displayStatus = "FULLY PAID • COMPLETION PENDING";
+        } else if (isCancelled && refundCompleted) {
+            displayStatus = "CANCELLED • REFUNDED";
+        } else if (isCancelled && refundProcessed) {
+            displayStatus = "CANCELLED • REFUND SENT";
+        } else if (isCancelled) {
+            displayStatus = "CANCELLED";
+        } else if (isExpired) {
+            displayStatus = "EXPIRED";
+        } else if (isConfirmed || reservationFeePaid) {
+            displayStatus = "RESERVED";
+        } else {
+            displayStatus = "PENDING";
+        }
+
+        String refundStatusStr = refund != null ? refund.getRefundStatus().getDisplayValue() : null;
+        BigDecimal refundAmount = refund != null ? refund.getRefundAmount() : null;
+        BigDecimal companyRetained = refund != null ? refund.getCompanyRetainedAmount() : null;
+        String refundProcAt = (refund != null && refund.getProcessedAt() != null)
+                ? refund.getProcessedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+        String custConfAt = (refund != null && refund.getCustomerConfirmedAt() != null)
+                ? refund.getCustomerConfirmedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+
+        return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid,
+                totalVerified, otherPaid, refundable, nonRefundable,
+                reservationFeePaid, totalVerified, remainingBalance,
+                refundStatusStr, refundAmount, companyRetained,
+                refundProcAt, custConfAt,
+                financiallyClosed, canPayReservationFee,
+                canRequestSettlement, canConfirmRefund,
+                settlementProgress, displayStatus);
     }
 
     @Transactional(readOnly = true)
@@ -303,25 +361,22 @@ public class ReservationService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        List<PaymentPlan> allPlans = paymentPlanRepository.findByReservationIdInOrApartmentIdIn(resIds, aptIds);
-        List<Payment> allPayments = paymentRepository.findByReservationIdInOrApartmentIdIn(resIds, aptIds);
+        List<PaymentPlan> allPlans = paymentPlanRepository.findByReservationIdIn(resIds);
+        List<Payment> allPayments = paymentRepository.findByReservationIdIn(resIds);
+        List<ReservationRefund> allRefunds = reservationRefundRepository.findByReservationIdIn(resIds);
         List<Sale> allSales = aptIds.isEmpty() ? List.of() : saleRepository.findByApartmentIdIn(aptIds);
 
         Map<Long, List<PaymentPlan>> plansByResId = allPlans.stream()
                 .filter(p -> p.getReservation() != null && p.getReservation().getId() != null)
                 .collect(Collectors.groupingBy(p -> p.getReservation().getId()));
 
-        Map<Long, List<PaymentPlan>> plansByAptId = allPlans.stream()
-                .filter(p -> p.getApartment() != null && p.getApartment().getId() != null)
-                .collect(Collectors.groupingBy(p -> p.getApartment().getId()));
-
         Map<Long, List<Payment>> paymentsByResId = allPayments.stream()
                 .filter(p -> p.getReservation() != null && p.getReservation().getId() != null)
                 .collect(Collectors.groupingBy(p -> p.getReservation().getId()));
 
-        Map<Long, List<Payment>> paymentsByAptId = allPayments.stream()
-                .filter(p -> p.getApartment() != null && p.getApartment().getId() != null)
-                .collect(Collectors.groupingBy(p -> p.getApartment().getId()));
+        Map<Long, ReservationRefund> refundsByResId = allRefunds.stream()
+                .filter(rf -> rf.getReservation() != null && rf.getReservation().getId() != null)
+                .collect(Collectors.toMap(rf -> rf.getReservation().getId(), rf -> rf, (r1, r2) -> r1));
 
         Map<Long, Sale> salesByAptId = allSales.stream()
                 .filter(s -> s.getApartment() != null && s.getApartment().getId() != null)
@@ -331,21 +386,26 @@ public class ReservationService {
             Long rId = r.getId();
             Long aId = r.getApartment() != null ? r.getApartment().getId() : null;
 
-            List<PaymentPlan> relatedPlans = new ArrayList<>();
-            if (rId != null && plansByResId.containsKey(rId)) relatedPlans.addAll(plansByResId.get(rId));
-            if (aId != null && plansByAptId.containsKey(aId)) relatedPlans.addAll(plansByAptId.get(aId));
-
-            List<Payment> relatedPayments = new ArrayList<>();
-            if (rId != null && paymentsByResId.containsKey(rId)) relatedPayments.addAll(paymentsByResId.get(rId));
-            if (aId != null && paymentsByAptId.containsKey(aId)) relatedPayments.addAll(paymentsByAptId.get(aId));
+            List<PaymentPlan> relatedPlans = (rId != null && plansByResId.containsKey(rId))
+                    ? plansByResId.get(rId) : List.of();
+            List<Payment> relatedPayments = (rId != null && paymentsByResId.containsKey(rId))
+                    ? paymentsByResId.get(rId) : List.of();
+            ReservationRefund refund = (rId != null && refundsByResId.containsKey(rId))
+                    ? refundsByResId.get(rId) : null;
 
             boolean hasCommitment = hasFinancialCommitment(r, relatedPlans, relatedPayments);
             String reason = hasCommitment ? getFinancialCommitmentReason(r, relatedPlans, relatedPayments) : null;
 
             Sale sale = aId != null ? salesByAptId.get(aId) : null;
+            boolean saleBelongsToThisRes = sale != null && (sale.getReservation() == null || (rId != null && rId.equals(sale.getReservation().getId())));
             Apartment apt = r.getApartment();
             boolean isAptSold = apt != null && apt.getStatus() == ApartmentStatus.SOLD;
-            boolean hasCompletedSale = sale != null || isAptSold;
+            boolean isCancelled = r.getStatus() == ReservationStatus.CANCELLED;
+            boolean isExpired = r.getStatus() == ReservationStatus.EXPIRED;
+            boolean isConfirmed = r.getStatus() == ReservationStatus.CONFIRMED;
+            boolean isPending = r.getStatus() == ReservationStatus.PENDING;
+
+            boolean hasCompletedSale = !isCancelled && !isExpired && ((sale != null && saleBelongsToThisRes) || (isAptSold && saleBelongsToThisRes));
 
             BigDecimal totalVerified = relatedPayments.stream()
                     .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
@@ -357,15 +417,73 @@ public class ReservationService {
             boolean isFullPayment = (aptPrice.compareTo(BigDecimal.ZERO) > 0 && totalVerified.compareTo(aptPrice) >= 0)
                     || relatedPayments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.VERIFIED && p.getType() == PaymentType.FULL_PAYMENT);
 
-            boolean isFullyPaid = isFullPayment || hasCompletedSale;
-            String saleId = sale != null ? IdParser.formatId("SAL", sale.getId()) : null;
+            boolean isFullyPaid = !isCancelled && !isExpired && (isFullPayment || hasCompletedSale);
+            String saleId = (hasCompletedSale && sale != null) ? IdParser.formatId("SAL", sale.getId()) : null;
 
             BigDecimal fee = r.getReservationFee() != null ? r.getReservationFee() : BigDecimal.ZERO;
             BigDecimal nonRefundable = fee;
             BigDecimal otherPaid = totalVerified.compareTo(fee) > 0 ? totalVerified.subtract(fee) : BigDecimal.ZERO;
             BigDecimal refundable = otherPaid;
 
-            return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid, totalVerified, otherPaid, refundable, nonRefundable);
+            boolean reservationFeePaid = relatedPayments.stream().anyMatch(p ->
+                    p.getStatus() == PaymentStatus.VERIFIED && p.getType() == PaymentType.RESERVATION_FEE
+            ) || (isConfirmed && !isCancelled && !isExpired);
+
+            BigDecimal remainingBalance = (isCancelled || isExpired || isFullyPaid)
+                    ? BigDecimal.ZERO
+                    : (aptPrice.compareTo(BigDecimal.ZERO) > 0 ? aptPrice.subtract(totalVerified).max(BigDecimal.ZERO) : BigDecimal.ZERO);
+
+            boolean refundCompleted = refund != null && refund.getRefundStatus() == RefundStatus.COMPLETED;
+            boolean refundProcessed = refund != null && refund.getRefundStatus() == RefundStatus.PROCESSED;
+            boolean financiallyClosed = (isCancelled || isExpired || refundCompleted) && !isFullyPaid && !hasCompletedSale;
+
+            boolean canPayReservationFee = isPending && !reservationFeePaid && !isCancelled && !isExpired;
+            boolean canRequestSettlement = !financiallyClosed && !isCancelled && !isExpired && reservationFeePaid && !isFullyPaid && remainingBalance.compareTo(BigDecimal.ZERO) > 0;
+            boolean canConfirmRefund = refundProcessed;
+
+            Integer settlementProgress = (isCancelled || isExpired)
+                    ? 0
+                    : (isFullyPaid
+                            ? 100
+                            : ((aptPrice.compareTo(BigDecimal.ZERO) > 0)
+                                    ? Math.min(100, totalVerified.multiply(new BigDecimal(100)).divide(aptPrice, 0, RoundingMode.HALF_UP).intValue())
+                                    : 0));
+
+            String displayStatus;
+            if (!isCancelled && !isExpired && isFullyPaid && hasCompletedSale) {
+                displayStatus = "FULLY PAID • PURCHASED";
+            } else if (!isCancelled && !isExpired && isFullyPaid) {
+                displayStatus = "FULLY PAID • COMPLETION PENDING";
+            } else if (isCancelled && refundCompleted) {
+                displayStatus = "CANCELLED • REFUNDED";
+            } else if (isCancelled && refundProcessed) {
+                displayStatus = "CANCELLED • REFUND SENT";
+            } else if (isCancelled) {
+                displayStatus = "CANCELLED";
+            } else if (isExpired) {
+                displayStatus = "EXPIRED";
+            } else if (isConfirmed || reservationFeePaid) {
+                displayStatus = "RESERVED";
+            } else {
+                displayStatus = "PENDING";
+            }
+
+            String refundStatusStr = refund != null ? refund.getRefundStatus().getDisplayValue() : null;
+            BigDecimal refundAmount = refund != null ? refund.getRefundAmount() : null;
+            BigDecimal companyRetained = refund != null ? refund.getCompanyRetainedAmount() : null;
+            String refundProcAt = (refund != null && refund.getProcessedAt() != null)
+                    ? refund.getProcessedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+            String custConfAt = (refund != null && refund.getCustomerConfirmedAt() != null)
+                    ? refund.getCustomerConfirmedAt().format(DateTimeFormatter.ISO_DATE_TIME) : null;
+
+            return ReservationResponse.fromEntity(r, hasCommitment, reason, hasCompletedSale, saleId, isFullyPaid,
+                    totalVerified, otherPaid, refundable, nonRefundable,
+                    reservationFeePaid, totalVerified, remainingBalance,
+                    refundStatusStr, refundAmount, companyRetained,
+                    refundProcAt, custConfAt,
+                    financiallyClosed, canPayReservationFee,
+                    canRequestSettlement, canConfirmRefund,
+                    settlementProgress, displayStatus);
         }).collect(Collectors.toList());
     }
 
@@ -424,11 +542,8 @@ public class ReservationService {
         }
         AppointmentResponse apptDto = appointment != null ? AppointmentResponse.fromEntity(appointment) : null;
 
-        // Payments
+        // Payments - strictly for this reservation
         List<Payment> payments = paymentRepository.findByReservationId(reservation.getId());
-        if (payments.isEmpty() && reservation.getApartment() != null) {
-            payments = paymentRepository.findByApartmentId(reservation.getApartment().getId());
-        }
         List<PaymentResponse> allPaymentResponses = payments.stream()
                 .map(PaymentResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -574,8 +689,7 @@ public class ReservationService {
 
     public RefundEligibilityResponse getRefundEligibility(Long reservationId) {
         Reservation reservation = getReservationEntityById(reservationId);
-        Payment payment = findAssociatedReservationPayment(reservation.getId(), 
-                reservation.getApartment() != null ? reservation.getApartment().getId() : null);
+        Payment payment = findAssociatedReservationPayment(reservation.getId());
         ReservationRefund refund = reservationRefundRepository.findByReservationId(reservation.getId()).orElse(null);
         return computeRefundEligibility(reservation, payment, refund);
     }
@@ -738,8 +852,7 @@ public class ReservationService {
         }
 
         // 6. Payment record check
-        Payment payment = findAssociatedReservationPayment(reservation.getId(), 
-                reservation.getApartment() != null ? reservation.getApartment().getId() : null);
+        Payment payment = findAssociatedReservationPayment(reservation.getId());
 
         if (payment == null || payment.getStatus() != PaymentStatus.VERIFIED) {
             throw new BadRequestException("Reservation payment was not found or has not been successfully verified.");
@@ -936,6 +1049,10 @@ public class ReservationService {
             throw new BadRequestException("This refund has already been completed.");
         }
 
+        if (refund.getRefundStatus() == RefundStatus.PROCESSED) {
+            throw new BadRequestException("This refund payment has already been marked as sent and is awaiting customer confirmation.");
+        }
+
         if (refund.getRefundStatus() == RefundStatus.PENDING_REVIEW || refund.getRefundStatus() == RefundStatus.PENDING) {
             throw new BadRequestException("This cancellation request is still pending review and must be approved before payment can be recorded.");
         }
@@ -947,7 +1064,10 @@ public class ReservationService {
         LocalDateTime now = getCurrentDateTime();
         String processorName = principal.getUser().getName();
 
-        refund.setRefundStatus(RefundStatus.COMPLETED);
+        boolean hasDisbursement = refund.getRefundAmount() != null && refund.getRefundAmount().compareTo(BigDecimal.ZERO) > 0;
+        RefundStatus targetStatus = hasDisbursement ? RefundStatus.PROCESSED : RefundStatus.COMPLETED;
+
+        refund.setRefundStatus(targetStatus);
         refund.setProcessedBy(processorName);
         refund.setProcessedAt(now);
         refund.setRefundMethod(request.getRefundMethod().trim());
@@ -958,17 +1078,94 @@ public class ReservationService {
 
         ReservationRefund saved = reservationRefundRepository.save(refund);
 
+        String aptTitle = (refund.getReservation() != null && refund.getReservation().getApartment() != null)
+                ? refund.getReservation().getApartment().getTitle()
+                : "Apartment";
+        String rsvCode = (refund.getReservation() != null && refund.getReservation().getId() != null)
+                ? "RSV-" + refund.getReservation().getId()
+                : "";
+
+        DecimalFormat df = new DecimalFormat("#,##0.00");
+        String formattedAmount = df.format(saved.getRefundAmount() != null ? saved.getRefundAmount() : BigDecimal.ZERO);
+
+        if (hasDisbursement) {
+            notificationSubject.notifyObservers(new NotificationEvent(
+                    saved.getCustomer(),
+                    NotificationType.PAYMENT,
+                    "Refund Sent",
+                    "Your refund of Rs. " + formattedAmount + " for reservation #" + rsvCode
+                            + " (" + aptTitle + ") has been processed. Please confirm once the amount is received."
+            ));
+        } else {
+            notificationSubject.notifyObservers(new NotificationEvent(
+                    saved.getCustomer(),
+                    NotificationType.PAYMENT,
+                    "Cancellation Settlement Completed",
+                    "Financial settlement for reservation #" + rsvCode + " (" + aptTitle + ") has been completed."
+            ));
+        }
+
+        ReservationRefundResponse resp = ReservationRefundResponse.fromEntity(saved);
+        resp.setMessage(hasDisbursement 
+                ? "Refund payment has been marked as sent. Awaiting customer confirmation."
+                : "Cancellation settlement has been marked as completed.");
+        return resp;
+    }
+
+    @Transactional
+    public ReservationRefundResponse confirmRefundReceipt(Long refundId, UserPrincipal principal) {
+        if (principal == null) {
+            throw new ForbiddenException("Authentication required to confirm refund receipt.");
+        }
+        ReservationRefund refund = reservationRefundRepository.findById(refundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Refund record not found with id: " + refundId));
+
+        if (refund.getRefundStatus() == RefundStatus.COMPLETED) {
+            ReservationRefundResponse resp = ReservationRefundResponse.fromEntity(refund);
+            resp.setMessage("Refund receipt has already been confirmed.");
+            return resp;
+        }
+
+        if (refund.getRefundStatus() != RefundStatus.PROCESSED) {
+            throw new BadRequestException("Refund cannot be confirmed before admin has marked it as sent.");
+        }
+
+        // Authorization check: Customer must be the owner, or Admin/Staff
+        boolean isOwner = refund.getCustomer() != null && refund.getCustomer().getId().equals(principal.getUser().getId());
+        boolean isStaffOrAdmin = principal.getUser().getRole() == UserRole.STAFF || principal.getUser().getRole() == UserRole.ADMIN;
+        if (!isOwner && !isStaffOrAdmin) {
+            throw new ForbiddenException("You are not authorized to confirm this refund.");
+        }
+
+        LocalDateTime now = getCurrentDateTime();
+        refund.setRefundStatus(RefundStatus.COMPLETED);
+        refund.setCustomerConfirmedAt(now);
+        refund.setCustomerConfirmedBy(principal.getUser().getName());
+        refund.setCustomerConfirmedUserId(principal.getUser().getId());
+        refund.setUpdatedAt(now);
+
+        ReservationRefund saved = reservationRefundRepository.save(refund);
+
+        DecimalFormat df = new DecimalFormat("#,##0.00");
+        String formattedAmount = df.format(saved.getRefundAmount() != null ? saved.getRefundAmount() : BigDecimal.ZERO);
+
         notificationSubject.notifyObservers(new NotificationEvent(
                 saved.getCustomer(),
                 NotificationType.PAYMENT,
-                "Refund Payment Completed",
-                "Your refund of Rs. " + saved.getRefundAmount() + " has been paid via "
-                        + saved.getRefundMethod() + (saved.getTransactionReference() != null ? " (Ref: " + saved.getTransactionReference() + ")" : "") + "."
+                "Refund Confirmed",
+                "You have confirmed receipt of your refund of Rs. " + formattedAmount + ". The reservation is now financially closed."
         ));
 
         ReservationRefundResponse resp = ReservationRefundResponse.fromEntity(saved);
-        resp.setMessage("Refund payment has been recorded and marked as completed.");
+        resp.setMessage("Refund receipt confirmed successfully. Reservation is now financially closed.");
         return resp;
+    }
+
+    @Transactional
+    public ReservationRefundResponse confirmRefundReceiptByReservationId(Long reservationId, UserPrincipal principal) {
+        ReservationRefund refund = reservationRefundRepository.findByReservationId(reservationId)
+                .orElseThrow(() -> new ResourceNotFoundException("No refund record found for reservation id: " + reservationId));
+        return confirmRefundReceipt(refund.getId(), principal);
     }
 
     @Transactional
@@ -994,9 +1191,6 @@ public class ReservationService {
         }
 
         List<Payment> payments = paymentRepository.findByReservationId(reservation.getId());
-        if (payments.isEmpty() && reservation.getApartment() != null && reservation.getApartment().getId() != null) {
-            payments = paymentRepository.findByApartmentId(reservation.getApartment().getId());
-        }
         BigDecimal totalVerifiedPaid = payments.stream()
                 .filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
                 .map(Payment::getAmount)
@@ -1013,8 +1207,8 @@ public class ReservationService {
 
         validateRefundCalculation(totalVerifiedPaid, reservationFee, otherPaidAmount, refundAmount, companyRetained);
 
-        // Find associated payment
-        Payment payment = findAssociatedReservationPayment(reservation.getId(), reservation.getApartment().getId());
+        // Find associated payment strictly for this reservation
+        Payment payment = findAssociatedReservationPayment(reservation.getId());
 
         String processorName = principal != null ? principal.getUser().getName() : "Management Staff";
         BigDecimal recordedBasis = totalVerifiedPaid.compareTo(BigDecimal.ZERO) > 0 ? totalVerifiedPaid : reservationFee;
@@ -1069,20 +1263,13 @@ public class ReservationService {
         }
     }
 
-    private Payment findAssociatedReservationPayment(Long reservationId, Long apartmentId) {
+    private Payment findAssociatedReservationPayment(Long reservationId) {
         List<Payment> payments = paymentRepository.findByReservationId(reservationId);
         if (!payments.isEmpty()) {
             return payments.stream()
                     .filter(p -> p.getType() == PaymentType.RESERVATION_FEE)
                     .findFirst()
                     .orElse(payments.get(0));
-        }
-        if (apartmentId != null) {
-            List<Payment> aptPayments = paymentRepository.findByApartmentId(apartmentId);
-            return aptPayments.stream()
-                    .filter(p -> p.getType() == PaymentType.RESERVATION_FEE)
-                    .findFirst()
-                    .orElse(aptPayments.isEmpty() ? null : aptPayments.get(0));
         }
         return null;
     }

@@ -423,21 +423,18 @@ public class PaymentService {
             );
         }
 
-        BigDecimal verifiedPaid =
-                getVerifiedApartmentTotal(
-                        apartment.getId()
-                );
+        BigDecimal verifiedPaid = (reservation != null && reservation.getId() != null)
+                ? paymentRepository.sumAmountByReservationAndStatus(reservation.getId(), PaymentStatus.VERIFIED)
+                : getVerifiedApartmentTotal(apartment.getId());
 
-        BigDecimal remaining =
-                totalPrice.subtract(
-                        verifiedPaid
-                );
+        if (verifiedPaid == null) {
+            verifiedPaid = BigDecimal.ZERO;
+        }
+
+        BigDecimal remaining = totalPrice.subtract(verifiedPaid);
 
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-
-            throw new IllegalStateException(
-                    "This apartment has already been fully paid"
-            );
+            throw new IllegalStateException("This reservation has already been fully paid");
         }
 
         // =====================================================
@@ -1213,7 +1210,14 @@ public class PaymentService {
             throw new IllegalStateException("Payment does not have an apartment");
         }
 
-        BigDecimal totalVerified = getVerifiedApartmentTotal(apartment.getId());
+        BigDecimal totalVerified = (payment.getReservation() != null && payment.getReservation().getId() != null)
+                ? paymentRepository.sumAmountByReservationAndStatus(payment.getReservation().getId(), PaymentStatus.VERIFIED)
+                : getVerifiedApartmentTotal(apartment.getId());
+
+        if (totalVerified == null) {
+            totalVerified = BigDecimal.ZERO;
+        }
+
         BigDecimal apartmentRemaining = apartment.getPrice().subtract(totalVerified);
 
         if (payment.getType() == PaymentType.FULL_PAYMENT ||

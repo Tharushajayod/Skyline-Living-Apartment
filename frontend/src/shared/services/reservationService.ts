@@ -148,6 +148,25 @@ export const reservationService = {
     return res;
   },
 
+  async confirmRefundReceipt(refundId: string | number): Promise<ReservationRefund> {
+    const res = await apiClient.post<ReservationRefund>(`/reservations/refunds/${refundId}/confirm-receipt`, {});
+    fastCache.invalidate('reservations');
+    fastCache.invalidate('payments');
+    fastCache.invalidate('dashboard');
+    fastCache.invalidate('sales');
+    return res;
+  },
+
+  async confirmRefundReceiptByReservation(reservationId: string | number): Promise<ReservationRefund> {
+    const res = await apiClient.post<ReservationRefund>(`/reservations/${reservationId}/confirm-refund`, {});
+    fastCache.invalidate('reservations');
+    fastCache.invalidate('payments');
+    fastCache.invalidate('dashboard');
+    fastCache.invalidate(`reservation_details_${reservationId}`);
+    fastCache.invalidate('sales');
+    return res;
+  },
+
   async updateStatus(id: string, status: ReservationStatus): Promise<Reservation> {
     const res = await apiClient.patch<Reservation>(`/reservations/${id}/status`, { status });
     fastCache.invalidate('reservations');

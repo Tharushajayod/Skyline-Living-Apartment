@@ -51,6 +51,8 @@ export default function ReservationDetailsModal({
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
   const [isRefundExpired, setIsRefundExpired] = useState<boolean>(false);
+  const [showCustomerConfirmDialog, setShowCustomerConfirmDialog] = useState<boolean>(false);
+  const [confirmingReceipt, setConfirmingReceipt] = useState<boolean>(false);
 
   useEffect(() => {
     if (!open || !reservationId) {
@@ -639,23 +641,31 @@ export default function ReservationDetailsModal({
               refund.refundStatus === 'Approved' ||
               refund.refundStatus === 'APPROVED';
 
+            const isSent =
+              refund.refundStatus === 'Processed' ||
+              refund.refundStatus === 'PROCESSED' ||
+              refund.refundStatus === 'SENT' ||
+              refund.refundStatus === 'Payment Sent – Awaiting Confirmation';
+
             const isCompleted =
               refund.refundStatus === 'Completed' ||
-              refund.refundStatus === 'COMPLETED' ||
-              refund.refundStatus === 'Processed' ||
-              refund.refundStatus === 'PROCESSED';
+              refund.refundStatus === 'COMPLETED';
 
             const statusBadgeColor = isCompleted
               ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-              : isAwaitingPayment
-                ? 'bg-blue-100 text-blue-800 border-blue-300'
-                : 'bg-amber-100 text-amber-800 border-amber-300';
+              : isSent
+                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                : isAwaitingPayment
+                  ? 'bg-blue-100 text-blue-800 border-blue-300'
+                  : 'bg-amber-100 text-amber-800 border-amber-300';
 
             const statusTitle = isCompleted
-              ? 'Cancellation • Completed'
-              : isAwaitingPayment
-                ? 'Cancellation • Refund Awaiting Payment'
-                : 'Cancellation • Pending Review';
+              ? 'Cancellation • Refund Completed'
+              : isSent
+                ? 'Payment Sent – Awaiting Confirmation'
+                : isAwaitingPayment
+                  ? 'Cancellation • Refund Awaiting Payment'
+                  : 'Cancellation • Pending Review';
 
             return (
               <div className="bg-purple-50/50 border border-purple-200 rounded-2xl p-5 space-y-4 shadow-sm">
@@ -755,11 +765,45 @@ export default function ReservationDetailsModal({
                     </div>
                   )}
 
+                  {isSent && (
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                        <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                        <span>Payment Sent – Awaiting Your Confirmation</span>
+                      </div>
+                      <p className="text-[11px] text-amber-900 leading-relaxed">
+                        Management has disbursed your refund. Please confirm once the amount has reached your account.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 text-[11px] pt-1">
+                        <p><strong>Disbursement Method:</strong> {refund.refundMethod || 'Bank Transfer'}</p>
+                        {refund.transactionReference && (
+                          <p><strong>Reference / Slip:</strong> <span className="font-mono">{refund.transactionReference}</span></p>
+                        )}
+                        <p><strong>Refunded By:</strong> {refund.processedBy || 'Management'}</p>
+                        <p><strong>Payment Date:</strong> {formatDate(refund.processedAt || refund.createdAt)}</p>
+                      </div>
+
+                      {/* Confirm Refund Received button */}
+                      {(!user || user.role === 'customer' || user.id === refund.customerId) && (
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomerConfirmDialog(true)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-2xs"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Confirm Refund Received</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {isCompleted && (
                     <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-1.5">
                       <div className="flex items-center gap-1.5 font-bold text-emerald-900">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Refund Paid & Permanently Finalized</span>
+                        <span>Refund Completed • Financially Closed</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 text-[11px]">
                         <p><strong>Disbursement Method:</strong> {refund.refundMethod || 'Direct Transfer'}</p>
@@ -768,6 +812,11 @@ export default function ReservationDetailsModal({
                         )}
                         <p><strong>Refunded By:</strong> {refund.processedBy || 'Management'}</p>
                         <p><strong>Payment Date:</strong> {formatDate(refund.processedAt || refund.createdAt)}</p>
+                        {refund.customerConfirmedAt && (
+                          <p className="col-span-full text-emerald-800 font-semibold pt-1 border-t border-emerald-200/60">
+                            <strong>Customer Confirmed Receipt:</strong> {formatDate(refund.customerConfirmedAt)} {refund.customerConfirmedBy ? `(${refund.customerConfirmedBy})` : ''}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -801,6 +850,78 @@ export default function ReservationDetailsModal({
             }
           }}
         />
+      )}
+
+      {/* Customer Confirm Refund Received Dialog (Section 8) */}
+      {showCustomerConfirmDialog && details?.refund && (
+        <Modal
+          open={showCustomerConfirmDialog}
+          onClose={() => {
+            if (!confirmingReceipt) setShowCustomerConfirmDialog(false);
+          }}
+          title="Confirm Refund Received"
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-900 space-y-1">
+                <p className="font-bold text-sm text-amber-950">Confirm Refund Received?</p>
+                <p className="leading-relaxed">
+                  Only confirm this after the refund amount has reached you. Once confirmed, this reservation will be permanently marked as financially completed.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-600">
+                <span>Reservation:</span>
+                <span className="font-bold text-slate-900 font-mono">#{details.refund.reservationId}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-600 border-t border-slate-200/60 pt-2">
+                <span className="font-bold text-slate-800">Refund Amount:</span>
+                <span className="font-extrabold text-emerald-800 text-sm">{formatCurrency(details.refund.refundAmount || 0)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={confirmingReceipt}
+                onClick={() => setShowCustomerConfirmDialog(false)}
+              >
+                Not Yet
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={confirmingReceipt}
+                onClick={async () => {
+                  if (!details?.refund?.id) return;
+                  try {
+                    setConfirmingReceipt(true);
+                    await reservationService.confirmRefundReceipt(details.refund.id);
+                    setShowCustomerConfirmDialog(false);
+                    if (reservationId) {
+                      const updated = await reservationService.getDetails(reservationId);
+                      setDetails(updated);
+                    }
+                  } catch (e: any) {
+                    console.error('Failed to confirm refund receipt:', e);
+                  } finally {
+                    setConfirmingReceipt(false);
+                  }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {confirmingReceipt ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <CheckCircle2 className="w-4 h-4 mr-1.5" />}
+                Yes, I Received It
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </Modal>
   );

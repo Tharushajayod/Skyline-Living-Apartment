@@ -46,6 +46,17 @@ public abstract class AbstractPaymentVerificationStrategy implements PaymentVeri
     }
 
     /**
+     * Calculates the sum of all verified payments for the given reservation.
+     */
+    protected BigDecimal getVerifiedReservationTotal(Long reservationId) {
+        if (reservationId == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal total = paymentRepository.sumAmountByReservationAndStatus(reservationId, PaymentStatus.VERIFIED);
+        return total != null ? total : BigDecimal.ZERO;
+    }
+
+    /**
      * Checks if all required payments for the apartment have been settled,
      * and transitions status to SOLD while creating a Sale record if needed.
      */
@@ -55,7 +66,10 @@ public abstract class AbstractPaymentVerificationStrategy implements PaymentVeri
             return;
         }
 
-        BigDecimal totalVerified = getVerifiedApartmentTotal(apartment.getId());
+        BigDecimal totalVerified = (payment.getReservation() != null && payment.getReservation().getId() != null)
+                ? getVerifiedReservationTotal(payment.getReservation().getId())
+                : getVerifiedApartmentTotal(apartment.getId());
+
         BigDecimal remaining = apartment.getPrice() != null
                 ? apartment.getPrice().subtract(totalVerified)
                 : BigDecimal.ZERO;

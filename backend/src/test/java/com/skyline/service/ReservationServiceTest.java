@@ -24,11 +24,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+
+import com.skyline.entity.Sale;
 
 import com.skyline.dto.reservation.ReservationRefundResponse;
 import com.skyline.dto.reservation.RefundSettlementRequest;
@@ -596,7 +599,6 @@ class ReservationServiceTest {
         when(reservationRefundRepository.existsByReservationId(78L)).thenReturn(false);
         when(saleRepository.findByApartmentId(1L)).thenReturn(Optional.empty());
         when(paymentRepository.findByReservationId(78L)).thenReturn(Collections.emptyList());
-        when(paymentRepository.findByApartmentId(1L)).thenReturn(Collections.emptyList());
 
         BadRequestException ex = assertThrows(BadRequestException.class, () ->
                 reservationService.cancelReservationWithRefund(78L, null, customerPrincipal)
@@ -969,11 +971,21 @@ class ReservationServiceTest {
         ReservationRefundResponse response = reservationService.recordRefundPayment(106L, paymentRequest, staffPrincipal);
 
         assertNotNull(response);
-        assertEquals(RefundStatus.COMPLETED, response.getRefundStatus());
+        // Stage 1: Marked sent by Admin/Staff -> PROCESSED (Payment Sent - Awaiting Confirmation)
+        assertEquals(RefundStatus.PROCESSED, response.getRefundStatus());
         assertEquals("Staff Member", response.getProcessedBy());
         assertNotNull(response.getProcessedAt());
         assertEquals("Bank Transfer", response.getRefundMethod());
         assertEquals("TXN-998811", response.getTransactionReference());
+        assertEquals(Boolean.TRUE, response.getCanCustomerConfirm());
+
+        // Stage 2: Customer confirms receipt
+        ReservationRefundResponse confirmedResponse = reservationService.confirmRefundReceipt(106L, customerPrincipal);
+        assertNotNull(confirmedResponse);
+        assertEquals(RefundStatus.COMPLETED, confirmedResponse.getRefundStatus());
+        assertNotNull(confirmedResponse.getCustomerConfirmedAt());
+        assertEquals(customer.getName(), confirmedResponse.getCustomerConfirmedBy());
+        assertEquals(Boolean.FALSE, confirmedResponse.getCanCustomerConfirm());
     }
 
     @Test
@@ -1025,5 +1037,361 @@ class ReservationServiceTest {
 
         assertTrue(ex.getMessage().contains("already been completed"));
         verify(reservationRefundRepository, never()).save(completedRefund);
+    }
+
+    @Test
+    void testReReservationFinancialIndependence_RSV001_RSV002() {
+        // Section 25 Mandatory Regression Test
+        // Apartment price = Rs. 22,500,000
+        Apartment aptA = Apartment.builder()
+                .id(20L)
+                .apartmentNumber("APT-020")
+                .title("Riverside Royal Loft")
+                .price(new BigDecimal("22500000"))
+                .status(ApartmentStatus.RESERVED)
+                .build();
+
+        // 1. RSV-001 created
+        Reservation rsv001 = Reservation.builder()
+                .id(101L)
+                .apartment(aptA)
+                .customer(customer)
+                .reservationFee(new BigDecimal("2250000"))
+                .status(ReservationStatus.CANCELLED)
+                .build();
+
+        Payment paymentRsv001 = Payment.builder()
+                .id(1001L)
+                .reservation(rsv001)
+                .apartment(aptA)
+                .customer(customer)
+                .amount(new BigDecimal("2250000"))
+                .type(PaymentType.RESERVATION_FEE)
+                .status(PaymentStatus.VERIFIED)
+                .build();
+
+        ReservationRefund refundRsv001 = ReservationRefund.builder()
+                .id(501L)
+                .reservation(rsv001)
+                .customer(customer)
+                .apartment(aptA)
+                .originalFee(new BigDecimal("2250000"))
+                .refundAmount(new BigDecimal("2245000"))
+                .companyRetainedAmount(new BigDecimal("5000"))
+                .refundStatus(RefundStatus.COMPLETED)
+                .customerConfirmedAt(LocalDateTime.now())
+                .customerConfirmedBy(customer.getName())
+                .build();
+
+        // 2. Later, Customer X reserves the SAME apartment again: RSV-002
+        Reservation rsv002 = Reservation.builder()
+                .id(102L)
+                .apartment(aptA)
+                .customer(customer)
+                .reservationFee(new BigDecimal("2250000"))
+                .status(ReservationStatus.PENDING)
+                .build();
+
+        // Strict reservation scoping:
+        // payments for rsv002 are empty initially! RSV-001 payments MUST NOT appear.
+        when(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(102L)).thenReturn(Collections.emptyList());
+        when(paymentRepository.findByReservationId(102L)).thenReturn(Collections.emptyList());
+        when(reservationRefundRepository.findByReservationId(102L)).thenReturn(Optional.empty());
+
+        com.skyline.dto.reservation.ReservationResponse res2Response = reservationService.toResponseWithCommitment(rsv002);
+
+        assertNotNull(res2Response);
+        // Verified Paid must be 0, remaining full price, progress 0%
+        assertEquals(BigDecimal.ZERO, res2Response.getVerifiedPaid());
+        assertEquals(new BigDecimal("22500000"), res2Response.getRemainingBalance());
+        assertEquals(0, res2Response.getSettlementProgress());
+        assertEquals(new BigDecimal("2250000"), res2Response.getReservationFee());
+        assertTrue(res2Response.isCanPayReservationFee());
+        assertFalse(res2Response.isCanRequestSettlement());
+        assertFalse(res2Response.isFinanciallyClosed());
+
+        // 3. Now Customer X pays the reservation fee FOR RSV-002, and it gets verified:
+        Payment paymentRsv002 = Payment.builder()
+                .id(1002L)
+                .reservation(rsv002)
+                .apartment(aptA)
+                .customer(customer)
+                .amount(new BigDecimal("2250000"))
+                .type(PaymentType.RESERVATION_FEE)
+                .status(PaymentStatus.VERIFIED)
+                .build();
+
+        when(paymentRepository.findByReservationId(102L)).thenReturn(List.of(paymentRsv002));
+
+        com.skyline.dto.reservation.ReservationResponse res2VerifiedResponse = reservationService.toResponseWithCommitment(rsv002);
+
+        assertNotNull(res2VerifiedResponse);
+        assertEquals(new BigDecimal("2250000"), res2VerifiedResponse.getVerifiedPaid());
+        assertEquals(new BigDecimal("20250000"), res2VerifiedResponse.getRemainingBalance());
+        assertEquals(10, res2VerifiedResponse.getSettlementProgress());
+        assertTrue(res2VerifiedResponse.isReservationFeePaid());
+        assertFalse(res2VerifiedResponse.isCanPayReservationFee());
+        assertTrue(res2VerifiedResponse.isCanRequestSettlement());
+
+        // 4. Also verify RSV-001 remains completely closed and auditable
+        when(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(101L)).thenReturn(Collections.emptyList());
+        when(paymentRepository.findByReservationId(101L)).thenReturn(List.of(paymentRsv001));
+        when(reservationRefundRepository.findByReservationId(101L)).thenReturn(Optional.of(refundRsv001));
+
+        com.skyline.dto.reservation.ReservationResponse res1Response = reservationService.toResponseWithCommitment(rsv001);
+        assertNotNull(res1Response);
+        assertTrue(res1Response.isFinanciallyClosed());
+        assertEquals("Refund Completed", res1Response.getRefundStatus());
+        assertEquals(new BigDecimal("2245000"), res1Response.getRefundAmount());
+        assertEquals(new BigDecimal("5000"), res1Response.getCompanyRetainedAmount());
+        assertFalse(res1Response.isCanPayReservationFee());
+        assertFalse(res1Response.isCanRequestSettlement());
+    }
+
+    @Test
+    void testRefundConfirmationSecurityAndValidation() {
+        Reservation refRes = createConfirmedReservation(809L, new BigDecimal("2250000"));
+        ReservationRefund refund = ReservationRefund.builder()
+                .id(109L)
+                .reservation(refRes)
+                .customer(customer) // customer id = 10L
+                .apartment(availableApartment)
+                .originalFee(new BigDecimal("2250000"))
+                .refundAmount(new BigDecimal("2245000"))
+                .companyRetainedAmount(new BigDecimal("5000"))
+                .refundStatus(RefundStatus.PENDING_PAYMENT)
+                .build();
+
+        when(reservationRefundRepository.findById(109L)).thenReturn(Optional.of(refund));
+
+        // Attempting to confirm before Admin/Staff sends the refund should fail
+        BadRequestException prematureEx = assertThrows(BadRequestException.class, () ->
+                reservationService.confirmRefundReceipt(109L, customerPrincipal)
+        );
+        assertTrue(prematureEx.getMessage().contains("before admin has marked it as sent"));
+
+        // Admin/Staff marks sent
+        refund.setRefundStatus(RefundStatus.PROCESSED);
+        when(reservationRefundRepository.save(any(ReservationRefund.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Unrelated customer cannot confirm someone else's refund
+        ForbiddenException authEx = assertThrows(ForbiddenException.class, () ->
+                reservationService.confirmRefundReceipt(109L, otherCustomerPrincipal)
+        );
+        assertTrue(authEx.getMessage().contains("not authorized to confirm this refund"));
+
+        // Correct customer confirms
+        ReservationRefundResponse confirmed = reservationService.confirmRefundReceipt(109L, customerPrincipal);
+        assertEquals(RefundStatus.COMPLETED, confirmed.getRefundStatus());
+        assertNotNull(confirmed.getCustomerConfirmedAt());
+        assertEquals("Sarah Chen", confirmed.getCustomerConfirmedBy());
+
+        // Attempting duplicate confirmation handled idempotently
+        ReservationRefundResponse dupResp = reservationService.confirmRefundReceipt(109L, customerPrincipal);
+        assertEquals(RefundStatus.COMPLETED, dupResp.getRefundStatus());
+        assertEquals("Refund receipt has already been confirmed.", dupResp.getMessage());
+    }
+
+    @Test
+    void testFinancialLifecycleDisplayStatusDistinctionCases() {
+        // CASE 1: Successful Full Purchase (e.g. Garden Terrace City Suite RSV-005)
+        Apartment aptCase1 = Apartment.builder()
+                .id(201L)
+                .title("Garden Terrace City Suite")
+                .price(new BigDecimal("9800000"))
+                .status(ApartmentStatus.SOLD)
+                .build();
+
+        Reservation rsvCase1 = Reservation.builder()
+                .id(505L)
+                .apartment(aptCase1)
+                .customer(customer)
+                .customerName("John Doe")
+                .customerEmail("john@example.com")
+                .reservationFee(new BigDecimal("980000"))
+                .status(ReservationStatus.CONFIRMED)
+                .createdAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusDays(2))
+                .build();
+
+        Sale saleCase1 = Sale.builder()
+                .id(301L)
+                .apartment(aptCase1)
+                .customer(customer)
+                .reservation(rsvCase1)
+                .finalPrice(new BigDecimal("9800000"))
+                .saleDate(LocalDate.now())
+                .ownershipStatus("Deed Transferred")
+                .build();
+
+        Payment paymentCase1 = Payment.builder()
+                .id(701L)
+                .reservation(rsvCase1)
+                .apartment(aptCase1)
+                .customer(customer)
+                .amount(new BigDecimal("9800000"))
+                .type(PaymentType.FULL_PAYMENT)
+                .status(PaymentStatus.VERIFIED)
+                .build();
+
+        when(saleRepository.findByApartmentId(201L)).thenReturn(Optional.of(saleCase1));
+        when(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(505L)).thenReturn(Collections.emptyList());
+        when(paymentRepository.findByReservationId(505L)).thenReturn(List.of(paymentCase1));
+        when(reservationRefundRepository.findByReservationId(505L)).thenReturn(Optional.empty());
+
+        com.skyline.dto.reservation.ReservationResponse res1 = reservationService.toResponseWithCommitment(rsvCase1);
+        assertNotNull(res1);
+        assertEquals("FULLY PAID • PURCHASED", res1.getDisplayStatus());
+        assertTrue(res1.isFullyPaid());
+        assertTrue(res1.isHasCompletedSale());
+        assertFalse(res1.isFinanciallyClosed(), "A fully purchased apartment must NEVER be marked financially closed as cancelled");
+        assertEquals(BigDecimal.ZERO, res1.getRemainingBalance());
+        assertEquals(100, res1.getSettlementProgress());
+        assertFalse(res1.getDisplayStatus().contains("CANCELLED"));
+        assertFalse(res1.getDisplayStatus().contains("REFUNDED"));
+
+        // CASE 2: Cancelled + Refunded (e.g. Riverside Royal Loft RSV-006)
+        Apartment aptCase2 = Apartment.builder()
+                .id(202L)
+                .title("Riverside Royal Loft")
+                .price(new BigDecimal("22500000"))
+                .status(ApartmentStatus.AVAILABLE)
+                .build();
+
+        Reservation rsvCase2 = Reservation.builder()
+                .id(506L)
+                .apartment(aptCase2)
+                .customer(customer)
+                .customerName("Alice Smith")
+                .customerEmail("alice@example.com")
+                .reservationFee(new BigDecimal("2250000"))
+                .status(ReservationStatus.CANCELLED)
+                .createdAt(LocalDateTime.now().minusDays(10))
+                .expiresAt(LocalDateTime.now().minusDays(8))
+                .build();
+
+        Payment paymentCase2 = Payment.builder()
+                .id(702L)
+                .reservation(rsvCase2)
+                .apartment(aptCase2)
+                .customer(customer)
+                .amount(new BigDecimal("2250000"))
+                .type(PaymentType.RESERVATION_FEE)
+                .status(PaymentStatus.VERIFIED)
+                .build();
+
+        ReservationRefund refundCase2 = ReservationRefund.builder()
+                .id(802L)
+                .reservation(rsvCase2)
+                .customer(customer)
+                .apartment(aptCase2)
+                .originalFee(new BigDecimal("2250000"))
+                .refundAmount(new BigDecimal("2245000"))
+                .companyRetainedAmount(new BigDecimal("5000"))
+                .refundStatus(RefundStatus.COMPLETED)
+                .build();
+
+        when(saleRepository.findByApartmentId(202L)).thenReturn(Optional.empty());
+        when(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(506L)).thenReturn(Collections.emptyList());
+        when(paymentRepository.findByReservationId(506L)).thenReturn(List.of(paymentCase2));
+        when(reservationRefundRepository.findByReservationId(506L)).thenReturn(Optional.of(refundCase2));
+
+        com.skyline.dto.reservation.ReservationResponse res2 = reservationService.toResponseWithCommitment(rsvCase2);
+        assertNotNull(res2);
+        assertEquals("CANCELLED • REFUNDED", res2.getDisplayStatus());
+        assertTrue(res2.isFinanciallyClosed());
+        assertFalse(res2.isFullyPaid());
+        assertFalse(res2.isHasCompletedSale());
+        assertFalse(res2.getDisplayStatus().contains("PURCHASED"));
+
+        // CASE 3: Active Reservation
+        Apartment aptCase3 = Apartment.builder()
+                .id(203L)
+                .title("Oceanfront Penthouse")
+                .price(new BigDecimal("15000000"))
+                .status(ApartmentStatus.RESERVED)
+                .build();
+
+        Reservation rsvCase3 = Reservation.builder()
+                .id(507L)
+                .apartment(aptCase3)
+                .customer(customer)
+                .customerName("Bob Williams")
+                .customerEmail("bob@example.com")
+                .reservationFee(new BigDecimal("1500000"))
+                .status(ReservationStatus.CONFIRMED)
+                .createdAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusDays(2))
+                .build();
+
+        Payment paymentCase3 = Payment.builder()
+                .id(703L)
+                .reservation(rsvCase3)
+                .apartment(aptCase3)
+                .customer(customer)
+                .amount(new BigDecimal("1500000"))
+                .type(PaymentType.RESERVATION_FEE)
+                .status(PaymentStatus.VERIFIED)
+                .build();
+
+        when(saleRepository.findByApartmentId(203L)).thenReturn(Optional.empty());
+        when(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(507L)).thenReturn(Collections.emptyList());
+        when(paymentRepository.findByReservationId(507L)).thenReturn(List.of(paymentCase3));
+        when(reservationRefundRepository.findByReservationId(507L)).thenReturn(Optional.empty());
+
+        com.skyline.dto.reservation.ReservationResponse res3 = reservationService.toResponseWithCommitment(rsvCase3);
+        assertNotNull(res3);
+        assertEquals("RESERVED", res3.getDisplayStatus());
+        assertFalse(res3.isFullyPaid());
+        assertFalse(res3.isHasCompletedSale());
+        assertFalse(res3.isFinanciallyClosed());
+        assertEquals(new BigDecimal("13500000"), res3.getRemainingBalance());
+        assertEquals(10, res3.getSettlementProgress());
+        assertFalse(res3.getDisplayStatus().contains("PURCHASED"));
+        assertFalse(res3.getDisplayStatus().contains("CANCELLED"));
+
+        // CASE 4: Fully Paid but Sale Completion Still Pending
+        Apartment aptCase4 = Apartment.builder()
+                .id(204L)
+                .title("Sunset Marina Residence")
+                .price(new BigDecimal("9800000"))
+                .status(ApartmentStatus.RESERVED)
+                .build();
+
+        Reservation rsvCase4 = Reservation.builder()
+                .id(508L)
+                .apartment(aptCase4)
+                .customer(customer)
+                .customerName("Carol Davis")
+                .customerEmail("carol@example.com")
+                .reservationFee(new BigDecimal("980000"))
+                .status(ReservationStatus.CONFIRMED)
+                .createdAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusDays(2))
+                .build();
+
+        Payment paymentCase4 = Payment.builder()
+                .id(704L)
+                .reservation(rsvCase4)
+                .apartment(aptCase4)
+                .customer(customer)
+                .amount(new BigDecimal("9800000"))
+                .type(PaymentType.FULL_PAYMENT)
+                .status(PaymentStatus.VERIFIED)
+                .build();
+
+        when(saleRepository.findByApartmentId(204L)).thenReturn(Optional.empty());
+        when(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(508L)).thenReturn(Collections.emptyList());
+        when(paymentRepository.findByReservationId(508L)).thenReturn(List.of(paymentCase4));
+        when(reservationRefundRepository.findByReservationId(508L)).thenReturn(Optional.empty());
+
+        com.skyline.dto.reservation.ReservationResponse res4 = reservationService.toResponseWithCommitment(rsvCase4);
+        assertNotNull(res4);
+        assertEquals("FULLY PAID • COMPLETION PENDING", res4.getDisplayStatus());
+        assertTrue(res4.isFullyPaid());
+        assertFalse(res4.isHasCompletedSale());
+        assertFalse(res4.isFinanciallyClosed());
+        assertEquals(BigDecimal.ZERO, res4.getRemainingBalance());
+        assertEquals(100, res4.getSettlementProgress());
     }
 }
