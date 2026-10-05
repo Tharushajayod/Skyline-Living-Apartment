@@ -11,6 +11,8 @@ import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ConflictException;
 import com.skyline.exception.ForbiddenException;
 import com.skyline.exception.ResourceNotFoundException;
+import com.skyline.observer.NotificationEvent;
+import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.ApartmentRepository;
 import com.skyline.repository.AppointmentRepository;
 import com.skyline.repository.PaymentPlanRepository;
@@ -39,7 +41,7 @@ public class ReservationService {
     private final ReservationRefundRepository reservationRefundRepository;
     private final SaleRepository saleRepository;
     private final UserService userService;
-    private final NotificationService notificationService;
+    private final NotificationSubject notificationSubject;
 
     public ReservationService(ReservationRepository reservationRepository,
                               ApartmentRepository apartmentRepository,
@@ -49,7 +51,7 @@ public class ReservationService {
                               ReservationRefundRepository reservationRefundRepository,
                               SaleRepository saleRepository,
                               UserService userService,
-                              NotificationService notificationService) {
+                              NotificationSubject notificationSubject) {
         this.reservationRepository = reservationRepository;
         this.apartmentRepository = apartmentRepository;
         this.appointmentRepository = appointmentRepository;
@@ -58,7 +60,7 @@ public class ReservationService {
         this.reservationRefundRepository = reservationRefundRepository;
         this.saleRepository = saleRepository;
         this.userService = userService;
-        this.notificationService = notificationService;
+        this.notificationSubject = notificationSubject;
     }
 
     public boolean hasFinancialCommitment(Reservation reservation) {
@@ -498,7 +500,7 @@ public class ReservationService {
         Reservation saved = reservationRepository.save(reservation);
 
         // Notify customer
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 customer,
                 NotificationType.RESERVATION,
                 "Reservation Placed - Payment Required",
@@ -506,7 +508,7 @@ public class ReservationService {
                         + " has been placed. The reservation fee is 10% of the apartment price ("
                         + fee
                         + "). Please upload the reservation fee payment proof within 96 hours to confirm."
-        );
+        ));
 
         return toResponseWithCommitment(saved);
     }
@@ -595,13 +597,13 @@ public class ReservationService {
         ReservationRefund savedRefund = reservationRefundRepository.save(refundRecord);
 
         // Notify customer
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 reservation.getCustomer(),
                 NotificationType.RESERVATION,
                 "Reservation Cancelled & Refund Processed",
                 "Your reservation for " + reservation.getApartment().getTitle() + " has been cancelled. Non-refundable reservation fee: "
                         + reservationFee + ", Customer refund: " + refundAmount + ", Company retained: " + companyRetained + "."
-        );
+        ));
 
         return ReservationRefundResponse.fromEntity(savedRefund);
     }
@@ -665,13 +667,13 @@ public class ReservationService {
         ReservationRefund savedRefund = reservationRefundRepository.save(refundRecord);
 
         // Notify customer
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 reservation.getCustomer(),
                 NotificationType.RESERVATION,
                 "Expired Reservation Settlement Processed",
                 "Financial settlement for your expired reservation on " + reservation.getApartment().getTitle()
                         + " has been recorded. Non-refundable reservation fee: " + reservationFee + ", Customer refund: " + refundAmount + ", Company retained: " + companyRetained + "."
-        );
+        ));
 
         return ReservationRefundResponse.fromEntity(savedRefund);
     }
@@ -800,12 +802,12 @@ public class ReservationService {
             default -> "Reservation status updated: " + newStatus.getDisplayValue();
         };
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 reservation.getCustomer(),
                 NotificationType.RESERVATION,
                 "Reservation Status: " + newStatus.getDisplayValue(),
                 msg
-        );
+        ));
 
         return toResponseWithCommitment(saved);
     }
@@ -827,12 +829,12 @@ public class ReservationService {
                 updateApartmentAvailabilityAfterReservationChange(r.getApartment().getId());
             }
 
-            notificationService.createNotification(
+            notificationSubject.notifyObservers(new NotificationEvent(
                     r.getCustomer(),
                     NotificationType.RESERVATION,
                     "Reservation Expired",
                     "Your reservation for " + r.getApartment().getTitle() + " has expired. Our team will review any eligible fee refund settlement."
-            );
+            ));
         }
     }
 }

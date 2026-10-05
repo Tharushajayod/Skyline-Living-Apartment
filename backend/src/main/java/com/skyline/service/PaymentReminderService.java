@@ -6,6 +6,8 @@ import com.skyline.entity.User;
 import com.skyline.enums.NotificationType;
 import com.skyline.enums.PaymentPlanItemStatus;
 import com.skyline.enums.PaymentPlanStatus;
+import com.skyline.observer.NotificationEvent;
+import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.NotificationRepository;
 import com.skyline.repository.PaymentPlanItemRepository;
 import org.slf4j.Logger;
@@ -25,14 +27,14 @@ public class PaymentReminderService {
     private static final Logger log = LoggerFactory.getLogger(PaymentReminderService.class);
 
     private final PaymentPlanItemRepository paymentPlanItemRepository;
-    private final NotificationService notificationService;
+    private final NotificationSubject notificationSubject;
     private final NotificationRepository notificationRepository;
 
     public PaymentReminderService(PaymentPlanItemRepository paymentPlanItemRepository,
-                                  NotificationService notificationService,
+                                  NotificationSubject notificationSubject,
                                   NotificationRepository notificationRepository) {
         this.paymentPlanItemRepository = paymentPlanItemRepository;
-        this.notificationService = notificationService;
+        this.notificationSubject = notificationSubject;
         this.notificationRepository = notificationRepository;
     }
 
@@ -99,7 +101,7 @@ public class PaymentReminderService {
                                 ".";
                     }
 
-                    notificationService.createNotification(customer, NotificationType.PAYMENT, title, message);
+                    notificationSubject.notifyObservers(new NotificationEvent(customer, NotificationType.PAYMENT, title, message));
                     log.info("Sent installment reminder to customer {} for item #{}", customer.getEmail(), item.getId());
                 }
             }

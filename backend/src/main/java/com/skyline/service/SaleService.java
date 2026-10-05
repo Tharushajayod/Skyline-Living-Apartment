@@ -17,6 +17,8 @@ import com.skyline.enums.ReservationStatus;
 import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ConflictException;
 import com.skyline.exception.ResourceNotFoundException;
+import com.skyline.observer.NotificationEvent;
+import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.*;
 import com.skyline.security.UserPrincipal;
 import com.skyline.util.IdParser;
@@ -42,7 +44,7 @@ public class SaleService {
     private final PaymentPlanRepository paymentPlanRepository;
     private final PaymentPlanItemRepository paymentPlanItemRepository;
     private final UserService userService;
-    private final NotificationService notificationService;
+    private final NotificationSubject notificationSubject;
 
     public SaleService(SaleRepository saleRepository,
                        ApartmentRepository apartmentRepository,
@@ -51,7 +53,7 @@ public class SaleService {
                        PaymentPlanRepository paymentPlanRepository,
                        PaymentPlanItemRepository paymentPlanItemRepository,
                        UserService userService,
-                       NotificationService notificationService) {
+                       NotificationSubject notificationSubject) {
         this.saleRepository = saleRepository;
         this.apartmentRepository = apartmentRepository;
         this.reservationRepository = reservationRepository;
@@ -59,7 +61,7 @@ public class SaleService {
         this.paymentPlanRepository = paymentPlanRepository;
         this.paymentPlanItemRepository = paymentPlanItemRepository;
         this.userService = userService;
-        this.notificationService = notificationService;
+        this.notificationSubject = notificationSubject;
     }
 
     public List<SaleResponse> getAllSales() {
@@ -251,12 +253,12 @@ public class SaleService {
         Sale savedSale = saleRepository.save(sale);
 
         // 4. Notify customer
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 customer,
                 NotificationType.GENERAL,
                 "Apartment Purchase Finalized!",
                 "Congratulations! Your purchase of " + apartment.getTitle() + " has been finalized. You are now the official owner!"
-        );
+        ));
 
         return SaleResponse.fromEntity(savedSale);
     }

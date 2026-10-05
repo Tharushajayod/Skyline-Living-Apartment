@@ -23,6 +23,8 @@ import com.skyline.enums.UserRole;
 import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ForbiddenException;
 import com.skyline.exception.ResourceNotFoundException;
+import com.skyline.observer.NotificationEvent;
+import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.PaymentPlanRepository;
 import com.skyline.repository.PaymentPlanItemRepository;
 import com.skyline.repository.PaymentRepository;
@@ -46,6 +48,7 @@ public class PaymentPlanService {
     private final PaymentPlanRepository paymentPlanRepository;
     private final PaymentRepository paymentRepository;
     private final ReservationService reservationService;
+    private final NotificationSubject notificationSubject;
     private final NotificationService notificationService;
     private final ApartmentRepository apartmentRepository;
     private final PaymentPlanItemRepository paymentPlanItemRepository;
@@ -54,6 +57,7 @@ public class PaymentPlanService {
         PaymentPlanRepository paymentPlanRepository,
         PaymentRepository paymentRepository,
         ReservationService reservationService,
+        NotificationSubject notificationSubject,
         NotificationService notificationService,
         ApartmentRepository apartmentRepository,
         PaymentPlanItemRepository paymentPlanItemRepository
@@ -61,6 +65,7 @@ public class PaymentPlanService {
         this.paymentPlanRepository = paymentPlanRepository;
         this.paymentRepository = paymentRepository;
         this.reservationService = reservationService;
+        this.notificationSubject = notificationSubject;
         this.notificationService = notificationService;
         this.apartmentRepository = apartmentRepository;
         this.paymentPlanItemRepository = paymentPlanItemRepository;
@@ -300,7 +305,7 @@ public class PaymentPlanService {
         PaymentPlan saved =
                 paymentPlanRepository.save(plan);
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 customer,
                 NotificationType.PAYMENT,
                 "Payment Plan Request Submitted",
@@ -309,7 +314,7 @@ public class PaymentPlanService {
                         " request for " +
                         apartment.getTitle() +
                         " has been submitted for approval."
-        );
+        ));
 
         notificationService.notifyStaffAndAdmins(
                 NotificationType.PAYMENT,
@@ -462,12 +467,12 @@ public class PaymentPlanService {
                 ? "Your payment plan terms have been updated. Please review and accept the new terms."
                 : "Your payment plan request has been approved. Please review and accept the approved payment terms.";
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 plan.getCustomer(),
                 NotificationType.PAYMENT,
                 notifTitle,
                 notifMsg
-        );
+        ));
 
         return toResponse(saved);
     }
@@ -506,12 +511,12 @@ public class PaymentPlanService {
 
         PaymentPlan saved = paymentPlanRepository.save(plan);
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 plan.getCustomer(),
                 NotificationType.PAYMENT,
                 "Payment Plan Confirmed",
                 "Your payment plan for " + plan.getApartment().getTitle() + " has been confirmed and is now active."
-        );
+        ));
 
         notificationService.notifyStaffAndAdmins(
                 NotificationType.PAYMENT,
@@ -552,12 +557,12 @@ public class PaymentPlanService {
 
         PaymentPlan saved = paymentPlanRepository.save(plan);
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 plan.getCustomer(),
                 NotificationType.PAYMENT,
                 "Payment Plan Declined",
                 "You have declined the proposed payment plan terms for " + plan.getApartment().getTitle() + "."
-        );
+        ));
 
         return toResponse(saved);
     }
@@ -601,12 +606,12 @@ public class PaymentPlanService {
         PaymentPlan saved =
                 paymentPlanRepository.save(plan);
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 plan.getCustomer(),
                 NotificationType.PAYMENT,
                 "Payment Plan Rejected",
                 "Your payment plan request has been rejected. Please review the payment plan details."
-        );
+        ));
 
         return toResponse(saved);
     }

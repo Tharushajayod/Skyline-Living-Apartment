@@ -59,7 +59,7 @@ class ReservationServiceTest {
     private UserService userService;
 
     @Mock
-    private NotificationService notificationService;
+    private com.skyline.observer.NotificationSubject notificationSubject;
 
     private ReservationService reservationService;
 
@@ -78,7 +78,7 @@ class ReservationServiceTest {
                 reservationRefundRepository,
                 saleRepository,
                 userService,
-                notificationService
+                notificationSubject
         );
 
         customer = User.builder()
