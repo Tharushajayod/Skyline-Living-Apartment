@@ -310,21 +310,9 @@ export default function CustomerDashboardPage() {
                   <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-2xs relative overflow-hidden">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                       <div>
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700">
-                          <KeyRound className="w-3.5 h-3.5" />
-                          <span>Active 48-Hour Residence Hold</span>
-                        </span>
                         <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-0.5">
                           {featuredReservation.apartmentTitle}
                         </h2>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cd.expired ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
-                          }`}>
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{cd.expired ? 'Hold Expired' : cd.text}</span>
-                        </span>
                       </div>
                     </div>
 
@@ -402,7 +390,6 @@ export default function CustomerDashboardPage() {
                   <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                     <div>
                       <h3 className="font-bold text-slate-900 text-sm sm:text-base">Viewing Appointments</h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Scheduled on-site residence walkthroughs</p>
                     </div>
                     <Link to="/appointments" className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-0.5">
                       View all <ChevronRight className="w-3.5 h-3.5" />
@@ -482,7 +469,6 @@ export default function CustomerDashboardPage() {
                   <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                     <div>
                       <h3 className="font-bold text-slate-900 text-sm sm:text-base">Purchasing Holds</h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">48-Hour reserved apartment locks</p>
                     </div>
                     <Link to="/reservations" className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-0.5">
                       View all <ChevronRight className="w-3.5 h-3.5" />
@@ -624,7 +610,6 @@ export default function CustomerDashboardPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">Updates</h3>
-                    <p className="text-[10px] text-slate-400">Real-time alerts</p>
                   </div>
                 </div>
 

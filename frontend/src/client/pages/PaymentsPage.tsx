@@ -520,9 +520,9 @@ export default function PaymentsPage() {
       (plan) =>
         plan.reservationId === selectedAccount.reservationId &&
         (plan.status === 'Pending' ||
-         plan.status === 'Plan Ready for Confirmation' ||
-         plan.status === 'Terms Proposed' ||
-         plan.status === 'Approved')
+          plan.status === 'Plan Ready for Confirmation' ||
+          plan.status === 'Terms Proposed' ||
+          plan.status === 'Approved')
     );
 
     if (existingActivePlan) {
@@ -702,14 +702,14 @@ export default function PaymentsPage() {
 
   return (
     <div className="min-h-screen bg-[#fafbfe] text-slate-900 pb-20 font-sans selection:bg-amber-100 selection:text-amber-900">
-      
+
       {/* ======================================================== */}
       {/* 1. COMPACT PAGE HEADER (REPLACING THE LARGE DARK BOX)    */}
       {/* ======================================================== */}
       <div className="bg-white border-b border-slate-200/80 pt-8 pb-7 px-4 sm:px-6 lg:px-10">
         <div className="w-full max-w-[1520px] mx-auto">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            
+
             {/* Title & Description */}
             <div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 tracking-tight">
@@ -766,12 +766,12 @@ export default function PaymentsPage() {
       {/* MAIN FINANCIAL CANVAS */}
       {/* ======================================================== */}
       <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-10 py-8 space-y-8">
-        
+
         {/* ======================================================== */}
         {/* 2. FINANCIAL OVERVIEW KPI ROW (Compact Summary Cards) */}
         {/* ======================================================== */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          
+
           {/* KPI 1: Total Paid */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex items-center gap-3.5">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-600 shrink-0">
@@ -855,9 +855,6 @@ export default function PaymentsPage() {
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                   Property Settlement Balances
                 </h2>
-                <p className="text-xs text-slate-500">
-                  Real-time escrow reconciliation, hold deposits, and active installment schedules.
-                </p>
               </div>
             </div>
 
@@ -891,8 +888,8 @@ export default function PaymentsPage() {
                             account.isFullyPaid
                               ? 'success'
                               : account.apartmentStatus === 'Sold'
-                              ? 'success'
-                              : 'warning'
+                                ? 'success'
+                                : 'warning'
                           }
                           dot
                         >
@@ -1207,31 +1204,27 @@ export default function PaymentsPage() {
         {/* 5. TRANSACTION HISTORY (MAIN FOCUS OF PAGE)             */}
         {/* ======================================================== */}
         <div className="space-y-4">
-          
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                 Transaction History
               </h2>
-              <p className="text-xs text-slate-500">
-                Audit log of all verified bank transfers, hold fees, and pending receipts.
-              </p>
             </div>
           </div>
 
           {/* Filter Tabs & Search Controls */}
           <div className="bg-white rounded-3xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-            
+
             {/* Status Tabs */}
             <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/60">
               <button
                 type="button"
                 onClick={() => setActiveTab('All')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'All'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${activeTab === 'All'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <span>All</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'All' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'}`}>
@@ -1242,11 +1235,10 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('Verified')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'Verified'
-                    ? 'bg-white text-emerald-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${activeTab === 'Verified'
+                  ? 'bg-white text-emerald-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <span>Verified</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'Verified' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
@@ -1257,11 +1249,10 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('Pending')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'Pending'
-                    ? 'bg-white text-amber-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${activeTab === 'Pending'
+                  ? 'bg-white text-amber-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <span>Pending Review</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'Pending' ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-700'}`}>
@@ -1272,11 +1263,10 @@ export default function PaymentsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('Rejected')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'Rejected'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${activeTab === 'Rejected'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <span>Rejected</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${activeTab === 'Rejected' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
@@ -1441,8 +1431,8 @@ export default function PaymentsPage() {
           !selectedAccount?.reservationFeePaid
             ? 'Pay 10% Reservation Fee'
             : settlementMode === 'ReservationFee'
-            ? 'Pay 10% Reservation Fee'
-            : 'Balance Settlement'
+              ? 'Pay 10% Reservation Fee'
+              : 'Balance Settlement'
         }
         size="lg"
         footer={
@@ -1523,11 +1513,10 @@ export default function PaymentsPage() {
                 .filter((account) => !account.isFullyPaid)
                 .map((account) => ({
                   value: account.reservationId,
-                  label: `${account.apartmentTitle} • ${
-                    !account.reservationFeePaid
-                      ? formatCurrency(account.reservationFee) + ' reservation deposit'
-                      : formatCurrency(account.remainingBalance) + ' remaining'
-                  }`,
+                  label: `${account.apartmentTitle} • ${!account.reservationFeePaid
+                    ? formatCurrency(account.reservationFee) + ' reservation deposit'
+                    : formatCurrency(account.remainingBalance) + ' remaining'
+                    }`,
                 }))}
             />
           )}
@@ -1613,11 +1602,10 @@ export default function PaymentsPage() {
                   <button
                     type="button"
                     onClick={() => setSettlementMode('Full')}
-                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                      settlementMode === 'Full'
-                        ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${settlementMode === 'Full'
+                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
                   >
                     <CreditCard className="w-4 h-4 text-slate-700 mb-1" />
                     <p className="text-xs font-bold text-slate-900">Full Settlement</p>
@@ -1634,11 +1622,10 @@ export default function PaymentsPage() {
                         setPlanPaymentAmount(String(Math.floor(selectedAccount.remainingBalance / count)));
                       }
                     }}
-                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                      settlementMode === 'Installment'
-                        ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${settlementMode === 'Installment'
+                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
                   >
                     <CalendarDays className="w-4 h-4 text-slate-700 mb-1" />
                     <p className="text-xs font-bold text-slate-900">Installment Plan</p>
@@ -1655,11 +1642,10 @@ export default function PaymentsPage() {
                         setPlanPaymentAmount(String(Math.floor(selectedAccount.remainingBalance / count)));
                       }
                     }}
-                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                      settlementMode === 'PartPayment'
-                        ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${settlementMode === 'PartPayment'
+                      ? 'border-amber-400 bg-amber-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
                   >
                     <Layers3 className="w-4 h-4 text-slate-700 mb-1" />
                     <p className="text-xs font-bold text-slate-900">Part Payment</p>
