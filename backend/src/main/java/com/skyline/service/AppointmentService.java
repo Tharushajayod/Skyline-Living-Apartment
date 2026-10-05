@@ -16,6 +16,8 @@ import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ConflictException;
 import com.skyline.exception.ForbiddenException;
 import com.skyline.exception.ResourceNotFoundException;
+import com.skyline.observer.NotificationEvent;
+import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.AppointmentRepository;
 import com.skyline.repository.AppointmentRescheduleHistoryRepository;
 import com.skyline.security.UserPrincipal;
@@ -39,18 +41,18 @@ public class AppointmentService {
     private final AppointmentRescheduleHistoryRepository appointmentRescheduleHistoryRepository;
     private final ApartmentService apartmentService;
     private final UserService userService;
-    private final NotificationService notificationService;
+    private final NotificationSubject notificationSubject;
 
     public AppointmentService(AppointmentRepository appointmentRepository,
                               AppointmentRescheduleHistoryRepository appointmentRescheduleHistoryRepository,
                               ApartmentService apartmentService,
                               UserService userService,
-                              NotificationService notificationService) {
+                              NotificationSubject notificationSubject) {
         this.appointmentRepository = appointmentRepository;
         this.appointmentRescheduleHistoryRepository = appointmentRescheduleHistoryRepository;
         this.apartmentService = apartmentService;
         this.userService = userService;
-        this.notificationService = notificationService;
+        this.notificationSubject = notificationSubject;
     }
 
     @Transactional(readOnly = true)
@@ -205,12 +207,12 @@ public class AppointmentService {
         Appointment saved = appointmentRepository.save(appointment);
 
         // Notify customer
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 customer,
                 NotificationType.APPOINTMENT,
                 "Viewing Appointment Requested",
                 "Your viewing request for " + apartment.getTitle() + " on " + viewingDate + " (" + request.getTimeSlot() + ") has been submitted."
-        );
+        ));
 
         return AppointmentResponse.fromEntity(saved);
     }
@@ -275,13 +277,13 @@ public class AppointmentService {
             appointment.setRescheduleRequestedByRole(principal != null ? principal.getUser().getRole() : UserRole.STAFF);
 
             // Notify customer of incoming proposal
-            notificationService.createNotification(
+            notificationSubject.notifyObservers(new NotificationEvent(
                     appointment.getCustomer(),
                     NotificationType.APPOINTMENT,
                     "Viewing Reschedule Proposed",
                     "Skyline team has proposed a new viewing time for " + appointment.getApartment().getTitle() + ": "
                             + newDate + " at " + newTimeSlot + ". Reason: " + request.getReason().trim() + ". Please review and respond in your appointments."
-            );
+            ));
         }
 
         appointment.setProposedDate(newDate);
@@ -356,13 +358,13 @@ public class AppointmentService {
         Appointment saved = appointmentRepository.save(appointment);
 
         // Send confirmation notification
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 appointment.getCustomer(),
                 NotificationType.APPOINTMENT,
                 "Viewing Reschedule Confirmed",
                 "Your viewing appointment for " + appointment.getApartment().getTitle() + " is now confirmed for "
                         + newDate + " (" + newTimeSlot + ")."
-        );
+        ));
 
         return AppointmentResponse.fromEntity(saved);
     }
@@ -395,13 +397,13 @@ public class AppointmentService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 appointment.getCustomer(),
                 NotificationType.APPOINTMENT,
                 "Reschedule Request Declined",
                 "The reschedule proposal for " + appointment.getApartment().getTitle()
                         + " was declined. Your viewing remains scheduled for " + appointment.getDate() + " (" + appointment.getTimeSlot() + ")."
-        );
+        ));
 
         return AppointmentResponse.fromEntity(saved);
     }
@@ -435,12 +437,12 @@ public class AppointmentService {
         Appointment saved = appointmentRepository.save(appointment);
 
         // Notify customer of unlock
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 appointment.getCustomer(),
                 NotificationType.APPOINTMENT,
                 "Viewing Completed - Reservation Available!",
                 "Your viewing tour for " + appointment.getApartment().getTitle() + " is marked as Completed. You are now eligible to place a reservation hold on this apartment."
-        );
+        ));
 
         return AppointmentResponse.fromEntity(saved);
     }
@@ -499,12 +501,12 @@ public class AppointmentService {
             default -> "Your viewing appointment status is now: " + newStatus.getDisplayValue();
         };
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 appointment.getCustomer(),
                 NotificationType.APPOINTMENT,
                 "Viewing Status: " + newStatus.getDisplayValue(),
                 notifMsg
-        );
+        ));
 
         return AppointmentResponse.fromEntity(saved);
     }

@@ -50,7 +50,7 @@ class SaleServiceTest {
     private UserService userService;
 
     @Mock
-    private NotificationService notificationService;
+    private com.skyline.observer.NotificationSubject notificationSubject;
 
     private SaleService saleService;
 
@@ -64,7 +64,7 @@ class SaleServiceTest {
                 paymentPlanRepository,
                 paymentPlanItemRepository,
                 userService,
-                notificationService
+                notificationSubject
         );
     }
 
@@ -132,6 +132,8 @@ class SaleServiceTest {
                 s.getCustomer().equals(customer) &&
                 "Deed Transferred".equals(s.getOwnershipStatus()) &&
                 s.getOwnershipDate() != null));
-        verify(notificationService).createNotification(eq(customer), any(), anyString(), anyString());
+        verify(notificationSubject).notifyObservers(argThat(event ->
+                event.getRecipient().equals(customer) &&
+                "Apartment Purchase Finalized!".equals(event.getTitle())));
     }
 }

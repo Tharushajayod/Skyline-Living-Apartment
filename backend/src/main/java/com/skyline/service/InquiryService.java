@@ -11,6 +11,8 @@ import com.skyline.entity.User;
 import com.skyline.enums.*;
 import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ResourceNotFoundException;
+import com.skyline.observer.NotificationEvent;
+import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.InquiryReplyRepository;
 import com.skyline.repository.InquiryRepository;
 import com.skyline.security.UserPrincipal;
@@ -29,18 +31,18 @@ public class InquiryService {
     private final InquiryReplyRepository inquiryReplyRepository;
     private final ApartmentService apartmentService;
     private final UserService userService;
-    private final NotificationService notificationService;
+    private final NotificationSubject notificationSubject;
 
     public InquiryService(InquiryRepository inquiryRepository,
                           InquiryReplyRepository inquiryReplyRepository,
                           ApartmentService apartmentService,
                           UserService userService,
-                          NotificationService notificationService) {
+                          NotificationSubject notificationSubject) {
         this.inquiryRepository = inquiryRepository;
         this.inquiryReplyRepository = inquiryReplyRepository;
         this.apartmentService = apartmentService;
         this.userService = userService;
-        this.notificationService = notificationService;
+        this.notificationSubject = notificationSubject;
     }
 
     public List<InquiryResponse> getInquiries(UserPrincipal principal, String customerParam) {
@@ -144,12 +146,12 @@ public class InquiryService {
                 inquiry.setStatus(InquiryStatus.IN_PROGRESS);
             }
 
-            notificationService.createNotification(
+            notificationSubject.notifyObservers(new NotificationEvent(
                     inquiry.getCustomer(),
                     NotificationType.INQUIRY,
                     "New Reply on Your Inquiry",
                     "A staff member replied to your inquiry: \"" + inquiry.getSubject() + "\"."
-            );
+            ));
         }
 
         Inquiry saved = inquiryRepository.save(inquiry);

@@ -45,7 +45,7 @@ class AppointmentWorkflowTest {
     private UserService userService;
 
     @Mock
-    private NotificationService notificationService;
+    private com.skyline.observer.NotificationSubject notificationSubject;
 
     private AppointmentService appointmentServiceInstance;
 
@@ -63,7 +63,7 @@ class AppointmentWorkflowTest {
                 appointmentRescheduleHistoryRepository,
                 apartmentService,
                 userService,
-                notificationService
+                notificationSubject
         );
 
         customer = User.builder()
@@ -167,7 +167,9 @@ class AppointmentWorkflowTest {
         AppointmentResponse res = appointmentServiceInstance.completeAppointment(100L, staffPrincipal);
 
         assertEquals(AppointmentStatus.COMPLETED, appointment.getStatus());
-        verify(notificationService).createNotification(eq(customer), any(), contains("Viewing Completed"), any());
+        verify(notificationSubject).notifyObservers(argThat(event ->
+                event.getRecipient().equals(customer) &&
+                event.getTitle().contains("Viewing Completed")));
     }
 
     @Test

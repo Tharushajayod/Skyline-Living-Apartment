@@ -21,6 +21,8 @@ import com.skyline.enums.UserRole;
 import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ForbiddenException;
 import com.skyline.exception.ResourceNotFoundException;
+import com.skyline.observer.NotificationEvent;
+import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.ApartmentRepository;
 import com.skyline.repository.PaymentPlanRepository;
 import com.skyline.repository.PaymentPlanItemRepository;
@@ -49,6 +51,7 @@ public class PaymentService {
     private final ApartmentService apartmentService;
     private final ApartmentRepository apartmentRepository;
     private final FileStorageService fileStorageService;
+    private final NotificationSubject notificationSubject;
     private final NotificationService notificationService;
     private final SaleRepository saleRepository;
 
@@ -61,6 +64,7 @@ public class PaymentService {
             ApartmentService apartmentService,
             ApartmentRepository apartmentRepository,
             FileStorageService fileStorageService,
+            NotificationSubject notificationSubject,
             NotificationService notificationService,
             SaleRepository saleRepository
     ) {
@@ -72,6 +76,7 @@ public class PaymentService {
         this.apartmentService = apartmentService;
         this.apartmentRepository = apartmentRepository;
         this.fileStorageService = fileStorageService;
+        this.notificationSubject = notificationSubject;
         this.notificationService = notificationService;
         this.saleRepository = saleRepository;
     }
@@ -777,7 +782,7 @@ public class PaymentService {
             );
         }
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 customer,
                 NotificationType.PAYMENT,
                 "Payment Submitted",
@@ -786,7 +791,7 @@ public class PaymentService {
                         + " for "
                         + apartment.getTitle()
                         + " (" + request.getType().getDisplayValue() + ") has been submitted."
-        );
+        ));
 
         notificationService.notifyStaffAndAdmins(
                 NotificationType.PAYMENT,
@@ -883,14 +888,14 @@ public class PaymentService {
                         payment
                 );
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 payment.getCustomer(),
                 NotificationType.PAYMENT,
                 "Payment Proof Uploaded",
                 "Your proof of payment for "
                         + payment.getApartmentTitle()
                         + " has been uploaded and is pending verification."
-        );
+        ));
 
         notificationService.notifyStaffAndAdmins(
                 NotificationType.PAYMENT,
@@ -1145,7 +1150,7 @@ public class PaymentService {
             }
         }
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 payment.getCustomer(),
                 NotificationType.PAYMENT,
                 "Payment Approved & Verified!",
@@ -1154,7 +1159,7 @@ public class PaymentService {
                         + " for "
                         + payment.getApartmentTitle()
                         + " has been approved and verified. Official receipt is now available."
-        );
+        ));
 
         return PaymentResponse.fromEntity(
                 saved
@@ -1248,7 +1253,7 @@ public class PaymentService {
             );
         }
 
-        notificationService.createNotification(
+        notificationSubject.notifyObservers(new NotificationEvent(
                 payment.getCustomer(),
                 NotificationType.PAYMENT,
                 "Payment Rejected",
@@ -1260,7 +1265,7 @@ public class PaymentService {
                                 ? payment.getNotes()
                                 : ""
                 )
-        );
+        ));
 
         return PaymentResponse.fromEntity(
                 saved
