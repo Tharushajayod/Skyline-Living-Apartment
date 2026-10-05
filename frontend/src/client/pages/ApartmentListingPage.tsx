@@ -11,6 +11,7 @@ import ApartmentCard from '@/shared/components/ApartmentCard';
 import { CardSkeleton } from '@/shared/components/ui/Skeleton';
 import EmptyState from '@/shared/components/ui/EmptyState';
 import { formatCurrency } from '@/shared/utils/format';
+import { executeApartmentSort } from '../strategies/apartmentSortStrategies';
 
 const APARTMENT_TYPES: ApartmentType[] = ['Studio', '1BR', '2BR', '3BR', 'Penthouse'];
 const APARTMENT_STATUSES: ApartmentStatus[] = ['Available', 'Reserved'];
@@ -163,13 +164,8 @@ export default function ApartmentListingPage() {
       else result = result.filter((a) => a.bedrooms >= beds);
     }
 
-    // Sort
-    switch (sort) {
-      case 'price-asc': result.sort((a, b) => a.price - b.price); break;
-      case 'price-desc': result.sort((a, b) => b.price - a.price); break;
-      case 'size': result.sort((a, b) => b.size - a.size); break;
-      default: result.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    }
+    // Strategy Pattern: execute runtime sorting strategy
+    executeApartmentSort(sort, result);
     return result;
   }, [allApartments, search, type, status, district, minPrice, maxPrice, bedrooms, sort]);
 

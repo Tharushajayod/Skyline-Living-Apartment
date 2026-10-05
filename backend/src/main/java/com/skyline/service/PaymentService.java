@@ -30,7 +30,9 @@ import com.skyline.repository.PaymentRepository;
 import com.skyline.repository.ReservationRepository;
 import com.skyline.repository.SaleRepository;
 import com.skyline.security.UserPrincipal;
+import com.skyline.strategy.payment.PaymentVerificationContext;
 import com.skyline.util.IdParser;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -54,6 +56,7 @@ public class PaymentService {
     private final NotificationSubject notificationSubject;
     private final NotificationService notificationService;
     private final SaleRepository saleRepository;
+    private final PaymentVerificationContext paymentVerificationContext;
 
     public PaymentService(
             PaymentRepository paymentRepository,
@@ -68,6 +71,27 @@ public class PaymentService {
             NotificationService notificationService,
             SaleRepository saleRepository
     ) {
+        this(paymentRepository, paymentPlanRepository, paymentPlanItemRepository,
+                reservationService, reservationRepository, apartmentService,
+                apartmentRepository, fileStorageService, notificationSubject,
+                notificationService, saleRepository, null);
+    }
+
+    @Autowired
+    public PaymentService(
+            PaymentRepository paymentRepository,
+            PaymentPlanRepository paymentPlanRepository,
+            PaymentPlanItemRepository paymentPlanItemRepository,
+            ReservationService reservationService,
+            ReservationRepository reservationRepository,
+            ApartmentService apartmentService,
+            ApartmentRepository apartmentRepository,
+            FileStorageService fileStorageService,
+            NotificationSubject notificationSubject,
+            NotificationService notificationService,
+            SaleRepository saleRepository,
+            PaymentVerificationContext paymentVerificationContext
+    ) {
         this.paymentRepository = paymentRepository;
         this.paymentPlanRepository = paymentPlanRepository;
         this.paymentPlanItemRepository = paymentPlanItemRepository;
@@ -79,6 +103,7 @@ public class PaymentService {
         this.notificationSubject = notificationSubject;
         this.notificationService = notificationService;
         this.saleRepository = saleRepository;
+        this.paymentVerificationContext = paymentVerificationContext;
     }
 
     // =========================================================
@@ -996,158 +1021,12 @@ public class PaymentService {
                 );
 
         // =====================================================
-        // RESERVATION FEE VERIFIED
+        // Strategy Pattern: Post-Verification Strategy Execution
         // =====================================================
-
-        if (payment.getType()
-                == PaymentType.RESERVATION_FEE &&
-                payment.getReservation() != null) {
-
-            Reservation reservation =
-                    payment.getReservation();
-
-            reservation.setStatus(
-                    ReservationStatus.CONFIRMED
-            );
-
-            reservationRepository.save(
-                    reservation
-            );
-        }
-
-        // =====================================================
-        // INSTALLMENT / PART PAYMENT VERIFIED
-        // =====================================================
-
-        if (payment.getPaymentPlan() != null) {
-
-            PaymentPlan plan =
-                    payment.getPaymentPlan();
-
-            BigDecimal currentPlanRemaining =
-                    plan.getRemainingAmount() != null
-                            ? plan.getRemainingAmount()
-                            : BigDecimal.ZERO;
-
-            BigDecimal newPlanRemaining =
-                    currentPlanRemaining.subtract(
-                            payment.getAmount()
-                    );
-
-            if (newPlanRemaining
-                    .compareTo(BigDecimal.ZERO) < 0) {
-
-                newPlanRemaining =
-                        BigDecimal.ZERO;
-            }
-
-            plan.setRemainingAmount(
-                    newPlanRemaining
-            );
-
-            if (newPlanRemaining
-                    .compareTo(BigDecimal.ZERO) == 0) {
-
-                plan.setStatus(
-                        PaymentPlanStatus.COMPLETED
-                );
-            }
-
-            paymentPlanRepository.save(
-                    plan
-            );
-
-            if (payment.getPaymentPlanItem() != null) {
-
-                PaymentPlanItem item =
-                        payment.getPaymentPlanItem();
-
-                item.setStatus(
-                        PaymentPlanItemStatus.PAID
-                );
-
-                paymentPlanItemRepository.save(
-                        item
-                );
-            }
-        }
-
-        // =====================================================
-        // CALCULATE REAL APARTMENT BALANCE AFTER VERIFICATION
-        // =====================================================
-        //
-        // Again, use apartment_id instead of reservation_id.
-        // =====================================================
-
-        Apartment apartment =
-                payment.getApartment();
-
-        if (apartment == null) {
-
-            throw new IllegalStateException(
-                    "Payment does not have an apartment"
-            );
-        }
-
-        BigDecimal totalVerified =
-                getVerifiedApartmentTotal(
-                        apartment.getId()
-                );
-
-        BigDecimal apartmentRemaining =
-                apartment.getPrice()
-                        .subtract(
-                                totalVerified
-                        );
-
-        // =====================================================
-        // MARK APARTMENT AS SOLD
-        // =====================================================
-        //
-        // FULL_PAYMENT -> SOLD
-        //
-        // Or if total verified payments have reached the
-        // apartment price -> SOLD
-        // =====================================================
-
-        if (payment.getType()
-                        == PaymentType.FULL_PAYMENT ||
-                apartmentRemaining
-                        .compareTo(BigDecimal.ZERO) <= 0) {
-
-            apartment.setStatus(
-                    ApartmentStatus.SOLD
-            );
-
-            apartmentRepository.save(
-                    apartment
-            );
-
-            // Automatically record Sale and Ownership Record if not already created
-            if (saleRepository.findByApartmentId(apartment.getId()).isEmpty()) {
-                User customer = payment.getCustomer();
-                if (customer == null && payment.getReservation() != null) {
-                    customer = payment.getReservation().getCustomer();
-                }
-
-                Sale sale = Sale.builder()
-                        .apartment(apartment)
-                        .customer(customer)
-                        .customerName(customer != null ? customer.getName() : "Customer")
-                        .customerEmail(customer != null ? customer.getEmail() : "")
-                        .apartmentTitle(apartment.getTitle())
-                        .finalPrice(apartment.getPrice())
-                        .reservation(payment.getReservation())
-                        .saleDate(java.time.LocalDate.now())
-                        .ownershipDate(java.time.LocalDate.now())
-                        .ownershipStatus("Deed Transferred")
-                        .staff(principal != null ? principal.getUser() : null)
-                        .staffName(verifierName)
-                        .createdAt(LocalDateTime.now())
-                        .build();
-
-                saleRepository.save(sale);
-            }
+        if (paymentVerificationContext != null) {
+            paymentVerificationContext.executePostVerification(payment, principal, verifierName);
+        } else {
+            executeDefaultPostVerification(payment, principal, verifierName);
         }
 
         notificationSubject.notifyObservers(new NotificationEvent(
@@ -1296,5 +1175,77 @@ public class PaymentService {
         return total != null
                 ? total
                 : BigDecimal.ZERO;
+    }
+
+    private void executeDefaultPostVerification(Payment payment, UserPrincipal principal, String verifierName) {
+        if (payment.getType() == PaymentType.RESERVATION_FEE && payment.getReservation() != null) {
+            Reservation reservation = payment.getReservation();
+            reservation.setStatus(ReservationStatus.CONFIRMED);
+            reservationRepository.save(reservation);
+        }
+
+        if (payment.getPaymentPlan() != null) {
+            PaymentPlan plan = payment.getPaymentPlan();
+            BigDecimal currentPlanRemaining = plan.getRemainingAmount() != null
+                    ? plan.getRemainingAmount()
+                    : BigDecimal.ZERO;
+
+            BigDecimal newPlanRemaining = currentPlanRemaining.subtract(payment.getAmount());
+            if (newPlanRemaining.compareTo(BigDecimal.ZERO) < 0) {
+                newPlanRemaining = BigDecimal.ZERO;
+            }
+
+            plan.setRemainingAmount(newPlanRemaining);
+            if (newPlanRemaining.compareTo(BigDecimal.ZERO) == 0) {
+                plan.setStatus(PaymentPlanStatus.COMPLETED);
+            }
+            paymentPlanRepository.save(plan);
+
+            if (payment.getPaymentPlanItem() != null) {
+                PaymentPlanItem item = payment.getPaymentPlanItem();
+                item.setStatus(PaymentPlanItemStatus.PAID);
+                paymentPlanItemRepository.save(item);
+            }
+        }
+
+        Apartment apartment = payment.getApartment();
+        if (apartment == null) {
+            throw new IllegalStateException("Payment does not have an apartment");
+        }
+
+        BigDecimal totalVerified = getVerifiedApartmentTotal(apartment.getId());
+        BigDecimal apartmentRemaining = apartment.getPrice().subtract(totalVerified);
+
+        if (payment.getType() == PaymentType.FULL_PAYMENT ||
+                apartmentRemaining.compareTo(BigDecimal.ZERO) <= 0) {
+
+            apartment.setStatus(ApartmentStatus.SOLD);
+            apartmentRepository.save(apartment);
+
+            if (saleRepository.findByApartmentId(apartment.getId()).isEmpty()) {
+                User customer = payment.getCustomer();
+                if (customer == null && payment.getReservation() != null) {
+                    customer = payment.getReservation().getCustomer();
+                }
+
+                Sale sale = Sale.builder()
+                        .apartment(apartment)
+                        .customer(customer)
+                        .customerName(customer != null ? customer.getName() : "Customer")
+                        .customerEmail(customer != null ? customer.getEmail() : "")
+                        .apartmentTitle(apartment.getTitle())
+                        .finalPrice(apartment.getPrice())
+                        .reservation(payment.getReservation())
+                        .saleDate(java.time.LocalDate.now())
+                        .ownershipDate(java.time.LocalDate.now())
+                        .ownershipStatus("Deed Transferred")
+                        .staff(principal != null ? principal.getUser() : null)
+                        .staffName(verifierName)
+                        .createdAt(LocalDateTime.now())
+                        .build();
+
+                saleRepository.save(sale);
+            }
+        }
     }
 }

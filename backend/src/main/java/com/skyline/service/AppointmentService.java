@@ -21,6 +21,7 @@ import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.AppointmentRepository;
 import com.skyline.repository.AppointmentRescheduleHistoryRepository;
 import com.skyline.security.UserPrincipal;
+import com.skyline.strategy.appointment.*;
 import com.skyline.util.IdParser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,17 +43,35 @@ public class AppointmentService {
     private final ApartmentService apartmentService;
     private final UserService userService;
     private final NotificationSubject notificationSubject;
+    private final AppointmentStatusStrategyContext appointmentStatusStrategyContext;
 
     public AppointmentService(AppointmentRepository appointmentRepository,
                               AppointmentRescheduleHistoryRepository appointmentRescheduleHistoryRepository,
                               ApartmentService apartmentService,
                               UserService userService,
                               NotificationSubject notificationSubject) {
+        this(appointmentRepository, appointmentRescheduleHistoryRepository, apartmentService, userService, notificationSubject,
+                new AppointmentStatusStrategyContext(List.of(
+                        new ApproveAppointmentStrategy(appointmentRepository, notificationSubject),
+                        new RejectAppointmentStrategy(appointmentRepository, notificationSubject),
+                        new CancelAppointmentStrategy(appointmentRepository, notificationSubject),
+                        new CompleteAppointmentStrategy(appointmentRepository, notificationSubject),
+                        new RescheduleAppointmentStrategy(appointmentRepository, notificationSubject)
+                )));
+    }
+
+    public AppointmentService(AppointmentRepository appointmentRepository,
+                              AppointmentRescheduleHistoryRepository appointmentRescheduleHistoryRepository,
+                              ApartmentService apartmentService,
+                              UserService userService,
+                              NotificationSubject notificationSubject,
+                              AppointmentStatusStrategyContext appointmentStatusStrategyContext) {
         this.appointmentRepository = appointmentRepository;
         this.appointmentRescheduleHistoryRepository = appointmentRescheduleHistoryRepository;
         this.apartmentService = apartmentService;
         this.userService = userService;
         this.notificationSubject = notificationSubject;
+        this.appointmentStatusStrategyContext = appointmentStatusStrategyContext;
     }
 
     @Transactional(readOnly = true)
@@ -95,7 +114,7 @@ public class AppointmentService {
 
     public static final java.time.ZoneId APP_ZONE = java.time.ZoneId.of("Asia/Colombo");
 
-    private void validateFutureDateTime(LocalDate date, String timeSlot) {
+    public static void validateFutureDateTime(LocalDate date, String timeSlot) {
         if (date == null) {
             throw new BadRequestException("Please select a valid appointment date.");
         }
@@ -115,7 +134,7 @@ public class AppointmentService {
         }
     }
 
-    private LocalTime parseSlotStartTime(String timeSlot) {
+    public static LocalTime parseSlotStartTime(String timeSlot) {
         try {
             String clean = timeSlot.trim();
             if (clean.contains("-")) {
@@ -452,62 +471,7 @@ public class AppointmentService {
         Appointment appointment = appointmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found with id: " + id));
 
-        boolean isStaffOrAdmin = principal != null && (
-                principal.getUser().getRole() == UserRole.STAFF ||
-                principal.getUser().getRole() == UserRole.ADMIN);
-
-        AppointmentStatus newStatus = update.getStatus();
-
-        if (newStatus == AppointmentStatus.COMPLETED) {
-            return completeAppointment(id, principal);
-        }
-
-        if (newStatus == AppointmentStatus.RESCHEDULED) {
-            com.skyline.dto.appointment.RescheduleProposalRequest prop = com.skyline.dto.appointment.RescheduleProposalRequest.builder()
-                    .date(update.getDate() != null ? update.getDate() : appointment.getDate().toString())
-                    .timeSlot(update.getTimeSlot() != null ? update.getTimeSlot() : appointment.getTimeSlot())
-                    .reason(update.getReason() != null ? update.getReason() : "Schedule change request")
-                    .build();
-            return proposeReschedule(id, prop, principal);
-        }
-
-        if (!isStaffOrAdmin) {
-            // Customer can only cancel their own appointment
-            if (!appointment.getCustomer().getId().equals(principal.getId())) {
-                throw new ForbiddenException("You cannot modify another customer's appointment");
-            }
-            if (newStatus != AppointmentStatus.CANCELLED) {
-                throw new ForbiddenException("Customers may only cancel appointments or submit reschedule proposals.");
-            }
-        }
-
-        if (newStatus == AppointmentStatus.CANCELLED) {
-            // Clear pending reschedule proposal if any
-            appointment.setRescheduleStatus(com.skyline.enums.RescheduleStatus.NONE);
-            appointment.setProposedDate(null);
-            appointment.setProposedTimeSlot(null);
-            appointment.setRescheduleReason(null);
-        }
-
-        appointment.setStatus(newStatus);
-        Appointment saved = appointmentRepository.save(appointment);
-
-        // Notify customer on status change
-        String notifMsg = switch (newStatus) {
-            case APPROVED -> "Your viewing for " + appointment.getApartment().getTitle() + " has been approved for " + appointment.getDate() + " (" + appointment.getTimeSlot() + ").";
-            case REJECTED -> "Your viewing request for " + appointment.getApartment().getTitle() + " could not be approved.";
-            case COMPLETED -> "Viewing completed! You are now eligible to place a reservation on " + appointment.getApartment().getTitle() + ".";
-            case CANCELLED -> "Your viewing appointment for " + appointment.getApartment().getTitle() + " has been cancelled.";
-            default -> "Your viewing appointment status is now: " + newStatus.getDisplayValue();
-        };
-
-        notificationSubject.notifyObservers(new NotificationEvent(
-                appointment.getCustomer(),
-                NotificationType.APPOINTMENT,
-                "Viewing Status: " + newStatus.getDisplayValue(),
-                notifMsg
-        ));
-
-        return AppointmentResponse.fromEntity(saved);
+        // Strategy Pattern: polymorphic execution of status transition strategy
+        return appointmentStatusStrategyContext.executeStrategy(appointment, update, principal);
     }
 }

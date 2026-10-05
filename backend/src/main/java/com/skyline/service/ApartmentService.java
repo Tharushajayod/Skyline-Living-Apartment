@@ -11,6 +11,7 @@ import com.skyline.exception.ConflictException;
 import com.skyline.exception.ResourceNotFoundException;
 import com.skyline.repository.ApartmentRepository;
 import com.skyline.repository.SaleRepository;
+import com.skyline.strategy.apartment.*;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -28,12 +29,26 @@ public class ApartmentService {
 
     private final ApartmentRepository apartmentRepository;
     private final SaleRepository saleRepository;
+    private final ApartmentSortContext apartmentSortContext;
 
     public ApartmentService(
             ApartmentRepository apartmentRepository,
             SaleRepository saleRepository) {
+        this(apartmentRepository, saleRepository, new ApartmentSortContext(List.of(
+                new NewestSortStrategy(),
+                new PriceLowToHighSortStrategy(),
+                new PriceHighToLowSortStrategy(),
+                new LargestFloorAreaSortStrategy()
+        )));
+    }
+
+    public ApartmentService(
+            ApartmentRepository apartmentRepository,
+            SaleRepository saleRepository,
+            ApartmentSortContext apartmentSortContext) {
         this.apartmentRepository = apartmentRepository;
         this.saleRepository = saleRepository;
+        this.apartmentSortContext = apartmentSortContext;
     }
 
     // Dynamic combined search & filter
@@ -46,7 +61,7 @@ public class ApartmentService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             Boolean featured) {
-        return searchApartments(search, type, status, district, bedrooms, minPrice, maxPrice, featured, false);
+        return searchApartments(search, type, status, district, bedrooms, minPrice, maxPrice, featured, false, null);
     }
 
     public List<ApartmentResponse> searchApartments(
@@ -59,6 +74,20 @@ public class ApartmentService {
             BigDecimal maxPrice,
             Boolean featured,
             Boolean includeSold) {
+        return searchApartments(search, type, status, district, bedrooms, minPrice, maxPrice, featured, includeSold, null);
+    }
+
+    public List<ApartmentResponse> searchApartments(
+            String search,
+            ApartmentType type,
+            ApartmentStatus status,
+            String district,
+            Integer bedrooms,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean featured,
+            Boolean includeSold,
+            String sort) {
 
         Specification<Apartment> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -106,9 +135,12 @@ public class ApartmentService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        return apartmentRepository.findAll(spec).stream()
+        List<ApartmentResponse> results = apartmentRepository.findAll(spec).stream()
                 .map(ApartmentResponse::fromEntity)
                 .collect(Collectors.toList());
+
+        // Strategy Pattern: execute runtime sorting strategy
+        return apartmentSortContext.executeStrategy(sort, results);
     }
 
     public List<ApartmentResponse> getAllApartments() {

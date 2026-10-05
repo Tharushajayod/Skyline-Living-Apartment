@@ -11,6 +11,7 @@ import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ConflictException;
 import com.skyline.exception.ForbiddenException;
 import com.skyline.exception.ResourceNotFoundException;
+import com.skyline.factory.reservation.*;
 import com.skyline.observer.NotificationEvent;
 import com.skyline.observer.NotificationSubject;
 import com.skyline.repository.ApartmentRepository;
@@ -55,6 +56,8 @@ public class ReservationService {
         return LocalDateTime.now(this.clock);
     }
 
+    private final ReservationRefundFactory reservationRefundFactory;
+
     public ReservationService(ReservationRepository reservationRepository,
                               ApartmentRepository apartmentRepository,
                               AppointmentRepository appointmentRepository,
@@ -64,6 +67,21 @@ public class ReservationService {
                               SaleRepository saleRepository,
                               UserService userService,
                               NotificationSubject notificationSubject) {
+        this(reservationRepository, apartmentRepository, appointmentRepository, paymentRepository, paymentPlanRepository,
+                reservationRefundRepository, saleRepository, userService, notificationSubject,
+                new com.skyline.factory.reservation.ReservationRefundFactoryImpl());
+    }
+
+    public ReservationService(ReservationRepository reservationRepository,
+                              ApartmentRepository apartmentRepository,
+                              AppointmentRepository appointmentRepository,
+                              PaymentRepository paymentRepository,
+                              PaymentPlanRepository paymentPlanRepository,
+                              ReservationRefundRepository reservationRefundRepository,
+                              SaleRepository saleRepository,
+                              UserService userService,
+                              NotificationSubject notificationSubject,
+                              com.skyline.factory.reservation.ReservationRefundFactory reservationRefundFactory) {
         this.reservationRepository = reservationRepository;
         this.apartmentRepository = apartmentRepository;
         this.appointmentRepository = appointmentRepository;
@@ -73,6 +91,7 @@ public class ReservationService {
         this.saleRepository = saleRepository;
         this.userService = userService;
         this.notificationSubject = notificationSubject;
+        this.reservationRefundFactory = reservationRefundFactory;
     }
 
     public boolean hasFinancialCommitment(Reservation reservation) {
@@ -780,30 +799,18 @@ public class ReservationService {
             updateApartmentAvailabilityAfterReservationChange(reservation.getApartment().getId());
         }
 
-        // 12. Create and save refund record
-        String reasonText = request != null && request.getReason() != null && !request.getReason().trim().isEmpty()
-                ? request.getReason().trim()
-                : (isStaffOrAdmin ? "Management initiated cancellation" : "Customer cancellation within 48-hour refund window");
-
-        ReservationRefund refundRecord = ReservationRefund.builder()
-                .reservation(savedReservation)
-                .customer(savedReservation.getCustomer())
-                .apartment(savedReservation.getApartment())
-                .payment(payment)
-                .originalFee(depositAmount)
-                .refundAmount(refundAmount)
-                .companyRetainedAmount(companyRetained)
-                .refundStatus(initialStatus)
-                .refundType(RefundType.CANCELLATION)
-                .reason(reasonText)
-                .initiatedByRole(initiatorRole)
-                .initiatedByUserId(initiatedByUserId)
-                .initiatedByName(initiatedByName)
-                .requestedAt(now)
-                .notes(request != null ? request.getNotes() : null)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
+        // 12. Factory Pattern: Create and save refund product
+        ReservationRefund refundRecord;
+        if (isStaffOrAdmin) {
+            refundRecord = reservationRefundFactory.createManagementCancellationRefund(
+                    savedReservation, payment, request, principal, depositAmount);
+        } else {
+            refundRecord = reservationRefundFactory.createCustomerCancellationRefund(
+                    savedReservation, payment, request, principal, depositAmount);
+        }
+        if (request != null && request.getNotes() != null) {
+            refundRecord.setNotes(request.getNotes());
+        }
 
         ReservationRefund savedRefund = reservationRefundRepository.save(refundRecord);
 
@@ -985,23 +992,17 @@ public class ReservationService {
         String processorName = principal != null ? principal.getUser().getName() : "Management Staff";
         BigDecimal recordedBasis = totalVerifiedPaid.compareTo(BigDecimal.ZERO) > 0 ? totalVerifiedPaid : reservationFee;
 
-        ReservationRefund refundRecord = ReservationRefund.builder()
-                .reservation(reservation)
-                .customer(reservation.getCustomer())
-                .apartment(reservation.getApartment())
-                .payment(payment)
-                .originalFee(recordedBasis)
-                .refundAmount(refundAmount)
-                .companyRetainedAmount(companyRetained)
-                .refundStatus(RefundStatus.PROCESSED)
-                .refundType(RefundType.EXPIRATION)
-                .reason(request.getReason())
-                .notes(request.getNotes())
-                .processedBy(processorName)
-                .processedAt(LocalDateTime.now())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        // Factory Pattern: Create Expired Reservation Refund product
+        ReservationRefund refundRecord = reservationRefundFactory.createExpiredReservationRefund(
+                reservation, payment, request, principal, recordedBasis, companyRetained);
+        if (refundAmount != null) {
+            refundRecord.setRefundAmount(refundAmount);
+        }
+        if (request != null && request.getNotes() != null) {
+            refundRecord.setNotes(request.getNotes());
+        }
+        refundRecord.setProcessedBy(processorName);
+        refundRecord.setProcessedAt(LocalDateTime.now());
 
         ReservationRefund savedRefund = reservationRefundRepository.save(refundRecord);
 

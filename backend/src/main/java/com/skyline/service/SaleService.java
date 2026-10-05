@@ -1,5 +1,9 @@
 package com.skyline.service;
 
+import com.skyline.decorator.sale.BasicSaleStatement;
+import com.skyline.decorator.sale.PaymentPlanScheduleDecorator;
+import com.skyline.decorator.sale.PaymentSummaryDecorator;
+import com.skyline.decorator.sale.SaleStatementComponent;
 import com.skyline.dto.apartment.ApartmentResponse;
 import com.skyline.dto.payment.PaymentPlanItemResponse;
 import com.skyline.dto.payment.PaymentPlanResponse;
@@ -88,103 +92,17 @@ public class SaleService {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sale not found with id: " + id));
 
-        SaleResponse saleResponse = SaleResponse.fromEntity(sale);
+        // Decorator Pattern: 1. Core Component
+        SaleStatementComponent statement = new BasicSaleStatement(sale);
 
-        // Customer details
-        User customer = sale.getCustomer();
-        UserDto customerDto = customer != null ? UserDto.fromEntity(customer) : null;
+        // Decorator Pattern: 2. Concrete Decorator for Payment Summary and Records
+        statement = new PaymentSummaryDecorator(statement, sale, paymentRepository);
 
-        // Apartment details
-        Apartment apartment = sale.getApartment();
-        ApartmentResponse apartmentResponse = apartment != null ? ApartmentResponse.fromEntity(apartment) : null;
+        // Decorator Pattern: 3. Concrete Decorator for Payment Plan Schedule
+        statement = new PaymentPlanScheduleDecorator(statement, sale, paymentPlanRepository, paymentPlanItemRepository);
 
-        // Reservation details
-        Reservation reservation = sale.getReservation();
-        ReservationResponse reservationResponse = reservation != null ? ReservationResponse.fromEntity(reservation) : null;
-
-        // Payments: Fetch by Apartment ID and Reservation ID to capture all transactions
-        Map<Long, Payment> paymentMap = new LinkedHashMap<>();
-        if (apartment != null && apartment.getId() != null) {
-            List<Payment> aptPayments = paymentRepository.findByApartmentId(apartment.getId());
-            for (Payment p : aptPayments) {
-                paymentMap.put(p.getId(), p);
-            }
-        }
-        if (reservation != null && reservation.getId() != null) {
-            List<Payment> rsvPayments = paymentRepository.findByReservationId(reservation.getId());
-            for (Payment p : rsvPayments) {
-                paymentMap.put(p.getId(), p);
-            }
-        }
-
-        List<Payment> allPayments = new ArrayList<>(paymentMap.values());
-        allPayments.sort((a, b) -> {
-            if (a.getUploadedAt() != null && b.getUploadedAt() != null) {
-                return b.getUploadedAt().compareTo(a.getUploadedAt());
-            }
-            return Long.compare(b.getId() != null ? b.getId() : 0, a.getId() != null ? a.getId() : 0);
-        });
-
-        List<PaymentResponse> paymentResponses = allPayments.stream()
-                .map(PaymentResponse::fromEntity)
-                .collect(Collectors.toList());
-
-        // Financial Summary Calculations
-        BigDecimal verifiedTotal = allPayments.stream()
-                .filter(p -> p.getStatus() == PaymentStatus.VERIFIED && p.getAmount() != null)
-                .map(Payment::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal price = sale.getFinalPrice() != null ? sale.getFinalPrice() :
-                (apartment != null && apartment.getPrice() != null ? apartment.getPrice() : BigDecimal.ZERO);
-
-        BigDecimal remainingBalance = price.subtract(verifiedTotal);
-        if (remainingBalance.compareTo(BigDecimal.ZERO) < 0) {
-            remainingBalance = BigDecimal.ZERO;
-        }
-
-        SaleDetailsResponse.PaymentSummaryDto paymentSummary = SaleDetailsResponse.PaymentSummaryDto.builder()
-                .apartmentPrice(price)
-                .totalVerifiedPayments(verifiedTotal)
-                .remainingBalance(remainingBalance)
-                .paymentCount(allPayments.size())
-                .build();
-
-        // Payment Plan Details (if applicable)
-        PaymentPlan paymentPlan = null;
-        if (reservation != null && reservation.getId() != null) {
-            List<PaymentPlan> plans = paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(reservation.getId());
-            if (!plans.isEmpty()) {
-                paymentPlan = plans.get(0);
-            }
-        }
-        if (paymentPlan == null && apartment != null && apartment.getId() != null) {
-            List<PaymentPlan> aptPlans = paymentPlanRepository.findByApartmentIdOrderByCreatedAtDesc(apartment.getId());
-            if (!aptPlans.isEmpty()) {
-                paymentPlan = aptPlans.get(0);
-            }
-        }
-
-        PaymentPlanResponse paymentPlanResponse = null;
-        if (paymentPlan != null) {
-            paymentPlanResponse = PaymentPlanResponse.fromEntity(paymentPlan);
-            List<PaymentPlanItemResponse> items = paymentPlanItemRepository
-                    .findByPaymentPlanIdOrderBySequenceNoAsc(paymentPlan.getId())
-                    .stream()
-                    .map(PaymentPlanItemResponse::fromEntity)
-                    .collect(Collectors.toList());
-            paymentPlanResponse.setItems(items);
-        }
-
-        return SaleDetailsResponse.builder()
-                .sale(saleResponse)
-                .customer(customerDto)
-                .apartment(apartmentResponse)
-                .reservation(reservationResponse)
-                .paymentSummary(paymentSummary)
-                .payments(paymentResponses)
-                .paymentPlan(paymentPlanResponse)
-                .build();
+        // Decorator Pattern: 4. Assemble final decorated statement
+        return statement.generateStatement();
     }
 
     @Transactional
