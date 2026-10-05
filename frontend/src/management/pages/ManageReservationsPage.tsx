@@ -18,7 +18,6 @@ const filterTabs: { id: FilterTab; label: string }[] = [
   { id: 'All', label: 'All Holds' },
   { id: 'Pending', label: 'Pending Hold' },
   { id: 'Confirmed', label: 'Confirmed' },
-  { id: 'Committed', label: 'Payment Committed' },
   { id: 'Expired', label: 'Expired' },
   { id: 'Cancelled', label: 'Cancelled' },
 ];
@@ -154,21 +153,21 @@ export default function ManageReservationsPage() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${isActive
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                   }`}
               >
                 <span>{tab.label}</span>
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isActive
-                      ? tab.id === 'Committed'
-                        ? 'bg-blue-600 text-white'
-                        : tab.id === 'Pending'
-                          ? 'bg-amber-500 text-slate-950'
-                          : tab.id === 'Confirmed'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-900 text-white'
-                      : 'bg-slate-200 text-slate-700'
+                    ? tab.id === 'Committed'
+                      ? 'bg-blue-600 text-white'
+                      : tab.id === 'Pending'
+                        ? 'bg-amber-500 text-slate-950'
+                        : tab.id === 'Confirmed'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-900 text-white'
+                    : 'bg-slate-200 text-slate-700'
                     }`}
                 >
                   {count}

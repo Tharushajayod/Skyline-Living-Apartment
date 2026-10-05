@@ -304,7 +304,7 @@ export default function ApartmentDetailsPage() {
       setReviewModal(false);
       setReviewForm({ rating: 5, title: '', comment: '' });
       setReviewEligibility((prev) => (prev ? { ...prev, hasReviewed: true } : null));
-      reviewService.getByApartment(apartment.id).then(setReviews).catch(() => {});
+      reviewService.getByApartment(apartment.id).then(setReviews).catch(() => { });
     } catch (err: any) {
       toast(err.message || 'Failed to submit review', 'error');
     } finally {
@@ -800,20 +800,20 @@ export default function ApartmentDetailsPage() {
                 <div className="space-y-3">
                   {/* Workflow Status Callout */}
                   {hasCompletedTour ? null : hasScheduledTour ? (
-                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>Tour Booked ({formatDate(relevantAppointment!.date)})</span>
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Tour Booked ({formatDate(relevantAppointment!.date)})</span>
+                      </div>
+                      <Link to="/appointments" className="text-[11px] font-bold text-amber-700 underline shrink-0">
+                        View Visit
+                      </Link>
                     </div>
-                    <Link to="/appointments" className="text-[11px] font-bold text-amber-700 underline shrink-0">
-                      View Visit
-                    </Link>
-                  </div>
                   ) : (
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-1.5">
-                    <CalendarCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span>Viewing tour required before reserving this residence.</span>
-                  </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-1.5">
+                      <CalendarCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Viewing tour required before reserving this residence.</span>
+                    </div>
                   )}
 
                   <button
@@ -829,8 +829,8 @@ export default function ApartmentDetailsPage() {
                     type="button"
                     onClick={handleRequestReservation}
                     className={`w-full py-3 px-4 rounded-xl border font-bold text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2 transition duration-200 cursor-pointer ${hasCompletedTour
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-600/15'
-                        : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-600/15'
+                      : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400'
                       }`}
                   >
                     <FileText className={`w-4 h-4 ${hasCompletedTour ? 'text-white' : 'text-amber-600'}`} />
@@ -892,7 +892,7 @@ export default function ApartmentDetailsPage() {
       <Modal
         open={bookingModal}
         onClose={() => setBookingModal(false)}
-        title={`Viewing Appointment: ${apartment.title}`}
+        title={`Viewing Appointment`}
         footer={
           <>
             <button
