@@ -23,6 +23,7 @@ import com.skyline.repository.AppointmentRescheduleHistoryRepository;
 import com.skyline.security.UserPrincipal;
 import com.skyline.strategy.appointment.*;
 import com.skyline.util.IdParser;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +61,7 @@ public class AppointmentService {
                 )));
     }
 
+    @Autowired
     public AppointmentService(AppointmentRepository appointmentRepository,
                               AppointmentRescheduleHistoryRepository appointmentRescheduleHistoryRepository,
                               ApartmentService apartmentService,

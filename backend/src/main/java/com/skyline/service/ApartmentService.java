@@ -16,6 +16,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,14 +39,15 @@ public class ApartmentService {
                 new NewestSortStrategy(),
                 new PriceLowToHighSortStrategy(),
                 new PriceHighToLowSortStrategy(),
-                new LargestFloorAreaSortStrategy()
-        )));
+                new LargestFloorAreaSortStrategy())));
     }
 
+    @Autowired
     public ApartmentService(
             ApartmentRepository apartmentRepository,
             SaleRepository saleRepository,
             ApartmentSortContext apartmentSortContext) {
+
         this.apartmentRepository = apartmentRepository;
         this.saleRepository = saleRepository;
         this.apartmentSortContext = apartmentSortContext;
@@ -74,7 +76,8 @@ public class ApartmentService {
             BigDecimal maxPrice,
             Boolean featured,
             Boolean includeSold) {
-        return searchApartments(search, type, status, district, bedrooms, minPrice, maxPrice, featured, includeSold, null);
+        return searchApartments(search, type, status, district, bedrooms, minPrice, maxPrice, featured, includeSold,
+                null);
     }
 
     public List<ApartmentResponse> searchApartments(
@@ -188,7 +191,8 @@ public class ApartmentService {
                 .description(request.getDescription() != null ? request.getDescription() : "")
                 .yearBuilt(request.getYearBuilt() != null ? request.getYearBuilt() : 2024)
                 .floorPlanUrl(request.getFloorPlanUrl() != null ? request.getFloorPlanUrl() : "")
-                .facilitiesList(request.getFacilities() != null ? new ArrayList<>(request.getFacilities()) : new ArrayList<>())
+                .facilitiesList(
+                        request.getFacilities() != null ? new ArrayList<>(request.getFacilities()) : new ArrayList<>())
                 .latitude(request.getLatitude() != null ? request.getLatitude() : 6.9271)
                 .longitude(request.getLongitude() != null ? request.getLongitude() : 79.8612)
                 .featured(request.getFeatured() != null ? request.getFeatured() : false)
@@ -221,30 +225,52 @@ public class ApartmentService {
 
         if (existing.getStatus() == ApartmentStatus.SOLD ||
                 saleRepository.findByApartmentId(id).isPresent()) {
-            throw new ConflictException("Sold apartments cannot be edited because they are part of completed sales records.");
+            throw new ConflictException(
+                    "Sold apartments cannot be edited because they are part of completed sales records.");
         }
 
-        if (request.getTitle() != null) existing.setTitle(request.getTitle());
-        if (request.getBuildingName() != null) existing.setBuildingName(request.getBuildingName());
-        if (request.getType() != null) existing.setType(request.getType());
-        if (request.getStatus() != null) existing.setStatus(request.getStatus());
-        if (request.getPrice() != null) existing.setPrice(request.getPrice());
-        if (request.getFloor() != null) existing.setFloor(request.getFloor());
-        if (request.getFloorNumber() != null && request.getFloor() == null) existing.setFloor(request.getFloorNumber());
-        if (request.getSize() != null) existing.setSize(request.getSize());
-        if (request.getArea() != null && request.getSize() == null) existing.setSize(request.getArea());
-        if (request.getBedrooms() != null) existing.setBedrooms(request.getBedrooms());
-        if (request.getBathrooms() != null) existing.setBathrooms(request.getBathrooms());
-        if (request.getAddress() != null) existing.setAddress(request.getAddress());
-        if (request.getLocation() != null && request.getAddress() == null) existing.setAddress(request.getLocation());
-        if (request.getCity() != null) existing.setCity(request.getCity());
-        if (request.getDistrict() != null) existing.setDistrict(request.getDistrict());
-        if (request.getDescription() != null) existing.setDescription(request.getDescription());
-        if (request.getYearBuilt() != null) existing.setYearBuilt(request.getYearBuilt());
-        if (request.getFloorPlanUrl() != null) existing.setFloorPlanUrl(request.getFloorPlanUrl());
-        if (request.getLatitude() != null) existing.setLatitude(request.getLatitude());
-        if (request.getLongitude() != null) existing.setLongitude(request.getLongitude());
-        if (request.getFeatured() != null) existing.setFeatured(request.getFeatured());
+        if (request.getTitle() != null)
+            existing.setTitle(request.getTitle());
+        if (request.getBuildingName() != null)
+            existing.setBuildingName(request.getBuildingName());
+        if (request.getType() != null)
+            existing.setType(request.getType());
+        if (request.getStatus() != null)
+            existing.setStatus(request.getStatus());
+        if (request.getPrice() != null)
+            existing.setPrice(request.getPrice());
+        if (request.getFloor() != null)
+            existing.setFloor(request.getFloor());
+        if (request.getFloorNumber() != null && request.getFloor() == null)
+            existing.setFloor(request.getFloorNumber());
+        if (request.getSize() != null)
+            existing.setSize(request.getSize());
+        if (request.getArea() != null && request.getSize() == null)
+            existing.setSize(request.getArea());
+        if (request.getBedrooms() != null)
+            existing.setBedrooms(request.getBedrooms());
+        if (request.getBathrooms() != null)
+            existing.setBathrooms(request.getBathrooms());
+        if (request.getAddress() != null)
+            existing.setAddress(request.getAddress());
+        if (request.getLocation() != null && request.getAddress() == null)
+            existing.setAddress(request.getLocation());
+        if (request.getCity() != null)
+            existing.setCity(request.getCity());
+        if (request.getDistrict() != null)
+            existing.setDistrict(request.getDistrict());
+        if (request.getDescription() != null)
+            existing.setDescription(request.getDescription());
+        if (request.getYearBuilt() != null)
+            existing.setYearBuilt(request.getYearBuilt());
+        if (request.getFloorPlanUrl() != null)
+            existing.setFloorPlanUrl(request.getFloorPlanUrl());
+        if (request.getLatitude() != null)
+            existing.setLatitude(request.getLatitude());
+        if (request.getLongitude() != null)
+            existing.setLongitude(request.getLongitude());
+        if (request.getFeatured() != null)
+            existing.setFeatured(request.getFeatured());
 
         if (request.getFacilities() != null) {
             existing.getFacilitiesList().clear();
@@ -285,7 +311,8 @@ public class ApartmentService {
             Apartment existing = apartmentRepository.findById(apartment.getId()).orElse(null);
             if (existing != null && (existing.getStatus() == ApartmentStatus.SOLD ||
                     saleRepository.findByApartmentId(existing.getId()).isPresent())) {
-                throw new ConflictException("Sold apartments cannot be edited because they are part of completed sales records.");
+                throw new ConflictException(
+                        "Sold apartments cannot be edited because they are part of completed sales records.");
             }
         }
         return apartmentRepository.save(apartment);
@@ -297,7 +324,8 @@ public class ApartmentService {
 
         if (apartment.getStatus() == ApartmentStatus.SOLD ||
                 saleRepository.findByApartmentId(id).isPresent()) {
-            throw new ConflictException("Sold apartments cannot be deleted because they are part of completed sales records.");
+            throw new ConflictException(
+                    "Sold apartments cannot be deleted because they are part of completed sales records.");
         }
 
         apartmentRepository.delete(apartment);

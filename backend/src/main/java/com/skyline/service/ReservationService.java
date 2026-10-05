@@ -23,6 +23,7 @@ import com.skyline.repository.ReservationRepository;
 import com.skyline.repository.SaleRepository;
 import com.skyline.security.UserPrincipal;
 import com.skyline.util.IdParser;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,6 +73,7 @@ public class ReservationService {
                 new com.skyline.factory.reservation.ReservationRefundFactoryImpl());
     }
 
+    @Autowired
     public ReservationService(ReservationRepository reservationRepository,
                               ApartmentRepository apartmentRepository,
                               AppointmentRepository appointmentRepository,

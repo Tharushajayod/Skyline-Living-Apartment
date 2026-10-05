@@ -51,6 +51,7 @@ public class SaleService {
     private final NotificationSubject notificationSubject;
     private final FinancialAnalyticsService financialAnalyticsService;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public SaleService(SaleRepository saleRepository,
                        ApartmentRepository apartmentRepository,
                        ReservationRepository reservationRepository,
