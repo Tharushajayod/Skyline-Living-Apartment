@@ -39,7 +39,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
         </div>
-        {error && <p className="text-xs font-semibold text-red-600 mt-1">{error}</p>}
+        {error && <p className="text-xs font-semibold text-red-600 mt-1.5 field-error-enter">{error}</p>}
       </div>
     );
   }
@@ -71,7 +71,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-400 pointer-events-none" />
         </div>
-        {error && <p className="text-xs font-semibold text-red-600 mt-1">{error}</p>}
+        {error && <p className="text-xs font-semibold text-red-600 mt-1.5 field-error-enter">{error}</p>}
       </div>
     );
   }
@@ -95,7 +95,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           className={`${baseInput} resize-y min-h-[100px] ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-100' : ''} ${className}`}
           {...props}
         />
-        {error && <p className="text-xs font-semibold text-red-600 mt-1">{error}</p>}
+        {error && <p className="text-xs font-semibold text-red-600 mt-1.5 field-error-enter">{error}</p>}
       </div>
     );
   }

@@ -50,6 +50,22 @@ public class SaleService {
     private final UserService userService;
     private final NotificationSubject notificationSubject;
     private final FinancialAnalyticsService financialAnalyticsService;
+    private final ApartmentAvailabilityService availabilityService;
+
+    public SaleService(SaleRepository saleRepository,
+                       ApartmentRepository apartmentRepository,
+                       ReservationRepository reservationRepository,
+                       PaymentRepository paymentRepository,
+                       PaymentPlanRepository paymentPlanRepository,
+                       PaymentPlanItemRepository paymentPlanItemRepository,
+                       UserService userService,
+                       NotificationSubject notificationSubject,
+                       FinancialAnalyticsService financialAnalyticsService) {
+        this(saleRepository, apartmentRepository, reservationRepository, paymentRepository,
+                paymentPlanRepository, paymentPlanItemRepository, userService, notificationSubject,
+                financialAnalyticsService,
+                new ApartmentAvailabilityService(apartmentRepository, reservationRepository, saleRepository));
+    }
 
     @org.springframework.beans.factory.annotation.Autowired
     public SaleService(SaleRepository saleRepository,
@@ -60,7 +76,8 @@ public class SaleService {
                        PaymentPlanItemRepository paymentPlanItemRepository,
                        UserService userService,
                        NotificationSubject notificationSubject,
-                       FinancialAnalyticsService financialAnalyticsService) {
+                       FinancialAnalyticsService financialAnalyticsService,
+                       ApartmentAvailabilityService availabilityService) {
         this.saleRepository = saleRepository;
         this.apartmentRepository = apartmentRepository;
         this.reservationRepository = reservationRepository;
@@ -70,6 +87,7 @@ public class SaleService {
         this.userService = userService;
         this.notificationSubject = notificationSubject;
         this.financialAnalyticsService = financialAnalyticsService;
+        this.availabilityService = availabilityService;
     }
 
     public com.skyline.dto.sale.SalesSummaryResponse getSalesSummary() {
@@ -149,9 +167,8 @@ public class SaleService {
 
         User staff = principal != null ? principal.getUser() : userService.getUserEntityByEmail("staff@skylineliving.com");
 
-        // 1. Mark apartment as SOLD
-        apartment.setStatus(ApartmentStatus.SOLD);
-        apartmentRepository.save(apartment);
+        // 1. Mark apartment as SOLD via centralized availability service
+        availabilityService.markSold(apartment);
 
         // 2. Mark reservation confirmed
         if (reservation != null) {

@@ -56,10 +56,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[calc(100vh-80px)] flex flex-col lg:flex-row items-stretch justify-center">
-      
+
       {/* Left Section: Light Luxury Visual Banner */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-amber-50/80 via-white to-amber-100/40 border-r border-amber-200/60 p-12 xl:p-16 flex-col justify-between overflow-hidden">
-        
+
         {/* Decorative Ambient Shapes */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-amber-200/30 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-yellow-200/20 rounded-full blur-3xl pointer-events-none" />
@@ -118,9 +118,7 @@ export default function LoginPage() {
         {/* Footer info */}
         <div className="relative z-10 flex items-center justify-between text-xs text-slate-500 font-medium">
           <p>© 2026 Skyline Living. All rights reserved.</p>
-          <p className="flex items-center gap-1 text-amber-800 font-semibold">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Bank-Grade Security
-          </p>
+
         </div>
 
       </div>
@@ -128,9 +126,9 @@ export default function LoginPage() {
       {/* Right Section: Luxury Light Login Form */}
       <div className="flex-1 flex items-center justify-center px-4 sm:px-10 lg:px-16 py-12">
         <div className="w-full max-w-md">
-          
+
           <div className="luxury-glass rounded-3xl p-5 sm:p-8 lg:p-10 shadow-xl relative overflow-hidden">
-            
+
             <div className="mb-6">
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                 Sign In

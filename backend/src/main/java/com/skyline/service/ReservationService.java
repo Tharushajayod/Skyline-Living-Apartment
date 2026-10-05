@@ -58,6 +58,7 @@ public class ReservationService {
     }
 
     private final ReservationRefundFactory reservationRefundFactory;
+    private final ApartmentAvailabilityService availabilityService;
 
     public ReservationService(ReservationRepository reservationRepository,
                               ApartmentRepository apartmentRepository,
@@ -70,7 +71,24 @@ public class ReservationService {
                               NotificationSubject notificationSubject) {
         this(reservationRepository, apartmentRepository, appointmentRepository, paymentRepository, paymentPlanRepository,
                 reservationRefundRepository, saleRepository, userService, notificationSubject,
-                new com.skyline.factory.reservation.ReservationRefundFactoryImpl());
+                new com.skyline.factory.reservation.ReservationRefundFactoryImpl(),
+                new ApartmentAvailabilityService(apartmentRepository, reservationRepository, saleRepository));
+    }
+
+    public ReservationService(ReservationRepository reservationRepository,
+                              ApartmentRepository apartmentRepository,
+                              AppointmentRepository appointmentRepository,
+                              PaymentRepository paymentRepository,
+                              PaymentPlanRepository paymentPlanRepository,
+                              ReservationRefundRepository reservationRefundRepository,
+                              SaleRepository saleRepository,
+                              UserService userService,
+                              NotificationSubject notificationSubject,
+                              com.skyline.factory.reservation.ReservationRefundFactory reservationRefundFactory) {
+        this(reservationRepository, apartmentRepository, appointmentRepository, paymentRepository, paymentPlanRepository,
+                reservationRefundRepository, saleRepository, userService, notificationSubject,
+                reservationRefundFactory,
+                new ApartmentAvailabilityService(apartmentRepository, reservationRepository, saleRepository));
     }
 
     @Autowired
@@ -83,7 +101,8 @@ public class ReservationService {
                               SaleRepository saleRepository,
                               UserService userService,
                               NotificationSubject notificationSubject,
-                              com.skyline.factory.reservation.ReservationRefundFactory reservationRefundFactory) {
+                              com.skyline.factory.reservation.ReservationRefundFactory reservationRefundFactory,
+                              ApartmentAvailabilityService availabilityService) {
         this.reservationRepository = reservationRepository;
         this.apartmentRepository = apartmentRepository;
         this.appointmentRepository = appointmentRepository;
@@ -94,6 +113,7 @@ public class ReservationService {
         this.userService = userService;
         this.notificationSubject = notificationSubject;
         this.reservationRefundFactory = reservationRefundFactory;
+        this.availabilityService = availabilityService;
     }
 
     public boolean hasFinancialCommitment(Reservation reservation) {
@@ -569,8 +589,9 @@ public class ReservationService {
     @Transactional
     public ReservationResponse createReservation(UserPrincipal principal, ReservationRequest request) {
         Long aptId = IdParser.parseId(request.getApartmentId());
-        Apartment apartment = apartmentRepository.findById(aptId)
-                .orElseThrow(() -> new ResourceNotFoundException("Apartment not found with id: " + aptId));
+        Apartment apartment = apartmentRepository.findByIdWithLock(aptId)
+                .orElseGet(() -> apartmentRepository.findById(aptId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Apartment not found with id: " + aptId)));
 
         User customer;
         if (principal != null) {
@@ -620,12 +641,17 @@ public class ReservationService {
             }
         }
 
-        // Rule 2: Apartment must be AVAILABLE
+        // Rule 2: Apartment must NOT be SOLD
+        if (apartment.getStatus() == ApartmentStatus.SOLD || availabilityService.isApartmentSold(apartment.getId())) {
+            throw new ConflictException("Apartment is already sold and cannot be reserved.");
+        }
+
+        // Rule 3: Apartment must be AVAILABLE
         if (apartment.getStatus() != ApartmentStatus.AVAILABLE) {
             throw new ConflictException("Apartment is not available for reservation (Current status: " + apartment.getStatus().getDisplayValue() + ")");
         }
 
-        // Rule 3: Prevent duplicate active reservations
+        // Rule 4: Prevent duplicate active reservations
         boolean hasActive = reservationRepository.existsByApartmentIdAndStatusIn(
                 apartment.getId(),
                 Arrays.asList(ReservationStatus.PENDING, ReservationStatus.CONFIRMED)
@@ -651,9 +677,8 @@ public class ReservationService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        // Apartment becomes RESERVED
-        apartment.setStatus(ApartmentStatus.RESERVED);
-        apartmentRepository.save(apartment);
+        // Apartment becomes RESERVED via centralized availability service
+        availabilityService.markReserved(apartment);
 
         Reservation saved = reservationRepository.save(reservation);
 
@@ -1064,34 +1089,8 @@ public class ReservationService {
 
     @Transactional
     public void updateApartmentAvailabilityAfterReservationChange(Long apartmentId) {
-        if (apartmentId == null) {
-            return;
-        }
-
-        Apartment apt = apartmentRepository.findById(apartmentId).orElse(null);
-        if (apt == null) {
-            return;
-        }
-
-        // 1. If apartment is already SOLD, NEVER revert to AVAILABLE
-        if (apt.getStatus() == ApartmentStatus.SOLD) {
-            return;
-        }
-
-        // 2. If a completed Sale exists for this apartment, keep it SOLD
-        if (saleRepository.findByApartmentId(apartmentId).isPresent()) {
-            return;
-        }
-
-        // 3. Verify there are no other active reservations (PENDING or CONFIRMED)
-        boolean hasActive = reservationRepository.existsByApartmentIdAndStatusIn(
-                apartmentId,
-                Arrays.asList(ReservationStatus.PENDING, ReservationStatus.CONFIRMED)
-        );
-
-        if (!hasActive) {
-            apt.setStatus(ApartmentStatus.AVAILABLE);
-            apartmentRepository.save(apt);
+        if (availabilityService != null) {
+            availabilityService.updateApartmentAvailabilityAfterReservationChange(apartmentId);
         }
     }
 

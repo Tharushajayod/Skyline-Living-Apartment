@@ -31,17 +31,16 @@ const typeOptions: { value: string; label: string }[] = [
   { value: 'Penthouse', label: 'Penthouse' },
 ];
 const formTypeOptions = typeOptions.slice(1);
-const formStatusOptions = statusOptions.slice(1);
 
 interface FormState {
-  title: string; buildingName: string; type: ApartmentType; status: ApartmentStatus;
+  title: string; buildingName: string; type: ApartmentType;
   price: string; floor: string; size: string; bedrooms: string; bathrooms: string;
   address: string; city: string; district: string; description: string; yearBuilt: string;
   facilities: string[]; featured: boolean; images: string[]; floorPlanUrl: string;
 }
 
 const emptyForm: FormState = {
-  title: '', buildingName: '', type: '2BR', status: 'Available',
+  title: '', buildingName: '', type: '2BR',
   price: '', floor: '', size: '', bedrooms: '', bathrooms: '',
   address: '', city: 'Colombo', district: '', description: '', yearBuilt: String(new Date().getFullYear()),
   facilities: [], featured: false, images: [], floorPlanUrl: '',
@@ -97,8 +96,77 @@ export default function ManageApartmentsPage() {
     });
   }, [list, search, statusFilter, typeFilter]);
 
+  const currentYear = new Date().getFullYear();
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const yearBuiltOptions = useMemo(() => {
+    const years: { value: string; label: string }[] = [];
+    for (let y = currentYear; y >= 1980; y--) {
+      years.push({ value: String(y), label: String(y) });
+    }
+    if (form.yearBuilt && !years.some(o => o.value === form.yearBuilt)) {
+      years.unshift({ value: form.yearBuilt, label: form.yearBuilt });
+    }
+    return years;
+  }, [currentYear, form.yearBuilt]);
+
+  function validateSingleField(field: keyof FormState, value: any): string {
+    switch (field) {
+      case 'title':
+        if (!value || !String(value).trim()) return 'Title is required';
+        return '';
+      case 'district':
+        if (!value || !String(value).trim()) return 'District is required';
+        return '';
+      case 'price': {
+        if (value === '' || value === null || value === undefined) return 'Price is required';
+        const num = Number(value);
+        if (isNaN(num) || num <= 0) return 'Price must be greater than Rs. 0.';
+        return '';
+      }
+      case 'floor': {
+        if (value === '' || value === null || value === undefined) return 'Floor is required';
+        const num = Number(value);
+        if (isNaN(num) || num < 0) return 'Floor cannot be negative.';
+        if (!Number.isInteger(num)) return 'Floor must be a whole integer.';
+        return '';
+      }
+      case 'size': {
+        if (value === '' || value === null || value === undefined) return 'Size is required';
+        const num = Number(value);
+        if (isNaN(num) || num <= 0) return 'Size must be greater than 0 sqm.';
+        return '';
+      }
+      case 'bedrooms': {
+        if (value === '' || value === null || value === undefined) return 'Bedrooms is required';
+        const num = Number(value);
+        if (isNaN(num) || num < 1) return 'Bedrooms must be at least 1.';
+        if (!Number.isInteger(num)) return 'Bedrooms must be a whole integer.';
+        return '';
+      }
+      case 'bathrooms': {
+        if (value === '' || value === null || value === undefined) return 'Bathrooms is required';
+        const num = Number(value);
+        if (isNaN(num) || num < 1) return 'Bathrooms must be at least 1.';
+        if (!Number.isInteger(num)) return 'Bathrooms must be a whole integer.';
+        return '';
+      }
+      case 'yearBuilt': {
+        if (!value) return 'Year built is required';
+        const num = Number(value);
+        if (isNaN(num) || num < 1980) return 'Year built must be 1980 or later.';
+        if (num > currentYear) return 'Year built cannot be in the future.';
+        return '';
+      }
+      default:
+        return '';
+    }
+  }
+
   function openAdd() {
     setEditing(null);
+    setErrors({});
     setForm(emptyForm);
     setModalOpen(true);
   }
@@ -109,12 +177,13 @@ export default function ManageApartmentsPage() {
       return;
     }
     setEditing(apt);
+    setErrors({});
     setForm({
-      title: apt.title, buildingName: apt.buildingName, type: apt.type, status: apt.status,
+      title: apt.title, buildingName: apt.buildingName, type: apt.type,
       price: String(apt.price), floor: String(apt.floor), size: String(apt.size),
       bedrooms: String(apt.bedrooms), bathrooms: String(apt.bathrooms),
       address: apt.address, city: apt.city, district: apt.district, description: apt.description,
-      yearBuilt: String(apt.yearBuilt), facilities: apt.facilities || [], featured: apt.featured,
+      yearBuilt: String(apt.yearBuilt || currentYear), facilities: apt.facilities || [], featured: apt.featured,
       images: apt.images?.map(i => i.url) || [],
       floorPlanUrl: apt.floorPlanUrl || '',
     });
@@ -123,6 +192,18 @@ export default function ManageApartmentsPage() {
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
+    if (errors[key]) {
+      const fieldError = validateSingleField(key, value);
+      setErrors(prev => {
+        const next = { ...prev };
+        if (fieldError) {
+          next[key] = fieldError;
+        } else {
+          delete next[key];
+        }
+        return next;
+      });
+    }
   }
 
   function toggleFacility(name: string) {
@@ -211,19 +292,50 @@ export default function ManageApartmentsPage() {
   };
 
   async function handleSave() {
-    if (!form.title || !form.price || !form.district) {
-      toast('Please fill in title, price, and district', 'error');
+    const fieldsToValidate: (keyof FormState)[] = [
+      'title', 'district', 'price', 'floor', 'size', 'bedrooms', 'bathrooms', 'yearBuilt'
+    ];
+    const newErrors: Record<string, string> = {};
+    for (const f of fieldsToValidate) {
+      const err = validateSingleField(f, form[f]);
+      if (err) newErrors[f] = err;
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const firstInvalid = fieldsToValidate.find(f => newErrors[f]);
+      if (firstInvalid) {
+        setTimeout(() => {
+          const el = document.getElementById(`apt-field-${firstInvalid}`);
+          if (el) {
+            el.focus();
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 50);
+      }
       return;
     }
+
     const images = form.images.map((url, i) => ({ id: `img-${i + 1}`, url, caption: `Image ${i + 1}` }));
     const base = {
-      title: form.title, buildingName: form.buildingName, type: form.type, status: form.status,
-      price: Number(form.price), floor: Number(form.floor) || 0, size: Number(form.size) || 0,
-      bedrooms: Number(form.bedrooms) || 0, bathrooms: Number(form.bathrooms) || 0,
-      address: form.address, city: form.city, district: form.district, description: form.description,
-      yearBuilt: Number(form.yearBuilt) || new Date().getFullYear(),
-      facilities: form.facilities, featured: form.featured,
-      floorPlanUrl: form.floorPlanUrl, latitude: 1.3, longitude: 103.8,
+      title: form.title.trim(),
+      buildingName: form.buildingName.trim(),
+      type: form.type,
+      price: Number(form.price),
+      floor: Number(form.floor),
+      size: Number(form.size),
+      bedrooms: Number(form.bedrooms),
+      bathrooms: Number(form.bathrooms),
+      address: form.address.trim(),
+      city: form.city.trim(),
+      district: form.district.trim(),
+      description: form.description.trim(),
+      yearBuilt: Number(form.yearBuilt),
+      facilities: form.facilities,
+      featured: form.featured,
+      floorPlanUrl: form.floorPlanUrl,
+      latitude: 1.3,
+      longitude: 103.8,
     };
     try {
       if (editing) {
@@ -237,7 +349,19 @@ export default function ManageApartmentsPage() {
       }
       setModalOpen(false);
     } catch (err: any) {
-      toast(err.message || 'Failed to save apartment', 'error');
+      if (err.validationErrors && typeof err.validationErrors === 'object' && Object.keys(err.validationErrors).length > 0) {
+        setErrors(err.validationErrors);
+        const firstKey = Object.keys(err.validationErrors)[0];
+        setTimeout(() => {
+          const el = document.getElementById(`apt-field-${firstKey}`);
+          if (el) {
+            el.focus();
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 50);
+      } else {
+        toast(err.message || 'Failed to save apartment', 'error');
+      }
     }
   }
 
@@ -260,10 +384,17 @@ export default function ManageApartmentsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header Banner with High-Contrast Amber Add Button */}
-      <div className="flex items-end justify-between flex-wrap gap-4">
+      {/* Header Banner */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-navy-900">Manage Apartments</h1>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
+              SKYLINE APARTMENT MANAGEMENT SYSTEM
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Manage Apartments
+          </h1>
           <p className="text-navy-400 mt-1">{filtered.length} of {list.length} properties</p>
         </div>
         <button
@@ -461,26 +592,105 @@ export default function ManageApartmentsPage() {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
-            <Input label="Title" value={form.title} onChange={e => setField('title', e.target.value)} placeholder="e.g. Skyline Grand Penthouse" />
+            <Input
+              id="apt-field-title"
+              label="Title"
+              value={form.title}
+              error={errors.title}
+              onChange={e => setField('title', e.target.value)}
+            />
           </div>
-          <Input label="Building Name" value={form.buildingName} onChange={e => setField('buildingName', e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <Select label="Type" options={formTypeOptions} value={form.type} onChange={e => setField('type', e.target.value as ApartmentType)} />
-            <Select label="Status" options={formStatusOptions} value={form.status} onChange={e => setField('status', e.target.value as ApartmentStatus)} />
-          </div>
-          <Input label="Price (Rs.)" type="number" value={form.price} onChange={e => setField('price', e.target.value)} />
-          <Input label="Floor" type="number" value={form.floor} onChange={e => setField('floor', e.target.value)} />
-          <Input label="Size (sqm)" type="number" value={form.size} onChange={e => setField('size', e.target.value)} />
-          <Input label="Bedrooms" type="number" value={form.bedrooms} onChange={e => setField('bedrooms', e.target.value)} />
-          <Input label="Bathrooms" type="number" value={form.bathrooms} onChange={e => setField('bathrooms', e.target.value)} />
-          <Input label="Year Built" type="number" value={form.yearBuilt} onChange={e => setField('yearBuilt', e.target.value)} />
+          <Input
+            id="apt-field-buildingName"
+            label="Building Name"
+            value={form.buildingName}
+            onChange={e => setField('buildingName', e.target.value)}
+          />
+          <Select
+            id="apt-field-type"
+            label="Apartment Type"
+            options={formTypeOptions}
+            value={form.type}
+            onChange={e => setField('type', e.target.value as ApartmentType)}
+          />
+          <Input
+            id="apt-field-price"
+            label="Price (Rs.)"
+            type="number"
+            value={form.price}
+            error={errors.price}
+            onChange={e => setField('price', e.target.value)}
+          />
+          <Input
+            id="apt-field-floor"
+            label="Floor"
+            type="number"
+            value={form.floor}
+            error={errors.floor}
+            onChange={e => setField('floor', e.target.value)}
+          />
+          <Input
+            id="apt-field-size"
+            label="Size (sqm)"
+            type="number"
+            value={form.size}
+            error={errors.size}
+            onChange={e => setField('size', e.target.value)}
+          />
+          <Input
+            id="apt-field-bedrooms"
+            label="Bedrooms"
+            type="number"
+            value={form.bedrooms}
+            error={errors.bedrooms}
+            onChange={e => setField('bedrooms', e.target.value)}
+          />
+          <Input
+            id="apt-field-bathrooms"
+            label="Bathrooms"
+            type="number"
+            value={form.bathrooms}
+            error={errors.bathrooms}
+            onChange={e => setField('bathrooms', e.target.value)}
+          />
+          <Select
+            id="apt-field-yearBuilt"
+            label="Year Built"
+            options={yearBuiltOptions}
+            value={form.yearBuilt}
+            error={errors.yearBuilt}
+            onChange={e => setField('yearBuilt', e.target.value)}
+          />
           <div className="sm:col-span-2">
-            <Input label="Address" value={form.address} onChange={e => setField('address', e.target.value)} icon={<MapPin className="w-4 h-4" />} />
+            <Input
+              id="apt-field-address"
+              label="Address"
+              value={form.address}
+              onChange={e => setField('address', e.target.value)}
+              icon={<MapPin className="w-4 h-4" />}
+            />
           </div>
-          <Input label="City" value={form.city} onChange={e => setField('city', e.target.value)} />
-          <Input label="District" value={form.district} onChange={e => setField('district', e.target.value)} />
+          <Input
+            id="apt-field-city"
+            label="City"
+            value={form.city}
+            onChange={e => setField('city', e.target.value)}
+          />
+          <Input
+            id="apt-field-district"
+            label="District"
+            value={form.district}
+            error={errors.district}
+            onChange={e => setField('district', e.target.value)}
+          />
           <div className="sm:col-span-2">
-            <Textarea label="Description" value={form.description} onChange={e => setField('description', e.target.value)} rows={3} />
+            <Textarea
+              id="apt-field-description"
+              label="Description"
+              value={form.description}
+              onChange={e => setField('description', e.target.value)}
+              rows={3}
+            />
           </div>
 
           {/* Apartment Gallery Photos */}
@@ -494,7 +704,7 @@ export default function ManageApartmentsPage() {
               multiple
               className="hidden"
             />
-            <div 
+            <div
               onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-slate-300 hover:border-amber-500 bg-slate-50/60 hover:bg-amber-50/20 rounded-2xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
             >
@@ -543,7 +753,7 @@ export default function ManageApartmentsPage() {
               accept="image/*"
               className="hidden"
             />
-            
+
             {form.floorPlanUrl ? (
               <div className="relative rounded-2xl border border-slate-200 p-3 bg-slate-50 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
@@ -569,7 +779,7 @@ export default function ManageApartmentsPage() {
                 </button>
               </div>
             ) : (
-              <div 
+              <div
                 onClick={() => floorPlanInputRef.current?.click()}
                 className="border-2 border-dashed border-slate-300 hover:border-amber-500 bg-slate-50/60 hover:bg-amber-50/20 rounded-2xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
               >
@@ -599,11 +809,10 @@ export default function ManageApartmentsPage() {
                   key={f}
                   type="button"
                   onClick={() => toggleFacility(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                    form.facilities.includes(f)
-                      ? 'bg-amber-500 text-slate-950 font-bold border-amber-500 shadow-sm'
-                      : 'bg-white text-navy-600 border-navy-200 hover:border-amber-400'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${form.facilities.includes(f)
+                    ? 'bg-amber-500 text-slate-950 font-bold border-amber-500 shadow-sm'
+                    : 'bg-white text-navy-600 border-navy-200 hover:border-amber-400'
+                    }`}
                 >
                   {f}
                 </button>

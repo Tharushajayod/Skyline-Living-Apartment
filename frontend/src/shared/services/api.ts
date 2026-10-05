@@ -8,6 +8,18 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+export class ApiError extends Error {
+  status?: number;
+  validationErrors?: Record<string, string>;
+
+  constructor(message: string, status?: number, validationErrors?: Record<string, string>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.validationErrors = validationErrors;
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options;
   const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
@@ -34,7 +46,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
       ? 'The requested apartment or record could not be found.'
       : "We couldn't complete your request. Please try again.";
     const friendly = getFriendlyErrorMessage(raw, fallback);
-    throw new Error(friendly);
+    throw new ApiError(friendly, response.status, errorData.validationErrors);
   }
 
   return response.json();

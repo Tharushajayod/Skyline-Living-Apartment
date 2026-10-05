@@ -38,17 +38,20 @@ public class ApartmentController {
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Boolean featured,
             @RequestParam(required = false) Boolean includeSold,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(required = false) String sort,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.skyline.security.UserPrincipal principal) {
 
         List<ApartmentResponse> result = apartmentService.searchApartments(
-                search, type, status, district, bedrooms, minPrice, maxPrice, featured, includeSold, sort);
+                search, type, status, district, bedrooms, minPrice, maxPrice, featured, includeSold, sort, principal);
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApartmentResponse> getApartmentById(@PathVariable String id) {
+    public ResponseEntity<ApartmentResponse> getApartmentById(
+            @PathVariable String id,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.skyline.security.UserPrincipal principal) {
         Long numericId = IdParser.parseId(id);
-        ApartmentResponse apartment = apartmentService.getApartmentById(numericId)
+        ApartmentResponse apartment = apartmentService.getApartmentById(numericId, principal)
                 .orElseThrow(() -> new ResourceNotFoundException("Apartment not found with id: " + id));
         return ResponseEntity.ok(apartment);
     }
@@ -79,7 +82,17 @@ public class ApartmentController {
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<ApartmentResponse>> getApartmentsByStatus(@PathVariable ApartmentStatus status) {
+    public ResponseEntity<List<ApartmentResponse>> getApartmentsByStatus(
+            @PathVariable ApartmentStatus status,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.skyline.security.UserPrincipal principal) {
+        if (status == ApartmentStatus.SOLD) {
+            boolean isStaffOrAdmin = principal != null && (
+                    principal.getUser().getRole() == com.skyline.enums.UserRole.STAFF ||
+                    principal.getUser().getRole() == com.skyline.enums.UserRole.ADMIN);
+            if (!isStaffOrAdmin) {
+                return ResponseEntity.ok(List.of());
+            }
+        }
         return ResponseEntity.ok(apartmentService.getApartmentsByStatus(status));
     }
 }

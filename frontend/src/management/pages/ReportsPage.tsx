@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  Download, TrendingUp, Building2, Star, 
+import {
+  Download, TrendingUp, Building2, Star,
   Shield, DollarSign, MapPin, RotateCcw, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '@/shared/contexts/AuthContext';
@@ -49,7 +49,7 @@ export default function ReportsPage() {
           setLiveApartments(apts);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return () => { mounted = false; };
   }, []);
@@ -63,8 +63,8 @@ export default function ReportsPage() {
   const totalUnits = reportsData?.totalApartmentsListed ?? liveApartments.length;
 
   const monthlySales: ChartDataPoint[] = useMemo(() => {
-    return reportsData?.monthlySales && reportsData.monthlySales.length > 0 
-      ? reportsData.monthlySales 
+    return reportsData?.monthlySales && reportsData.monthlySales.length > 0
+      ? reportsData.monthlySales
       : [{ label: 'Current', value: 0 }];
   }, [reportsData]);
 
@@ -117,18 +117,18 @@ export default function ReportsPage() {
     return liveApartments.reduce((acc, apt) => {
       const dist = apt.district || apt.city || 'Colombo Central';
       const existing = acc.find(d => d.district === dist);
-      if (existing) { 
-        existing.count++; 
-        existing.revenue += Number(apt.price) || 0; 
-      } else { 
-        acc.push({ district: dist, count: 1, revenue: Number(apt.price) || 0 }); 
+      if (existing) {
+        existing.count++;
+        existing.revenue += Number(apt.price) || 0;
+      } else {
+        acc.push({ district: dist, count: 1, revenue: Number(apt.price) || 0 });
       }
       return acc;
     }, [] as DistrictStat[])
-    .sort((a, b) => b.revenue - a.revenue);
+      .sort((a, b) => b.revenue - a.revenue);
   }, [reportsData, liveApartments]);
 
-  const handleExport = () => { 
+  const handleExport = () => {
     if (!reportsData) {
       toast('No report data available to export', 'error');
       return;
@@ -169,16 +169,16 @@ export default function ReportsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast('Financial analytics report exported successfully (CSV format)', 'success'); 
+    toast('Financial analytics report exported successfully (CSV format)', 'success');
   };
 
   if (!isAdmin) {
     return (
       <div className="flex items-center justify-center py-24">
-        <EmptyState 
-          icon={<Shield className="w-12 h-12 text-slate-300" />} 
-          title="Administrator Access Required" 
-          description="Business intelligence and deep reporting analytics are restricted to System Administrators only." 
+        <EmptyState
+          icon={<Shield className="w-12 h-12 text-slate-300" />}
+          title="Administrator Access Required"
+          description="Business intelligence and deep reporting analytics are restricted to System Administrators only."
         />
       </div>
     );
@@ -204,17 +204,13 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6 pb-16 w-full relative">
-      
+
       {/* Header Banner */}
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600">
               Executive Business Intelligence
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Realtime Database Aggregation
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -228,15 +224,15 @@ export default function ReportsPage() {
         {/* Filter Controls & Action Button */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0 w-full sm:w-auto">
           <div className="w-full sm:w-44">
-            <Select 
-              value={range} 
-              onChange={(e) => setRange(e.target.value)} 
+            <Select
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
               options={[
-                { value: '3m', label: 'Last 3 Months' }, 
+                { value: '3m', label: 'Last 3 Months' },
                 { value: '6m', label: 'Last 6 Months' },
-                { value: '1y', label: 'Last Year' }, 
+                { value: '1y', label: 'Last Year' },
                 { value: 'all', label: 'All Time' },
-              ]} 
+              ]}
             />
           </div>
           <button
@@ -252,7 +248,7 @@ export default function ReportsPage() {
 
       {/* KPI Cards Grid - 6 Authoritative Financial Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        
+
         {/* 1. Gross Verified Inflow */}
         <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-[0_4px_25px_rgba(15,23,42,0.03)] flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
@@ -371,7 +367,7 @@ export default function ReportsPage() {
 
       {/* Row 1: Sales Volume & Status Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
         {/* Monthly Sales Volume */}
         <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-7 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
@@ -408,7 +404,7 @@ export default function ReportsPage() {
 
       {/* Row 2: Inquiry Categories & Payment Type Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
         {/* Inquiry Categories */}
         <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-7 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
@@ -445,7 +441,7 @@ export default function ReportsPage() {
 
       {/* Row 3: Revenue Trend & Top Performing Districts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
         {/* Revenue Trend Line */}
         <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_rgba(15,23,42,0.03)] p-6 sm:p-7 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
@@ -458,10 +454,10 @@ export default function ReportsPage() {
             </span>
           </div>
           <div className="py-2">
-            <LineChart 
-              data={monthlyRevenueTrend} 
-              height={230} 
-              formatValue={(v) => formatCurrency(v)} 
+            <LineChart
+              data={monthlyRevenueTrend}
+              height={230}
+              formatValue={(v) => formatCurrency(v)}
             />
           </div>
         </div>

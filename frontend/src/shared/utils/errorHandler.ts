@@ -134,7 +134,7 @@ export function getFriendlyErrorMessage(err: unknown, fallback = 'Something went
 
   // 8. Authentication & Authorization
   if (msg.includes('Bad credentials') || msg.includes('Invalid email or password')) {
-    return 'Invalid credentials. Please verify your email and password.';
+    return 'Invalid credentials. Please check your email and password.';
   }
   if (msg.includes('Access is denied') || msg.includes('Forbidden') || msg.includes('403')) {
     return 'You do not have permission to perform this action.';

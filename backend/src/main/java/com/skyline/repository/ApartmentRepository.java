@@ -23,4 +23,8 @@ public interface ApartmentRepository extends JpaRepository<Apartment, Long>, Jpa
 
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT a FROM Apartment a LEFT JOIN FETCH a.images ORDER BY a.id ASC")
     List<Apartment> findAllWithImages();
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT a FROM Apartment a WHERE a.id = :id")
+    Optional<Apartment> findByIdWithLock(@org.springframework.data.repository.query.Param("id") Long id);
 }
