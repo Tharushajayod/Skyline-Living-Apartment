@@ -751,10 +751,6 @@ public class ReservationService {
             throw new BadRequestException("Customer authentication or email required");
         }
 
-        boolean isStaffOrAdmin = principal != null && (
-                principal.getUser().getRole() == UserRole.STAFF ||
-                principal.getUser().getRole() == UserRole.ADMIN);
-
         // Rule 1: A customer must have a COMPLETED viewing appointment before creating a reservation
         Appointment completedAppointment = null;
         if (request.getAppointmentId() != null && !request.getAppointmentId().trim().isEmpty()) {
@@ -919,11 +915,6 @@ public class ReservationService {
         // 8. Distinguish Initiator and Business Logic
         BigDecimal depositAmount = payment.getAmount() != null ? payment.getAmount() : reservation.getReservationFee();
         BigDecimal refundAmount;
-        BigDecimal companyRetained;
-        RefundStatus initialStatus;
-        String initiatorRole;
-        Long initiatedByUserId = principal != null ? principal.getId() : null;
-        String initiatedByName = principal != null ? principal.getUser().getName() : "Customer";
         String notifTitle;
         String notifBody;
         String message;
@@ -936,10 +927,7 @@ public class ReservationService {
             // Rule: Customer MUST receive a 100% refund (companyRetained = 0, refundAmount = originalFee).
             // Backend enforced. Since there is no automatic gateway, status is PENDING_PAYMENT.
             // =========================================================================
-            initiatorRole = principal.getUser().getRole().name();
-            companyRetained = BigDecimal.ZERO;
             refundAmount = depositAmount;
-            initialStatus = RefundStatus.PENDING_PAYMENT;
             notifTitle = "Reservation Cancelled by Management";
             notifBody = "Your reservation for " + aptTitle + " has been cancelled by management. A full refund obligation of Rs. "
                     + refundAmount + " has been created and is awaiting manual payment disbursement.";
@@ -954,10 +942,7 @@ public class ReservationService {
             if (now.isAfter(refundDeadline)) {
                 throw new BadRequestException("REFUND_WINDOW_EXPIRED: The 48-hour refund period has expired for this reservation. Refund deadline was: " + refundDeadline);
             }
-            initiatorRole = "CUSTOMER";
-            companyRetained = null; // Unset / pending review
             refundAmount = null;    // Unset / pending review
-            initialStatus = RefundStatus.PENDING_REVIEW;
             notifTitle = "Reservation Cancellation Requested";
             notifBody = "Your cancellation request for " + aptTitle + " has been submitted and is awaiting administrative review. The final refund amount will be determined upon review.";
             message = "Cancellation request submitted successfully. Awaiting administrative review.";

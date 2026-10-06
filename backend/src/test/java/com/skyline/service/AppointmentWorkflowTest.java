@@ -120,6 +120,8 @@ class AppointmentWorkflowTest {
 
         AppointmentResponse res = appointmentServiceInstance.proposeReschedule(100L, request, staffPrincipal);
 
+        assertNotNull(res);
+        assertEquals(RescheduleStatus.PENDING_CUSTOMER, res.getRescheduleStatus());
         assertEquals(RescheduleStatus.PENDING_CUSTOMER, appointment.getRescheduleStatus());
         assertEquals(LocalDate.now().plusDays(4), appointment.getProposedDate());
         assertEquals("02:00 PM - 03:00 PM", appointment.getProposedTimeSlot());
@@ -151,6 +153,8 @@ class AppointmentWorkflowTest {
 
         AppointmentResponse res = appointmentServiceInstance.acceptReschedule(100L, customerPrincipal);
 
+        assertNotNull(res);
+        assertEquals(AppointmentStatus.APPROVED, res.getStatus());
         assertEquals(newDate, appointment.getDate());
         assertEquals("03:00 PM - 04:00 PM", appointment.getTimeSlot());
         assertEquals(AppointmentStatus.APPROVED, appointment.getStatus());
@@ -166,6 +170,8 @@ class AppointmentWorkflowTest {
 
         AppointmentResponse res = appointmentServiceInstance.completeAppointment(100L, staffPrincipal);
 
+        assertNotNull(res);
+        assertEquals(AppointmentStatus.COMPLETED, res.getStatus());
         assertEquals(AppointmentStatus.COMPLETED, appointment.getStatus());
         verify(notificationSubject).notifyObservers(argThat(event ->
                 event.getRecipient().equals(customer) &&

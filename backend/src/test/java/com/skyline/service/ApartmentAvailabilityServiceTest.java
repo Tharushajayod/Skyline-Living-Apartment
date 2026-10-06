@@ -4,7 +4,6 @@ import com.skyline.entity.Apartment;
 import com.skyline.entity.ApartmentStatus;
 import com.skyline.entity.Sale;
 import com.skyline.entity.User;
-import com.skyline.enums.ReservationStatus;
 import com.skyline.enums.UserRole;
 import com.skyline.enums.UserStatus;
 import com.skyline.exception.ConflictException;
@@ -19,8 +18,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;

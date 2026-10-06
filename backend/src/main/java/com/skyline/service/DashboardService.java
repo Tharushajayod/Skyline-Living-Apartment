@@ -27,8 +27,6 @@ public class DashboardService {
     private final PaymentRepository paymentRepository;
     private final InquiryRepository inquiryRepository;
     private final UserRepository userRepository;
-    private final SaleRepository saleRepository;
-    private final ReservationRefundRepository reservationRefundRepository;
     private final FinancialAnalyticsService financialAnalyticsService;
 
     public DashboardService(ApartmentRepository apartmentRepository,
@@ -37,8 +35,6 @@ public class DashboardService {
                             PaymentRepository paymentRepository,
                             InquiryRepository inquiryRepository,
                             UserRepository userRepository,
-                            SaleRepository saleRepository,
-                            ReservationRefundRepository reservationRefundRepository,
                             FinancialAnalyticsService financialAnalyticsService) {
         this.apartmentRepository = apartmentRepository;
         this.appointmentRepository = appointmentRepository;
@@ -46,8 +42,6 @@ public class DashboardService {
         this.paymentRepository = paymentRepository;
         this.inquiryRepository = inquiryRepository;
         this.userRepository = userRepository;
-        this.saleRepository = saleRepository;
-        this.reservationRefundRepository = reservationRefundRepository;
         this.financialAnalyticsService = financialAnalyticsService;
     }
 

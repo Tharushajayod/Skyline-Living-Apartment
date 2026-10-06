@@ -1,6 +1,5 @@
 package com.skyline.service;
 
-import com.skyline.dto.dashboard.ChartPointDto;
 import com.skyline.dto.dashboard.MonthlyCashflowPointDto;
 import com.skyline.dto.sale.SalesSummaryResponse;
 import com.skyline.entity.ApartmentStatus;
@@ -23,7 +22,6 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)

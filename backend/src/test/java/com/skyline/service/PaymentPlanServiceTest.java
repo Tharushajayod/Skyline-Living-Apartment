@@ -10,7 +10,6 @@ import com.skyline.entity.PaymentPlan;
 import com.skyline.entity.PaymentPlanItem;
 import com.skyline.entity.Reservation;
 import com.skyline.entity.User;
-import com.skyline.enums.PaymentPlanItemStatus;
 import com.skyline.enums.PaymentPlanStatus;
 import com.skyline.enums.PaymentPlanType;
 import com.skyline.enums.PaymentStatus;
@@ -36,7 +35,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;

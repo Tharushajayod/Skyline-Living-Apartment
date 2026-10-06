@@ -27,7 +27,6 @@ public class ReservationRefundFactoryImpl implements ReservationRefundFactory {
             UserPrincipal principal,
             BigDecimal depositAmount) {
 
-        String aptTitle = reservation.getApartment() != null ? reservation.getApartment().getTitle() : "Apartment";
         String customerName = principal != null && principal.getUser() != null ? principal.getUser().getName()
                 : (reservation.getCustomer() != null ? reservation.getCustomer().getName() : "Customer");
         Long customerId = principal != null ? principal.getId()

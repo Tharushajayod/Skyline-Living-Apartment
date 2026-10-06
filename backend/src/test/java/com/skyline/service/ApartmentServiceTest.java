@@ -17,6 +17,7 @@ import com.skyline.security.UserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.jpa.domain.Specification;
@@ -357,7 +358,7 @@ class ApartmentServiceTest {
                 .district("Colombo 01")
                 .build();
 
-        when(apartmentRepository.findAll(any(Specification.class)))
+        when(apartmentRepository.findAll(ArgumentMatchers.<Specification<Apartment>>any()))
                 .thenReturn(Collections.singletonList(apt));
 
         List<ApartmentResponse> results = apartmentService.searchApartments(

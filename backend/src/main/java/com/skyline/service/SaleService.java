@@ -4,19 +4,12 @@ import com.skyline.decorator.sale.BasicSaleStatement;
 import com.skyline.decorator.sale.PaymentPlanScheduleDecorator;
 import com.skyline.decorator.sale.PaymentSummaryDecorator;
 import com.skyline.decorator.sale.SaleStatementComponent;
-import com.skyline.dto.apartment.ApartmentResponse;
-import com.skyline.dto.payment.PaymentPlanItemResponse;
-import com.skyline.dto.payment.PaymentPlanResponse;
-import com.skyline.dto.payment.PaymentResponse;
-import com.skyline.dto.reservation.ReservationResponse;
 import com.skyline.dto.sale.PurchasedApartmentResponse;
 import com.skyline.dto.sale.SaleDetailsResponse;
 import com.skyline.dto.sale.SaleRequest;
 import com.skyline.dto.sale.SaleResponse;
-import com.skyline.dto.user.UserDto;
 import com.skyline.entity.*;
 import com.skyline.enums.NotificationType;
-import com.skyline.enums.PaymentStatus;
 import com.skyline.enums.ReservationStatus;
 import com.skyline.exception.BadRequestException;
 import com.skyline.exception.ConflictException;
@@ -29,13 +22,9 @@ import com.skyline.util.IdParser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
