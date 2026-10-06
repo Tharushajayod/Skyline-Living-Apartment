@@ -39,20 +39,23 @@ export function timeAgo(dateStr: string): string {
   return 'Just now';
 }
 
-export function countdownTo(dateStr: string): { text: string; expired: boolean } {
+export function countdownTo(dateStr?: string | null): { text: string; expired: boolean; remainingSeconds: number } {
+  if (!dateStr || !dateStr.trim()) return { text: 'Not started', expired: false, remainingSeconds: 0 };
   const target = new Date(dateStr).getTime();
+  if (isNaN(target)) return { text: 'Invalid date', expired: true, remainingSeconds: 0 };
   const now = Date.now();
   const diff = target - now;
 
-  if (diff <= 0) return { text: 'Expired', expired: true };
+  if (diff <= 0) return { text: 'Expired', expired: true, remainingSeconds: 0 };
 
+  const remainingSeconds = Math.floor(diff / 1000);
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-  if (days > 0) return { text: `${days}d ${hours}h remaining`, expired: false };
-  if (hours > 0) return { text: `${hours}h ${minutes}m remaining`, expired: false };
-  return { text: `${minutes}m remaining`, expired: false };
+  if (days > 0) return { text: `${days}d ${hours}h remaining`, expired: false, remainingSeconds };
+  if (hours > 0) return { text: `${hours}h ${minutes}m remaining`, expired: false, remainingSeconds };
+  return { text: `${minutes}m remaining`, expired: false, remainingSeconds };
 }
 
 export function initials(name: string): string {
@@ -61,4 +64,5 @@ export function initials(name: string): string {
 
 export * from './dateUtils';
 export * from './errorHandler';
+export * from './reservationTiming';
 

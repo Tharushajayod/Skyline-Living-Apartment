@@ -1177,6 +1177,15 @@ public class PaymentService {
     private void executeDefaultPostVerification(Payment payment, UserPrincipal principal, String verifierName) {
         if (payment.getType() == PaymentType.RESERVATION_FEE && payment.getReservation() != null) {
             Reservation reservation = payment.getReservation();
+            LocalDateTime confirmedAt = payment.getVerifiedAt() != null
+                    ? payment.getVerifiedAt()
+                    : LocalDateTime.now();
+
+            if (reservation.getReservationFeeConfirmedAt() == null) {
+                reservation.setReservationFeeConfirmedAt(confirmedAt);
+                reservation.setExpiresAt(confirmedAt.plusDays(4));
+                reservation.setCancellationDeadline(confirmedAt.plusHours(48));
+            }
             reservation.setStatus(ReservationStatus.CONFIRMED);
             reservationRepository.save(reservation);
         }

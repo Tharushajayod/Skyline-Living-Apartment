@@ -7,7 +7,7 @@ import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
 import EmptyState from '@/shared/components/ui/EmptyState';
 import { useToast } from '@/shared/components/ui/Toast';
 import { reservationService } from '@/shared/services/reservationService';
-import { formatCurrency, formatDate, countdownTo } from '@/shared/utils/format';
+import { formatCurrency, formatDate, countdownTo, getReservationHoldTiming } from '@/shared/utils/format';
 import type { Reservation, ReservationStatus } from '@/shared/types';
 import ReservationDetailsModal from '@/management/components/ReservationDetailsModal';
 import ReservationCancellationModal from '@/management/components/ReservationCancellationModal';
@@ -16,7 +16,7 @@ type FilterTab = 'All' | 'Pending' | 'Confirmed' | 'Expired' | 'Cancelled' | 'Co
 
 const filterTabs: { id: FilterTab; label: string }[] = [
   { id: 'All', label: 'All Holds' },
-  { id: 'Pending', label: 'Pending Hold' },
+  { id: 'Pending', label: 'Awaiting Fee' },
   { id: 'Confirmed', label: 'Confirmed' },
   { id: 'Expired', label: 'Expired' },
   { id: 'Cancelled', label: 'Cancelled' },
@@ -62,8 +62,9 @@ export default function ManageReservationsPage() {
     expired: list.filter(r => r.status === 'Expired').length,
     cancelled: list.filter(r => r.status === 'Cancelled').length,
     urgent: list.filter(r => {
-      const cd = countdownTo(r.expiresAt);
-      return !cd.expired && (cd.text.includes('m remaining') || (cd.text.includes('h ') && !cd.text.includes('d')));
+      if (r.status !== 'Confirmed') return false;
+      const hold = getReservationHoldTiming(r);
+      return hold.isActive && !hold.isExpired && hold.remainingSeconds > 0 && hold.remainingSeconds <= 86400;
     }).length,
   }), [list]);
 
@@ -229,11 +230,12 @@ export default function ManageReservationsPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((r) => {
-                  const cd = countdownTo(r.expiresAt);
+                  const holdTiming = getReservationHoldTiming(r);
                   const isExpiringSoon =
-                    !cd.expired &&
-                    (cd.text.includes('m remaining') ||
-                      (cd.text.includes('h ') && !cd.text.includes('d')));
+                    r.status === 'Confirmed' &&
+                    holdTiming.isActive &&
+                    !holdTiming.isExpired &&
+                    holdTiming.remainingSeconds <= 86400;
 
                   return (
                     <tr
@@ -308,7 +310,7 @@ export default function ManageReservationsPage() {
                       <td className="px-4 py-3.5 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <Badge variant={statusToVariant(r.status)} size="sm" dot>
-                            {r.status}
+                            {r.status === 'Pending' ? 'Awaiting Fee' : (r.status === 'Confirmed' ? '4-Day Hold' : r.status)}
                           </Badge>
                           {r.hasPaymentCommitment ? (
                             <span className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1 whitespace-nowrap">
@@ -316,7 +318,12 @@ export default function ManageReservationsPage() {
                               <span>Protected</span>
                             </span>
                           ) : r.status === 'Pending' ? (
-                            cd.expired ? (
+                            <span className="text-[10px] text-amber-700 font-medium flex items-center gap-1 whitespace-nowrap">
+                              <Clock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                              <span>Fee Not Confirmed</span>
+                            </span>
+                          ) : r.status === 'Confirmed' ? (
+                            holdTiming.isExpired ? (
                               <span className="text-[10px] font-bold text-rose-600 flex items-center gap-1 whitespace-nowrap">
                                 <Clock className="w-2.5 h-2.5 text-rose-500 shrink-0" />
                                 <span>Hold Expired</span>
@@ -324,23 +331,18 @@ export default function ManageReservationsPage() {
                             ) : isExpiringSoon ? (
                               <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 animate-pulse flex items-center gap-1 whitespace-nowrap">
                                 <AlertTriangle className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-                                <span>{cd.text}</span>
+                                <span>{holdTiming.countdownText}</span>
                               </span>
                             ) : (
                               <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1 whitespace-nowrap">
                                 <Clock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                <span>{cd.text}</span>
+                                <span>{holdTiming.countdownText}</span>
                               </span>
                             )
                           ) : r.status === 'Expired' ? (
                             <span className="text-[10px] text-rose-600 font-medium flex items-center gap-1 whitespace-nowrap">
                               <Clock className="w-2.5 h-2.5 text-rose-400 shrink-0" />
-                              <span>Expired {formatDate(r.expiresAt)}</span>
-                            </span>
-                          ) : r.status === 'Confirmed' ? (
-                            <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-1 whitespace-nowrap">
-                              <Check className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
-                              <span>Hold Verified</span>
+                              <span>Expired {formatDate(r.holdExpiresAt || r.expiresAt || r.createdAt)}</span>
                             </span>
                           ) : (
                             <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">

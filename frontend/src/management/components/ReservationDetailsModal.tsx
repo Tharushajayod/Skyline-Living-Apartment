@@ -24,7 +24,7 @@ import Modal from '@/shared/components/ui/Modal';
 import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
 import Button from '@/shared/components/ui/Button';
 import { reservationService } from '@/shared/services/reservationService';
-import { formatCurrency, formatDate, getFriendlyErrorMessage } from '@/shared/utils/format';
+import { formatCurrency, formatDate, formatDateTime, getFriendlyErrorMessage, getReservationHoldTiming, getReservationCancellationTiming } from '@/shared/utils/format';
 import type { ReservationDetails } from '@/shared/types';
 import { useAuth } from '@/shared/contexts/AuthContext';
 import CustomerReservationCancelModal from '@/client/components/CustomerReservationCancelModal';
@@ -140,6 +140,9 @@ export default function ReservationDetailsModal({
   const pmt = details?.payment;
   const refund = details?.refund;
 
+  const holdTiming = getReservationHoldTiming(res);
+  const cancelTiming = getReservationCancellationTiming(res, details);
+
   const apartmentImage =
     apt?.images && apt.images.length > 0
       ? apt.images[0].url
@@ -190,7 +193,7 @@ export default function ReservationDetailsModal({
                       <ShieldCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       <span>Cancellation unavailable ({res.paymentCommitmentReason || 'payment commitment active'})</span>
                     </span>
-                  ) : details?.refundEligible && !isRefundExpired ? (
+                  ) : cancelTiming.isEligible && !cancelTiming.isExpired ? (
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
@@ -203,12 +206,12 @@ export default function ReservationDetailsModal({
                   ) : (
                     <span
                       className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1.5"
-                      title={details?.refundDeadline ? `Refund deadline was ${formatDate(details.refundDeadline)}` : 'The 48-hour refund window has expired.'}
+                      title={cancelTiming.exactDeadlineText ? `Cancellation deadline was ${cancelTiming.exactDeadlineText}` : 'The 48-hour cancellation window has expired.'}
                     >
                       <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>
                         48-hour refund period expired
-                        {details?.refundDeadline ? ` (${formatDate(details.refundDeadline)})` : ''}
+                        {cancelTiming.exactDeadlineText ? ` (${cancelTiming.exactDeadlineText})` : ''}
                       </span>
                     </span>
                   )
@@ -278,7 +281,11 @@ export default function ReservationDetailsModal({
                 </h2>
                 <p className="text-xs text-slate-300 flex items-center gap-2">
                   <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                  Hold Created on {formatDate(res.createdAt)} • Expiry: {formatDate(res.expiresAt)}
+                  {res.status === 'Pending' ? (
+                    <span>Hold Requested on {formatDate(res.createdAt)} • 4-day hold begins upon fee confirmation</span>
+                  ) : (
+                    <span>Fee Confirmed {formatDate(res.reservationFeeConfirmedAt || res.createdAt)} • Hold Expiry: {formatDate(res.holdExpiresAt || res.expiresAt)}</span>
+                  )}
                 </p>
               </div>
 
@@ -323,17 +330,31 @@ export default function ReservationDetailsModal({
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                  <span className="text-slate-500 font-medium">Hold Placed At</span>
+                  <span className="text-slate-500 font-medium">Request Placed At</span>
                   <span className="font-semibold text-slate-800">{formatDate(res.createdAt)}</span>
                 </div>
                 <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                  <span className="text-slate-500 font-medium">Expiry Deadline</span>
-                  <span className="font-semibold text-slate-800">{formatDate(res.expiresAt)}</span>
+                  <span className="text-slate-500 font-medium">Fee Confirmed At</span>
+                  <span className="font-semibold text-slate-800">
+                    {res.reservationFeeConfirmedAt ? formatDateTime(res.reservationFeeConfirmedAt) : 'Pending Confirmation'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center py-1 border-b border-slate-50">
-                  <span className="text-slate-500 font-medium">Current Hold Status</span>
+                  <span className="text-slate-500 font-medium">4-Day Hold Expiry</span>
+                  <span className="font-semibold text-slate-800">
+                    {res.status === 'Confirmed' ? (holdTiming.exactExpiryText || 'Active') : 'Starts after fee confirmation'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">48h Cancellation Deadline</span>
+                  <span className="font-semibold text-slate-800">
+                    {res.status === 'Confirmed' ? (cancelTiming.exactDeadlineText || 'Expired') : 'Starts after fee confirmation'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-slate-50">
+                  <span className="text-slate-500 font-medium">Current Status</span>
                   <Badge variant={statusToVariant(res.status)} size="sm" dot>
-                    {res.status}
+                    {res.status === 'Confirmed' ? `Confirmed (${holdTiming.countdownText})` : (res.status === 'Pending' ? 'Awaiting Fee' : res.status)}
                   </Badge>
                 </div>
               </div>

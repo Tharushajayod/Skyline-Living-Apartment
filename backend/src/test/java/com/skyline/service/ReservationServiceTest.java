@@ -1,6 +1,8 @@
 package com.skyline.service;
 
 import com.skyline.dto.reservation.ReservationRequest;
+import com.skyline.dto.reservation.ReservationResponse;
+import com.skyline.dto.reservation.ReservationStatusUpdate;
 import com.skyline.entity.Apartment;
 import com.skyline.entity.ApartmentStatus;
 import com.skyline.entity.Reservation;
@@ -27,6 +29,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -213,11 +216,12 @@ class ReservationServiceTest {
                 .id(50L)
                 .apartment(reservedApartment)
                 .customer(customer)
-                .status(ReservationStatus.PENDING)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(LocalDateTime.now().minusDays(5))
                 .expiresAt(LocalDateTime.now().minusHours(1))
                 .build();
 
-        when(reservationRepository.findByStatusAndExpiresAtBefore(eq(ReservationStatus.PENDING), any()))
+        when(reservationRepository.findByStatusAndExpiresAtBefore(eq(ReservationStatus.CONFIRMED), any()))
                 .thenReturn(Collections.singletonList(expiredReservation));
         when(apartmentRepository.findById(2L)).thenReturn(Optional.of(reservedApartment));
         when(reservationRepository.existsByApartmentIdAndStatusIn(eq(2L), any())).thenReturn(false);
@@ -243,11 +247,12 @@ class ReservationServiceTest {
                 .id(51L)
                 .apartment(soldApartment)
                 .customer(customer)
-                .status(ReservationStatus.PENDING)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(LocalDateTime.now().minusDays(5))
                 .expiresAt(LocalDateTime.now().minusHours(1))
                 .build();
 
-        when(reservationRepository.findByStatusAndExpiresAtBefore(eq(ReservationStatus.PENDING), any()))
+        when(reservationRepository.findByStatusAndExpiresAtBefore(eq(ReservationStatus.CONFIRMED), any()))
                 .thenReturn(Collections.singletonList(expiredReservation));
         when(apartmentRepository.findById(3L)).thenReturn(Optional.of(soldApartment));
 
@@ -369,18 +374,19 @@ class ReservationServiceTest {
                 .id(63L)
                 .apartment(availableApartment)
                 .customer(customer)
-                .status(ReservationStatus.PENDING)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(LocalDateTime.now().minusDays(5))
                 .expiresAt(LocalDateTime.now().minusHours(2))
                 .build();
 
-        when(reservationRepository.findByStatusAndExpiresAtBefore(eq(ReservationStatus.PENDING), any()))
+        when(reservationRepository.findByStatusAndExpiresAtBefore(eq(ReservationStatus.CONFIRMED), any()))
                 .thenReturn(List.of(rsvWithPlan));
         when(paymentPlanRepository.existsByReservationIdAndStatusIn(eq(63L), any())).thenReturn(true);
 
         reservationService.expireOverdueReservations();
 
-        // Must remain PENDING and NOT set to EXPIRED
-        assertEquals(ReservationStatus.PENDING, rsvWithPlan.getStatus());
+        // Must remain CONFIRMED and NOT set to EXPIRED
+        assertEquals(ReservationStatus.CONFIRMED, rsvWithPlan.getStatus());
         verify(reservationRepository, never()).save(rsvWithPlan);
     }
 
@@ -1393,5 +1399,335 @@ class ReservationServiceTest {
         assertFalse(res4.isFinanciallyClosed());
         assertEquals(BigDecimal.ZERO, res4.getRemainingBalance());
         assertEquals(100, res4.getSettlementProgress());
+    }
+
+    // =========================================================================
+    // Comprehensive Reservation Timing & 48-Hour Cancellation Window Tests (12 Scenarios)
+    // =========================================================================
+
+    @Test
+    void testScenario1_ReservationCreatedFeeNotPaid_NoHoldStarts() {
+        // 1. Reservation created but fee not paid: no 4-day hold starts.
+        when(apartmentRepository.findById(1L)).thenReturn(Optional.of(availableApartment));
+        com.skyline.entity.Appointment compAppt = com.skyline.entity.Appointment.builder()
+                .id(5L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(AppointmentStatus.COMPLETED)
+                .build();
+        when(appointmentRepository.findFirstByApartmentIdAndCustomerIdAndStatusOrderByDateDesc(eq(1L), eq(10L), eq(AppointmentStatus.COMPLETED)))
+                .thenReturn(Optional.of(compAppt));
+        when(reservationRepository.existsByApartmentIdAndStatusIn(eq(1L), any())).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReservationRequest request = new ReservationRequest("APT-001", new BigDecimal("500000"), null, null, null);
+        ReservationResponse response = reservationService.createReservation(customerPrincipal, request);
+
+        assertNotNull(response);
+        assertEquals(ReservationStatus.PENDING, response.getStatus());
+        assertNull(response.getReservationFeeConfirmedAt());
+        assertNull(response.getHoldExpiresAt());
+        assertNull(response.getCancellationDeadline());
+        assertEquals("", response.getExpiresAt());
+        assertFalse(response.isHoldActive());
+        assertFalse(response.isCancellationEligible());
+        assertEquals(0L, response.getRemainingHoldSeconds());
+        assertEquals(0L, response.getRemainingCancellationSeconds());
+    }
+
+    @Test
+    void testScenario2_CreatedTodayFeePaidTomorrow_TimersStartFromFeeConfirmation() {
+        // 2. Reservation created today but fee paid tomorrow: both timers start from tomorrow's confirmation timestamp.
+        LocalDateTime createdTime = LocalDateTime.of(2026, 10, 1, 10, 0, 0);
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 2, 15, 0, 0);
+
+        Reservation reservation = Reservation.builder()
+                .id(101L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.PENDING)
+                .createdAt(createdTime)
+                .expiresAt(null)
+                .build();
+
+        when(reservationRepository.findById(101L)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Admin confirms reservation fee
+        reservationService.setClock(Clock.fixed(feeConfirmedTime.atZone(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault()));
+        ReservationResponse response = reservationService.updateStatus(101L, new ReservationStatusUpdate(ReservationStatus.CONFIRMED), adminPrincipal);
+
+        assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
+        assertEquals(feeConfirmedTime.format(DateTimeFormatter.ISO_DATE_TIME), response.getReservationFeeConfirmedAt());
+        // 4-day hold must be Oct 2 15:00 + 4 days = Oct 6 15:00 (NOT Oct 1 + 4 days = Oct 5)
+        assertEquals(feeConfirmedTime.plusDays(4).format(DateTimeFormatter.ISO_DATE_TIME), response.getHoldExpiresAt());
+        // 48h cancellation must be Oct 2 15:00 + 48 hours = Oct 4 15:00 (NOT Oct 1 + 48 hours = Oct 3)
+        assertEquals(feeConfirmedTime.plusHours(48).format(DateTimeFormatter.ISO_DATE_TIME), response.getCancellationDeadline());
+    }
+
+    @Test
+    void testScenario3_FeeConfirmed_HoldExpiryEqualsConfirmationPlus4Days() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 5, 12, 0, 0);
+        Reservation reservation = Reservation.builder()
+                .id(102L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CONFIRMED)
+                .createdAt(LocalDateTime.of(2026, 10, 4, 12, 0, 0))
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        assertEquals(feeConfirmedTime.plusDays(4), reservation.getHoldExpiresAt());
+        ReservationResponse response = ReservationResponse.fromEntity(reservation);
+        assertEquals(feeConfirmedTime.plusDays(4).format(DateTimeFormatter.ISO_DATE_TIME), response.getHoldExpiresAt());
+    }
+
+    @Test
+    void testScenario4_FeeConfirmed_CancellationDeadlineEqualsConfirmationPlus48Hours() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 5, 12, 0, 0);
+        Reservation reservation = Reservation.builder()
+                .id(103L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CONFIRMED)
+                .createdAt(LocalDateTime.of(2026, 10, 4, 12, 0, 0))
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        assertEquals(feeConfirmedTime.plusHours(48), reservation.getCancellationDeadline());
+        ReservationResponse response = ReservationResponse.fromEntity(reservation);
+        assertEquals(feeConfirmedTime.plusHours(48).format(DateTimeFormatter.ISO_DATE_TIME), response.getCancellationDeadline());
+    }
+
+    @Test
+    void testScenario5_At47Hours59Minutes_CancellationStillEligible() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 5, 10, 0, 0);
+        Reservation reservation = Reservation.builder()
+                .id(104L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .customerName("Sarah Chen")
+                .customerEmail("sarah.chen@email.com")
+                .reservationFee(new BigDecimal("2500000"))
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        Payment payment = createVerifiedPayment(reservation, feeConfirmedTime);
+        when(reservationRepository.findById(104L)).thenReturn(Optional.of(reservation));
+        when(paymentRepository.findByReservationId(104L)).thenReturn(List.of(payment));
+        when(reservationRefundRepository.existsByReservationId(104L)).thenReturn(false);
+        when(saleRepository.findByApartmentId(1L)).thenReturn(Optional.empty());
+        when(apartmentRepository.findById(1L)).thenReturn(Optional.of(availableApartment));
+        when(reservationRepository.existsByApartmentIdAndStatusIn(eq(1L), any())).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(reservationRefundRepository.save(any(ReservationRefund.class))).thenAnswer(inv -> {
+            ReservationRefund r = inv.getArgument(0);
+            r.setId(991L);
+            return r;
+        });
+
+        // 47 hours and 59 minutes after fee confirmation
+        Instant currentInstant = feeConfirmedTime.plusHours(47).plusMinutes(59).atZone(ZoneId.systemDefault()).toInstant();
+        reservationService.setClock(Clock.fixed(currentInstant, ZoneId.systemDefault()));
+
+        ReservationRefundResponse refundResponse = reservationService.cancelReservationWithRefund(104L, null, customerPrincipal);
+        assertNotNull(refundResponse);
+        assertEquals("CANCELLED", refundResponse.getReservationStatus());
+        assertEquals(Boolean.TRUE, refundResponse.getRefundEligible());
+    }
+
+    @Test
+    void testScenario6_After48Hours_CancellationRejected() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 5, 10, 0, 0);
+        Reservation reservation = Reservation.builder()
+                .id(105L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        Payment payment = createVerifiedPayment(reservation, feeConfirmedTime);
+        when(reservationRepository.findById(105L)).thenReturn(Optional.of(reservation));
+        when(paymentRepository.findByReservationId(105L)).thenReturn(List.of(payment));
+        when(reservationRefundRepository.existsByReservationId(105L)).thenReturn(false);
+        when(saleRepository.findByApartmentId(1L)).thenReturn(Optional.empty());
+
+        // 48 hours and 1 minute after fee confirmation
+        Instant currentInstant = feeConfirmedTime.plusHours(48).plusMinutes(1).atZone(ZoneId.systemDefault()).toInstant();
+        reservationService.setClock(Clock.fixed(currentInstant, ZoneId.systemDefault()));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                reservationService.cancelReservationWithRefund(105L, null, customerPrincipal)
+        );
+        assertTrue(ex.getMessage().contains("REFUND_WINDOW_EXPIRED"));
+    }
+
+    @Test
+    void testScenario7_Between48HoursAnd4Days_HoldActiveAndCancellationExpired() {
+        // After 48 hours (e.g. 60 hours in) but before 4 days (96 hours):
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 1, 10, 0, 0);
+        LocalDateTime checkTime = feeConfirmedTime.plusHours(60); // 2.5 days
+
+        Reservation reservation = Reservation.builder()
+                .id(106L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        ReservationResponse response = ReservationResponse.fromEntity(reservation, checkTime);
+
+        assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
+        assertTrue(response.isHoldActive(), "4-day reservation hold must still be active");
+        assertTrue(response.getRemainingHoldSeconds() > 0, "Hold must have positive remaining seconds");
+        assertFalse(response.isCancellationEligible(), "Cancellation window must be expired");
+        assertEquals(0L, response.getRemainingCancellationSeconds(), "Cancellation remaining seconds must be 0");
+    }
+
+    @Test
+    void testScenario8_After4Days_ReservationHoldExpires() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.now().minusDays(5);
+        Reservation expiredReservation = Reservation.builder()
+                .id(107L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        when(reservationRepository.findByStatusAndExpiresAtBefore(eq(ReservationStatus.CONFIRMED), any()))
+                .thenReturn(Collections.singletonList(expiredReservation));
+        when(apartmentRepository.findById(1L)).thenReturn(Optional.of(availableApartment));
+        when(reservationRepository.existsByApartmentIdAndStatusIn(eq(1L), any())).thenReturn(false);
+
+        reservationService.expireOverdueReservations();
+
+        assertEquals(ReservationStatus.EXPIRED, expiredReservation.getStatus());
+        assertEquals(ApartmentStatus.AVAILABLE, availableApartment.getStatus());
+        verify(reservationRepository).save(expiredReservation);
+    }
+
+    @Test
+    void testScenario9_CancelledReservation_CountdownsStop() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 1, 10, 0, 0);
+        Reservation cancelledReservation = Reservation.builder()
+                .id(108L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CANCELLED)
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        ReservationResponse response = ReservationResponse.fromEntity(cancelledReservation, feeConfirmedTime.plusHours(10));
+
+        assertEquals(ReservationStatus.CANCELLED, response.getStatus());
+        assertFalse(response.isHoldActive());
+        assertFalse(response.isCancellationEligible());
+        assertEquals(0L, response.getRemainingHoldSeconds());
+        assertEquals(0L, response.getRemainingCancellationSeconds());
+    }
+
+    @Test
+    void testScenario10_IdempotentConfirmation_DeadlinesDoNotReset() {
+        LocalDateTime originalConfirmedAt = LocalDateTime.of(2026, 10, 1, 12, 0, 0);
+        LocalDateTime originalHoldExpiresAt = originalConfirmedAt.plusDays(4);
+        LocalDateTime originalCancellationDeadline = originalConfirmedAt.plusHours(48);
+
+        Reservation reservation = Reservation.builder()
+                .id(109L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(originalConfirmedAt)
+                .expiresAt(originalHoldExpiresAt)
+                .cancellationDeadline(originalCancellationDeadline)
+                .build();
+
+        when(reservationRepository.findById(109L)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Subsequent status update (e.g. re-confirmation or status touch) must preserve original timestamps
+        reservationService.setClock(Clock.fixed(originalConfirmedAt.plusDays(1).atZone(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault()));
+        ReservationResponse response = reservationService.updateStatus(109L, new ReservationStatusUpdate(ReservationStatus.CONFIRMED), adminPrincipal);
+
+        assertEquals(originalConfirmedAt.format(DateTimeFormatter.ISO_DATE_TIME), response.getReservationFeeConfirmedAt());
+        assertEquals(originalHoldExpiresAt.format(DateTimeFormatter.ISO_DATE_TIME), response.getHoldExpiresAt());
+        assertEquals(originalCancellationDeadline.format(DateTimeFormatter.ISO_DATE_TIME), response.getCancellationDeadline());
+    }
+
+    @Test
+    void testScenario11_AdminAndCustomerViews_ExposeIdenticalAuthoritativeDeadlines() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 3, 14, 0, 0);
+        Reservation reservation = Reservation.builder()
+                .id(110L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .customerName("Sarah Chen")
+                .customerEmail("sarah.chen@email.com")
+                .reservationFee(new BigDecimal("1000000"))
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        when(reservationRepository.findById(110L)).thenReturn(Optional.of(reservation));
+        when(paymentRepository.findByReservationId(110L)).thenReturn(Collections.emptyList());
+        when(saleRepository.findByApartmentId(1L)).thenReturn(Optional.empty());
+        when(paymentPlanRepository.findByReservationIdOrderByCreatedAtDesc(110L)).thenReturn(Collections.emptyList());
+        when(reservationRefundRepository.findByReservationId(110L)).thenReturn(Optional.empty());
+
+        com.skyline.dto.reservation.ReservationDetailsResponse detailsView = reservationService.getReservationDetails(110L);
+        ReservationResponse responseView = ReservationResponse.fromEntity(reservation);
+
+        assertNotNull(detailsView);
+        assertNotNull(responseView);
+        assertEquals(detailsView.getReservationFeeConfirmedAt(), responseView.getReservationFeeConfirmedAt());
+        assertEquals(detailsView.getHoldExpiresAt(), responseView.getHoldExpiresAt());
+        assertEquals(detailsView.getCancellationDeadline(), responseView.getCancellationDeadline());
+        assertEquals(feeConfirmedTime.plusDays(4).format(DateTimeFormatter.ISO_DATE_TIME), detailsView.getHoldExpiresAt());
+        assertEquals(feeConfirmedTime.plusHours(48).format(DateTimeFormatter.ISO_DATE_TIME), detailsView.getCancellationDeadline());
+    }
+
+    @Test
+    void testScenario12_BackendCancellationEndpoint_RejectsLateCancellationByCustomer() {
+        LocalDateTime feeConfirmedTime = LocalDateTime.of(2026, 10, 1, 10, 0, 0);
+        Reservation reservation = Reservation.builder()
+                .id(111L)
+                .apartment(availableApartment)
+                .customer(customer)
+                .status(ReservationStatus.CONFIRMED)
+                .reservationFeeConfirmedAt(feeConfirmedTime)
+                .expiresAt(feeConfirmedTime.plusDays(4))
+                .cancellationDeadline(feeConfirmedTime.plusHours(48))
+                .build();
+
+        when(reservationRepository.findById(111L)).thenReturn(Optional.of(reservation));
+
+        // Attempting to cancel via updateStatus after 48 hours have elapsed (e.g., 50 hours later)
+        Instant lateInstant = feeConfirmedTime.plusHours(50).atZone(ZoneId.systemDefault()).toInstant();
+        reservationService.setClock(Clock.fixed(lateInstant, ZoneId.systemDefault()));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                reservationService.updateStatus(111L, new ReservationStatusUpdate(ReservationStatus.CANCELLED), customerPrincipal)
+        );
+        assertTrue(ex.getMessage().contains("48-hour cancellation window has expired"));
     }
 }

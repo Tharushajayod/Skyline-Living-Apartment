@@ -754,7 +754,7 @@ export default function ApartmentDetailsPage() {
                   </span>
                 ) : isReserved ? (
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Currently in 48-Hr Hold
+                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Currently in Reservation Hold
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
@@ -834,7 +834,7 @@ export default function ApartmentDetailsPage() {
                       }`}
                   >
                     <FileText className={`w-4 h-4 ${hasCompletedTour ? 'text-white' : 'text-amber-600'}`} />
-                    <span>Place 48-Hour Reservation Hold</span>
+                    <span>Place 4-Day Reservation Hold</span>
                   </button>
 
                   <div className="flex gap-2.5 pt-1">
@@ -858,11 +858,6 @@ export default function ApartmentDetailsPage() {
                 </div>
               )}
 
-              {/* Social Proof info */}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
-                <Eye className="w-3.5 h-3.5 text-amber-600" />
-                <span>Verified Skyline Living Residence</span>
-              </div>
             </div>
 
             {/* Specifications Card */}
@@ -988,10 +983,10 @@ export default function ApartmentDetailsPage() {
           <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-1 shadow-2xs">
             <p className="font-bold text-slate-900 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-amber-600" />
-              <span>48-Hour Hold Protocol:</span>
+              <span>4-Day Hold Protocol:</span>
             </p>
             <p className="text-slate-600 leading-relaxed text-[11px]">
-              Once initiated, the unit is held exclusively for you to upload the deposit payment slip for verification.
+              Upon reservation fee confirmation, your 4-day exclusive hold begins. You also receive an authoritative 48-hour cancellation refund window from the moment payment is verified.
             </p>
           </div>
         </div>

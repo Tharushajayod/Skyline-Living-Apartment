@@ -41,8 +41,8 @@ export default function CustomerReservationCancelModal({
 
   // Authoritative values from details
   const depositAmount = details.refundAmount || res?.reservationFee || (pmt?.amount ? Number(pmt.amount) : 0);
-  const paymentTime = details.successfulPaymentTime || pmt?.verifiedAt || pmt?.uploadedAt || res?.createdAt;
-  const refundDeadline = details.refundDeadline || (paymentTime ? new Date(new Date(paymentTime).getTime() + 48 * 3600 * 1000).toISOString() : null);
+  const paymentTime = details.reservationFeeConfirmedAt || res?.reservationFeeConfirmedAt || details.successfulPaymentTime || pmt?.verifiedAt;
+  const refundDeadline = details.cancellationDeadline || res?.cancellationDeadline || details.refundDeadline || (paymentTime ? new Date(new Date(paymentTime).getTime() + 48 * 3600 * 1000).toISOString() : null);
 
   // Live countdown state
   const [countdown, setCountdown] = useState<string>('');

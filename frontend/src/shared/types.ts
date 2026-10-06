@@ -128,6 +128,14 @@ export interface Reservation {
   canConfirmRefund?: boolean;
   settlementProgress?: number;
   displayStatus?: string;
+  // Authoritative reservation timing fields
+  reservationFeeConfirmedAt?: string | null;
+  holdExpiresAt?: string | null;
+  cancellationDeadline?: string | null;
+  holdActive?: boolean;
+  cancellationEligible?: boolean;
+  remainingHoldSeconds?: number;
+  remainingCancellationSeconds?: number;
 }
 
 export interface PurchasedApartment {
@@ -239,6 +247,13 @@ export interface ReservationDetails {
   remainingRefundSeconds?: number;
   successfulPaymentTime?: string | null;
   cancellationAllowed?: boolean;
+  holdActive?: boolean;
+  holdExpiresAt?: string | null;
+  remainingHoldSeconds?: number;
+  cancellationDeadline?: string | null;
+  cancellationEligible?: boolean;
+  remainingCancellationSeconds?: number;
+  reservationFeeConfirmedAt?: string | null;
 }
 
 export type PaymentType =

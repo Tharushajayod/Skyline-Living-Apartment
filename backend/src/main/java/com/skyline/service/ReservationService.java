@@ -576,6 +576,13 @@ public class ReservationService {
                 .remainingRefundSeconds(eligibility != null ? eligibility.getRemainingSeconds() : 0L)
                 .successfulPaymentTime(eligibility != null ? eligibility.getSuccessfulPaymentTime() : null)
                 .cancellationAllowed(eligibility != null ? eligibility.isCancellable() : false)
+                .holdActive(resDto != null ? resDto.isHoldActive() : false)
+                .holdExpiresAt(resDto != null ? resDto.getHoldExpiresAt() : null)
+                .remainingHoldSeconds(resDto != null ? resDto.getRemainingHoldSeconds() : 0L)
+                .cancellationDeadline(resDto != null ? resDto.getCancellationDeadline() : null)
+                .cancellationEligible(resDto != null ? resDto.isCancellationEligible() : false)
+                .remainingCancellationSeconds(resDto != null ? resDto.getRemainingCancellationSeconds() : 0L)
+                .reservationFeeConfirmedAt(resDto != null ? resDto.getReservationFeeConfirmedAt() : null)
                 .build();
     }
 
@@ -645,7 +652,21 @@ public class ReservationService {
                     .build();
         }
 
-        // 5. Must have verified reservation payment:
+        // 5. If reservation is still pending payment:
+        if (reservation.getStatus() == ReservationStatus.PENDING) {
+            return RefundEligibilityResponse.builder()
+                    .reservationId(rsvId)
+                    .eligible(false)
+                    .cancellable(false)
+                    .refundAmount(BigDecimal.ZERO)
+                    .reservationFee(fee)
+                    .remainingSeconds(0L)
+                    .refundStatus("Awaiting Fee Confirmation")
+                    .reason("Reservation fee payment has not been confirmed yet. Hold and cancellation windows start after confirmation.")
+                    .build();
+        }
+
+        // 6. Must have verified reservation payment:
         if (primaryPayment == null || primaryPayment.getStatus() != PaymentStatus.VERIFIED) {
             return RefundEligibilityResponse.builder()
                     .reservationId(rsvId)
@@ -659,15 +680,29 @@ public class ReservationService {
                     .build();
         }
 
-        // 6. Determine successful payment time:
-        LocalDateTime paymentTime = primaryPayment.getVerifiedAt() != null 
-                ? primaryPayment.getVerifiedAt() 
-                : primaryPayment.getUploadedAt();
+        // 7. Authoritative successful payment time from fee confirmation
+        LocalDateTime paymentTime = reservation.getReservationFeeConfirmedAt();
+        if (paymentTime == null && primaryPayment != null) {
+            paymentTime = primaryPayment.getVerifiedAt() != null 
+                    ? primaryPayment.getVerifiedAt() 
+                    : primaryPayment.getUploadedAt();
+        }
         if (paymentTime == null) {
-            paymentTime = reservation.getCreatedAt();
+            return RefundEligibilityResponse.builder()
+                    .reservationId(rsvId)
+                    .eligible(false)
+                    .cancellable(false)
+                    .refundAmount(BigDecimal.ZERO)
+                    .reservationFee(fee)
+                    .remainingSeconds(0L)
+                    .refundStatus("Unverified Payment")
+                    .reason("Reservation fee payment confirmation timestamp is not available.")
+                    .build();
         }
 
-        LocalDateTime deadline = paymentTime.plusHours(48);
+        LocalDateTime deadline = reservation.getCancellationDeadline() != null
+                ? reservation.getCancellationDeadline()
+                : paymentTime.plusHours(48);
         LocalDateTime now = getCurrentDateTime();
         boolean isEligible = !now.isAfter(deadline);
         long remainingSeconds = isEligible ? Math.max(0, Duration.between(now, deadline).getSeconds()) : 0L;
@@ -787,8 +822,10 @@ public class ReservationService {
                 .customerEmail(request.getCustomerEmail() != null ? request.getCustomerEmail() : customer.getEmail())
                 .reservationFee(fee)
                 .status(ReservationStatus.PENDING)
-                .expiresAt(LocalDateTime.now().plusDays(4))
-                .createdAt(LocalDateTime.now())
+                .expiresAt(null)
+                .reservationFeeConfirmedAt(null)
+                .cancellationDeadline(null)
+                .createdAt(getCurrentDateTime())
                 .build();
 
         // Apartment becomes RESERVED via centralized availability service
@@ -804,7 +841,7 @@ public class ReservationService {
                 "Your reservation for " + apartment.getTitle()
                         + " has been placed. The reservation fee is 10% of the apartment price ("
                         + fee
-                        + "). Please upload the reservation fee payment proof within 96 hours to confirm."
+                        + "). Please upload the reservation fee payment proof to confirm your reservation. Your 4-day reservation hold will begin once your payment is confirmed."
         ));
 
         return toResponseWithCommitment(saved);
@@ -863,15 +900,20 @@ public class ReservationService {
         }
 
         // 7. 48-Hour Refund Period check
-        // Start timestamp is the successful reservation payment time (verifiedAt, or fallback uploadedAt)
-        LocalDateTime paymentTime = payment.getVerifiedAt() != null 
-                ? payment.getVerifiedAt() 
-                : payment.getUploadedAt();
+        // Start timestamp is the authoritative reservation fee confirmation timestamp
+        LocalDateTime paymentTime = reservation.getReservationFeeConfirmedAt();
+        if (paymentTime == null && payment != null) {
+            paymentTime = payment.getVerifiedAt() != null 
+                    ? payment.getVerifiedAt() 
+                    : payment.getUploadedAt();
+        }
         if (paymentTime == null) {
-            paymentTime = reservation.getCreatedAt();
+            throw new BadRequestException("Reservation fee confirmation timestamp is not available. Cancellation is not allowed.");
         }
 
-        LocalDateTime refundDeadline = paymentTime.plusHours(48);
+        LocalDateTime refundDeadline = reservation.getCancellationDeadline() != null
+                ? reservation.getCancellationDeadline()
+                : paymentTime.plusHours(48);
         LocalDateTime now = getCurrentDateTime();
 
         // 8. Distinguish Initiator and Business Logic
@@ -1312,6 +1354,26 @@ public class ReservationService {
             throw new BadRequestException("Cannot confirm an already " + reservation.getStatus().getDisplayValue() + " reservation.");
         }
 
+        // Enforce 48-hour cancellation deadline if customer cancels a confirmed reservation
+        if (newStatus == ReservationStatus.CANCELLED && reservation.getStatus() == ReservationStatus.CONFIRMED && !isStaffOrAdmin) {
+            LocalDateTime deadline = reservation.getCancellationDeadline() != null
+                    ? reservation.getCancellationDeadline()
+                    : (reservation.getReservationFeeConfirmedAt() != null
+                            ? reservation.getReservationFeeConfirmedAt().plusHours(48)
+                            : null);
+            if (deadline != null && getCurrentDateTime().isAfter(deadline)) {
+                throw new BadRequestException("CANCELLATION_DEADLINE_EXPIRED: The 48-hour cancellation window has expired. Cancellation is not allowed.");
+            }
+        }
+
+        // Set fee confirmation and hold deadlines if transitioning to CONFIRMED
+        if (newStatus == ReservationStatus.CONFIRMED && reservation.getReservationFeeConfirmedAt() == null) {
+            LocalDateTime confirmedAt = getCurrentDateTime();
+            reservation.setReservationFeeConfirmedAt(confirmedAt);
+            reservation.setExpiresAt(confirmedAt.plusDays(4));
+            reservation.setCancellationDeadline(confirmedAt.plusHours(48));
+        }
+
         reservation.setStatus(newStatus);
         Reservation saved = reservationRepository.save(reservation);
 
@@ -1324,7 +1386,7 @@ public class ReservationService {
 
         // Notify customer
         String msg = switch (newStatus) {
-            case CONFIRMED -> "Your reservation for " + reservation.getApartment().getTitle() + " is now CONFIRMED.";
+            case CONFIRMED -> "Your reservation for " + reservation.getApartment().getTitle() + " is now CONFIRMED. Your 4-day reservation hold has started.";
             case CANCELLED -> "Your reservation for " + reservation.getApartment().getTitle() + " has been cancelled.";
             case EXPIRED -> "Your reservation for " + reservation.getApartment().getTitle() + " has expired.";
             default -> "Reservation status updated: " + newStatus.getDisplayValue();
@@ -1342,8 +1404,10 @@ public class ReservationService {
 
     @Transactional
     public void expireOverdueReservations() {
+        // Only confirmed reservations whose 4-day hold has lapsed should expire.
+        // Pending reservations (awaiting reservation fee) do not start the 4-day hold.
         List<Reservation> overdue = reservationRepository.findByStatusAndExpiresAtBefore(
-                ReservationStatus.PENDING, LocalDateTime.now());
+                ReservationStatus.CONFIRMED, getCurrentDateTime());
 
         for (Reservation r : overdue) {
             // Guard: Never expire reservations with active payments or payment plans
@@ -1360,8 +1424,9 @@ public class ReservationService {
             notificationSubject.notifyObservers(new NotificationEvent(
                     r.getCustomer(),
                     NotificationType.RESERVATION,
-                    "Reservation Expired",
-                    "Your reservation for " + r.getApartment().getTitle() + " has expired. Our team will review any eligible fee refund settlement."
+                    "Reservation Hold Expired",
+                    "Your 4-day reservation hold for " + (r.getApartment() != null ? r.getApartment().getTitle() : "the residence")
+                            + " has expired. Our team will review any eligible fee refund settlement."
             ));
         }
     }

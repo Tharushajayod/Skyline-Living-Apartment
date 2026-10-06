@@ -815,7 +815,7 @@ export default function InquiriesPage() {
                 </div>
                 <div className="flex items-start gap-2.5 text-slate-700">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>48-Hour priority hold deposits & deed transfer legal procedures.</span>
+                  <span>4-Day priority reservation holds & deed transfer legal procedures.</span>
                 </div>
                 <div className="flex items-start gap-2.5 text-slate-700">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />

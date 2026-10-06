@@ -33,4 +33,13 @@ public class ReservationDetailsResponse {
     private Long remainingRefundSeconds;
     private String successfulPaymentTime;
     private Boolean cancellationAllowed;
+
+    // Authoritative Reservation Hold & Cancellation Timing Fields
+    private Boolean holdActive;
+    private String holdExpiresAt;
+    private Long remainingHoldSeconds;
+    private String cancellationDeadline;
+    private Boolean cancellationEligible;
+    private Long remainingCancellationSeconds;
+    private String reservationFeeConfirmedAt;
 }

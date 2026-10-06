@@ -15,7 +15,7 @@ import { paymentService } from '@/shared/services/paymentService';
 import { apartmentService } from '@/shared/services/apartmentService';
 import { inquiryService } from '@/shared/services/inquiryService';
 import type { Appointment, Reservation, Payment, Apartment, Inquiry } from '@/shared/types';
-import { formatCurrency, formatDate, countdownTo, timeAgo } from '@/shared/utils/format';
+import { formatCurrency, formatDate, countdownTo, timeAgo, getReservationHoldTiming } from '@/shared/utils/format';
 import Badge, { statusToVariant } from '@/shared/components/ui/Badge';
 import Button from '@/shared/components/ui/Button';
 import EmptyState from '@/shared/components/ui/EmptyState';
@@ -125,8 +125,14 @@ export default function CustomerDashboardPage() {
       (r) => ['Pending', 'Confirmed'].includes(r.status) && !r.isFullyPaid && !r.hasCompletedSale && !r.financiallyClosed
     );
     if (active.length === 0) return null;
-    // Pick the most urgent hold (closest to expiration)
-    return [...active].sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime())[0];
+    return [...active].sort((a, b) => {
+      const aHold = a.holdExpiresAt || (a.status === 'Confirmed' ? a.expiresAt : null);
+      const bHold = b.holdExpiresAt || (b.status === 'Confirmed' ? b.expiresAt : null);
+      if (aHold && bHold) return new Date(aHold).getTime() - new Date(bHold).getTime();
+      if (aHold) return -1;
+      if (bHold) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    })[0];
   }, [reservations]);
 
   // Apartment matching helper
@@ -253,7 +259,7 @@ export default function CustomerDashboardPage() {
                       pendingReservations
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Active 48-Hour Holds</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 font-medium">Active Reservation Holds</p>
                 </div>
               </Link>
 
@@ -309,16 +315,28 @@ export default function CustomerDashboardPage() {
             {featuredReservation ? (
               (() => {
                 const aptObj = getApartmentDetail(featuredReservation.apartmentId, featuredReservation.apartmentTitle);
-                const cd = countdownTo(featuredReservation.expiresAt);
+                const holdTiming = getReservationHoldTiming(featuredReservation);
                 const aptImg = aptObj?.images?.[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
 
                 return (
                   <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-2xs relative overflow-hidden">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                       <div>
-                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-0.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 inline-flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {featuredReservation.status === 'Pending' ? 'Awaiting Reservation Fee' : 'Active 4-Day Hold'}
+                        </span>
+                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-2">
                           {featuredReservation.apartmentTitle}
                         </h2>
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          {featuredReservation.status === 'Pending' ? 'Hold Activation' : 'Hold Status'}
+                        </p>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">
+                          {featuredReservation.status === 'Pending' ? 'Starts upon fee confirmation' : holdTiming.countdownText}
+                        </p>
                       </div>
                     </div>
 
@@ -374,7 +392,7 @@ export default function CustomerDashboardPage() {
                     Discover Verified Residences & Penthouses
                   </h2>
                   <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                    Compare architectural floor plans, place guaranteed 48-hour purchasing holds, or book private on-site viewings.
+                    Compare architectural floor plans, place guaranteed 4-day reservation holds, or book private on-site viewings.
                   </p>
                 </div>
                 <Link
@@ -491,7 +509,7 @@ export default function CustomerDashboardPage() {
                     <div className="py-6 text-center">
                       <KeyRound className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-xs font-semibold text-slate-700">No active holds</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Place a 48-hour purchasing hold on signature apartments.</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Place a 4-day purchasing hold on signature apartments.</p>
                       <Link
                         to="/apartments"
                         className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-800"
@@ -503,7 +521,7 @@ export default function CustomerDashboardPage() {
                   ) : (
                     <div className="space-y-2.5">
                       {activeReservationsList.map((rsv) => {
-                        const cd = countdownTo(rsv.expiresAt);
+                        const holdTiming = getReservationHoldTiming(rsv);
                         return (
                           <div
                             key={rsv.id}
@@ -514,17 +532,20 @@ export default function CustomerDashboardPage() {
                                 {rsv.apartmentTitle}
                               </p>
                               <Badge variant={statusToVariant(rsv.status)} size="sm" dot>
-                                {rsv.status}
+                                {rsv.status === 'Confirmed' ? 'Confirmed (4-Day Hold)' : (rsv.status === 'Pending' ? 'Awaiting Fee' : rsv.status)}
                               </Badge>
                             </div>
                             <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-200/50">
                               <span className="text-slate-500 font-medium">
                                 Fee: <span className="font-bold text-slate-900">{formatCurrency(rsv.reservationFee)}</span>
                               </span>
-                              <span className={`font-semibold flex items-center gap-1 ${cd.expired ? 'text-rose-600' : 'text-amber-700'
-                                }`}>
+                              <span className={`font-semibold flex items-center gap-1 ${
+                                rsv.status === 'Pending'
+                                  ? 'text-amber-700'
+                                  : (holdTiming.isExpired ? 'text-rose-600' : 'text-amber-700')
+                              }`}>
                                 <Clock className="w-3 h-3" />
-                                {cd.text}
+                                {rsv.status === 'Pending' ? 'Awaiting Fee' : holdTiming.countdownText}
                               </span>
                             </div>
                           </div>

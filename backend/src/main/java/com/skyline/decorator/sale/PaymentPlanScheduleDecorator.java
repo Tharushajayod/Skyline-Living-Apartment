@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 /**
  * Decorator Pattern: Concrete Decorator for Payment Plan Schedule.
- *
+
  * Enriches the sale statement with the installment plan schedule, ordered
  * payment milestones, and installment settlement statuses.
  */

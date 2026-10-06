@@ -174,8 +174,8 @@ export function getCustomerFacingFinancialStatus(
 
   return {
     key: 'PENDING',
-    label: 'PENDING 48H HOLD',
-    financialStatusText: 'Awaiting 10% Reservation Fee',
+    label: 'AWAITING RESERVATION FEE',
+    financialStatusText: 'Awaiting 10% Reservation Fee Confirmation',
     badgeVariant: 'warning',
     isPurchased: false,
     isCompletionPending: false,

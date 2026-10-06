@@ -16,7 +16,7 @@ public class ReservationExpirationScheduler {
         this.reservationService = reservationService;
     }
 
-    // Run every 60 seconds to check for expired 48-hour reservations
+    // Run every 60 seconds to check for expired 4-day reservation holds
     @Scheduled(fixedRate = 60000)
     public void checkExpiredReservations() {
         try {

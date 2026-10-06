@@ -172,6 +172,12 @@ public class SaleService {
 
         // 2. Mark reservation confirmed
         if (reservation != null) {
+            if (reservation.getReservationFeeConfirmedAt() == null) {
+                LocalDateTime now = LocalDateTime.now();
+                reservation.setReservationFeeConfirmedAt(now);
+                reservation.setExpiresAt(now.plusDays(4));
+                reservation.setCancellationDeadline(now.plusHours(48));
+            }
             reservation.setStatus(ReservationStatus.CONFIRMED);
             reservationRepository.save(reservation);
         }

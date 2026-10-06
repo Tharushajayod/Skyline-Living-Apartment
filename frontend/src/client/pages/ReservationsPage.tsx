@@ -31,9 +31,9 @@ import {
 import type { Reservation, Apartment, ReservationStatus } from '@/shared/types';
 import { reservationService } from '@/shared/services/reservationService';
 import { apartmentService } from '@/shared/services/apartmentService';
-import { useAuth } from '@/shared/contexts/AuthContext';
-import { formatCurrency, formatDate, countdownTo, getFriendlyErrorMessage } from '@/shared/utils/format';
+import { formatCurrency, formatDate, countdownTo, getFriendlyErrorMessage, getReservationHoldTiming, getReservationCancellationTiming } from '@/shared/utils/format';
 import ReservationDetailsModal from '@/management/components/ReservationDetailsModal';
+import { useAuth } from '@/shared/contexts/AuthContext';
 
 type FilterTab = 'all' | 'active' | 'confirmed' | 'completed_cancelled';
 
@@ -209,19 +209,19 @@ export default function ReservationsPage() {
             {rsv.status === 'Confirmed' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Confirmed
+                Confirmed (4-Day Hold)
               </span>
             )}
             {rsv.status === 'Pending' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                Pending 48h Hold
+                Awaiting Reservation Fee
               </span>
             )}
             {rsv.status === 'Expired' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                Expired
+                Hold Expired
               </span>
             )}
             {rsv.status === 'Cancelled' && (
@@ -259,26 +259,28 @@ export default function ReservationsPage() {
       {
         id: 1,
         title: 'Reservation Placed',
-        desc: 'Hold requested',
+        desc: 'Request submitted',
         completed: true,
         current: false,
       },
       {
         id: 2,
-        title: '48h Hold Active',
-        desc: isPending ? 'Lock in progress' : 'Locked',
-        completed: isConfirmed || isPending || isSoldOrPurchased,
-        current: isPending && !isSoldOrPurchased,
+        title: 'Fee Confirmation',
+        desc: isConfirmed || isSoldOrPurchased
+          ? '10% deposit verified'
+          : 'Awaiting 10% fee',
+        completed: isConfirmed || isSoldOrPurchased,
+        current: isPending,
       },
       {
         id: 3,
-        title: 'Deposit / Payment',
+        title: '4-Day Hold Active',
         desc: isSoldOrPurchased
-          ? 'Full payment verified'
+          ? 'Finalized into purchase'
           : isConfirmed
-            ? 'Deposit verified'
-            : 'Awaiting confirmation',
-        completed: isConfirmed || isSoldOrPurchased,
+            ? 'Exclusive hold running'
+            : 'Starts after fee confirmation',
+        completed: isSoldOrPurchased || (isConfirmed && !rsv.holdActive && !isExpired),
         current: isConfirmed && !isSoldOrPurchased,
       },
       {
@@ -286,7 +288,7 @@ export default function ReservationsPage() {
         title: 'Sales Agreement',
         desc: isSoldOrPurchased
           ? (rsv.hasCompletedSale ? 'Deed transfer active' : 'Sale agreement active')
-          : 'Deed transfer',
+          : 'Settlement & deed transfer',
         completed: isSoldOrPurchased,
         current: isSoldOrPurchased,
       },
@@ -297,7 +299,7 @@ export default function ReservationsPage() {
         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-2 text-rose-600 font-medium">
             <XCircle className="w-4 h-4 shrink-0" />
-            <span>Reservation {rsv.status.toLowerCase()} on {formatDate(rsv.expiresAt || rsv.createdAt)}</span>
+            <span>Reservation {rsv.status.toLowerCase()} on {formatDate(rsv.holdExpiresAt || rsv.expiresAt || rsv.createdAt)}</span>
           </div>
           <span className="text-[11px] text-slate-400">Escrow settlement & refund terms apply</span>
         </div>
@@ -357,7 +359,7 @@ export default function ReservationsPage() {
                 My Reservations
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 max-w-2xl mt-1 font-normal">
-                Manage your apartment reservations, track 48-hour hold expirations, and settle advance booking deposits.
+                Manage your apartment reservations, track 4-day hold expirations, and settle advance booking deposits.
               </p>
             </div>
 
@@ -587,7 +589,8 @@ export default function ReservationsPage() {
                 const isExpired = rsv.status === 'Expired';
                 const isSoldOrPurchased = !isCancelled && !isExpired && Boolean(rsv.hasCompletedSale || rsv.isFullyPaid || apt?.status === 'Sold');
                 const isClosed = !isSoldOrPurchased && (isCancelled || isExpired || Boolean(rsv.financiallyClosed));
-                const cd = countdownTo(rsv.expiresAt);
+                const holdTiming = getReservationHoldTiming(rsv);
+                const cancelTiming = getReservationCancellationTiming(rsv);
                 const showCountdown = !isSoldOrPurchased && !isClosed && (rsv.status === 'Pending' || rsv.status === 'Confirmed');
                 const apartmentImg =
                   apt?.images && apt.images.length > 0
@@ -623,16 +626,30 @@ export default function ReservationsPage() {
                           {getStatusBadge(rsv)}
                         </div>
 
-                        {/* 48h Countdown Pill */}
+                        {/* Hold / Countdown Pill */}
                         {showCountdown && !rsv.hasPaymentCommitment && (
                           <div className="absolute bottom-2.5 left-2.5 right-2.5 bg-slate-900/90 backdrop-blur-xs text-white px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-amber-400">
-                              <Clock className="w-3.5 h-3.5" />
-                              <span>{cd.expired ? 'Hold Expired' : '48h Hold'}</span>
-                            </span>
-                            <span className={cd.expired ? 'text-rose-400' : 'text-slate-200 font-mono'}>
-                              {cd.text}
-                            </span>
+                            {rsv.status === 'Pending' ? (
+                              <>
+                                <span className="flex items-center gap-1.5 text-amber-400">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>Awaiting Fee</span>
+                                </span>
+                                <span className="text-slate-300 font-medium text-[10px]">
+                                  Hold starts upon payment
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="flex items-center gap-1.5 text-amber-400">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>{holdTiming.isExpired ? 'Hold Expired' : '4-Day Hold'}</span>
+                                </span>
+                                <span className={holdTiming.isExpired ? 'text-rose-400' : 'text-slate-200 font-mono'}>
+                                  {holdTiming.countdownText}
+                                </span>
+                              </>
+                            )}
                           </div>
                         )}
                         {showCountdown && rsv.hasPaymentCommitment && (
@@ -665,12 +682,7 @@ export default function ReservationsPage() {
                               </h2>
                             </div>
 
-                            <div className="text-right">
-                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Hold Fee</p>
-                              <p className="text-lg sm:text-xl font-bold text-slate-900">
-                                {formatCurrency(rsv.reservationFee)}
-                              </p>
-                            </div>
+
                           </div>
 
                           {/* Address & Specs */}
@@ -717,7 +729,7 @@ export default function ReservationsPage() {
 
                             <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 col-span-2 sm:col-span-1">
                               <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Commitment Lifecycle</p>
-                              <p className="text-xs font-bold text-slate-900 mt-0.5 flex items-center gap-1 truncate">
+                              <div className="text-xs font-bold text-slate-900 mt-0.5 truncate">
                                 {isClosed ? (
                                   <span className="text-slate-500 font-semibold flex items-center gap-1">
                                     <XCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -728,13 +740,23 @@ export default function ReservationsPage() {
                                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                     {rsv.paymentCommitmentReason || 'Payment Active'}
                                   </span>
+                                ) : rsv.status === 'Confirmed' ? (
+                                  <div className="space-y-0.5">
+                                    <span className="flex items-center gap-1 text-slate-800 font-semibold">
+                                      <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                      <span>Hold: {holdTiming.countdownText}</span>
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 font-normal block">
+                                      {cancelTiming.isEligible ? `Refund window: ${cancelTiming.countdownText}` : 'Refund window expired'}
+                                    </span>
+                                  </div>
                                 ) : (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-amber-600 shrink-0" />
-                                    48h Hold Active
+                                  <span className="flex items-center gap-1 text-amber-700 font-semibold">
+                                    <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                                    Awaiting 10% Fee
                                   </span>
                                 )}
-                              </p>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -777,7 +799,7 @@ export default function ReservationsPage() {
                                 <CreditCard className="w-3.5 h-3.5 text-blue-700" />
                                 <span>View Payment Plan / Ledger</span>
                               </Link>
-                            ) : !isClosed && rsv.status === 'Pending' && !cd.expired ? (
+                            ) : !isClosed && rsv.status === 'Pending' ? (
                               <Link
                                 to="/payments"
                                 state={{ autoPayReservationId: rsv.id }}

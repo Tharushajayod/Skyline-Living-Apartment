@@ -39,6 +39,16 @@ public class ReservationFeeVerificationStrategy extends AbstractPaymentVerificat
         // Confirm associated reservation
         if (payment.getReservation() != null) {
             Reservation reservation = payment.getReservation();
+            java.time.LocalDateTime confirmedAt = payment.getVerifiedAt() != null
+                    ? payment.getVerifiedAt()
+                    : java.time.LocalDateTime.now();
+
+            // Authoritative fee confirmation: set exactly once (idempotent)
+            if (reservation.getReservationFeeConfirmedAt() == null) {
+                reservation.setReservationFeeConfirmedAt(confirmedAt);
+                reservation.setExpiresAt(confirmedAt.plusDays(4));
+                reservation.setCancellationDeadline(confirmedAt.plusHours(48));
+            }
             reservation.setStatus(ReservationStatus.CONFIRMED);
             reservationRepository.save(reservation);
         }

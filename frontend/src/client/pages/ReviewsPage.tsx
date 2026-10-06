@@ -591,7 +591,7 @@ export default function ReviewsPage() {
                             <p className="text-[11px] text-slate-500 mt-1">
                               {isPurchased
                                 ? 'Completed full payment sale agreement'
-                                : 'Active 48-hour reservation hold'}
+                                : 'Active 4-day reservation hold'}
                             </p>
                           </div>
                         </div>
